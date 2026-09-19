@@ -1,0 +1,6 @@
+/target/
+/dist/
+/bundle/
+*.component.wasm
+/.omo/
+/.codegraph/
