@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
+import { constants } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -7,7 +8,7 @@ import { promisify } from "node:util";
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL("../", import.meta.url));
 const binary = `${root}dist/pump`;
-const bundle = `${root}bundle`;
+const bundle = process.env.PUMP_BUNDLE ?? `${root}bundle`;
 let active = 0;
 
 function send(response, status, value) {
@@ -21,10 +22,14 @@ function send(response, status, value) {
 
 async function ready() {
   try {
-    await Promise.all([access(binary), access(`${bundle}/manifest.lock.json`)]);
+    await access(binary, constants.X_OK);
+    await execute(binary, ["verify", bundle, "--format", "json"], {
+      timeout: 10_000,
+      maxBuffer: 65_536,
+    });
     return true;
   } catch (error) {
-    if (error.code === "ENOENT") return false;
+    if (error instanceof Error) return false;
     throw error;
   }
 }

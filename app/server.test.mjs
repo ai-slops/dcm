@@ -34,3 +34,19 @@ test("arbitrary file routes are unavailable", async () => {
   const response = await fetch(`${base}/manifest.json`);
   assert.equal(response.status, 404);
 });
+
+test("gateway generates replay-identical real WASM charts", {
+  skip: process.env.PUMP_BUNDLE === undefined,
+}, async () => {
+  const seed = "00".repeat(32);
+  const first = await fetch(`${base}/api/generate?seed=${seed}`);
+  const second = await fetch(`${base}/api/generate?seed=${seed}`);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  const a = await first.json();
+  const b = await second.json();
+  assert.deepEqual(a, b);
+  assert.equal(a.commands.length, 52);
+  assert.match(a.generated_chart_digest, /^[0-9a-f]{64}$/);
+  assert.match(a.runtime_digest, /^[0-9a-f]{64}$/);
+});
