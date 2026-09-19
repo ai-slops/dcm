@@ -1,0 +1,16 @@
+[package]
+name = "pump-runtime-component"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pump-core = { path = "../../crates/pump-core" }
+wit-bindgen.workspace = true
+
+[lints]
+workspace = true

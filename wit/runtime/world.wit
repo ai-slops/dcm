@@ -1,0 +1,9 @@
+package pump:runtime@0.1.0;
+
+interface runtime {
+  generate: func(runtime-plan: list<u8>, seed: list<u8>) -> result<list<u8>, string>;
+}
+
+world runtime-world {
+  export runtime;
+}
