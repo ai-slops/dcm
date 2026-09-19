@@ -1,0 +1,29 @@
+package pump:author@0.1.0;
+
+interface plan-builder {
+  enum scope-kind { run, section, phrase }
+  enum relation-kind { same, different }
+  record weighted-node { weight: u32, node: u32 }
+
+  resource builder {
+    constructor(max-nodes: u32, max-expansions: u32);
+    tap: func(panel-mask: u16, duration: u32, decision-id: string, provenance: string) -> result<u32, string>;
+    sequence: func(children: list<u32>, decision-id: string, provenance: string) -> result<u32, string>;
+    parallel: func(children: list<u32>, decision-id: string, provenance: string) -> result<u32, string>;
+    repeat: func(child: u32, times: u32, decision-id: string, provenance: string) -> result<u32, string>;
+    choice: func(alternatives: list<weighted-node>, duration: option<u32>, decision-id: string, provenance: string) -> result<u32, string>;
+    scope: func(kind: scope-kind, occurrence-key: string, child: u32, decision-id: string, provenance: string) -> result<u32, string>;
+    mirror: func(child: u32, decision-id: string, provenance: string) -> result<u32, string>;
+    relation: func(kind: relation-kind, left: u32, right: u32, decision-id: string, provenance: string) -> result<u32, string>;
+    finish: func(root: u32) -> result<_, string>;
+  }
+}
+
+interface author {
+  build: func() -> result<_, string>;
+}
+
+world author-world {
+  import plan-builder;
+  export author;
+}
