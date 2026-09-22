@@ -1,0 +1,15 @@
+[package]
+name = "pump-style-calm-component"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen.workspace = true
+
+[lints]
+workspace = true
