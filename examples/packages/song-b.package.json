@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "song": "song",
+  "packages": [
+    {
+      "key": "song",
+      "name": "example-song-b",
+      "version": "1.0.0",
+      "role": "song",
+      "component": "song-b.component.wasm",
+      "exports": ["build"],
+      "contract": "pump.song/v1",
+      "dependencies": ["pattern", "style"]
+    },
+    {
+      "key": "pattern",
+      "name": "shared-sweep-pattern",
+      "version": "1.0.0",
+      "role": "pattern",
+      "component": "pattern.component.wasm",
+      "exports": ["render"],
+      "contract": "pump.pattern/v1",
+      "capabilities": ["pump.mirror", "pump.sequence", "pump.tap"]
+    },
+    {
+      "key": "style",
+      "name": "bold-style",
+      "version": "1.0.0",
+      "role": "style",
+      "component": "style-bold.component.wasm",
+      "exports": ["policy"],
+      "contract": "pump.style/v1"
+    }
+  ]
+}
