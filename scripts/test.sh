@@ -3,6 +3,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 ./scripts/build.sh
+./scripts/test-packages.sh
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 seed0="0000000000000000000000000000000000000000000000000000000000000000"
