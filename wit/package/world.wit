@@ -1,0 +1,87 @@
+package pump:packages@0.2.0;
+
+interface operations {
+  record weighted-node { weight: u32, node: u32 }
+
+  resource builder {
+    tap: func(panel-mask: u16, duration: u32, stable-id: string) -> result<u32, string>;
+    sequence: func(children: list<u32>, stable-id: string) -> result<u32, string>;
+    mirror: func(child: u32, stable-id: string) -> result<u32, string>;
+    choice: func(alternatives: list<weighted-node>, duration: option<u32>, stable-id: string) -> result<u32, string>;
+  }
+}
+
+interface lifecycle {
+  use operations.{builder};
+  create: func(max-nodes: u32, max-expansions: u32) -> own<builder>;
+  finish: func(target: borrow<builder>, root: u32) -> result<_, string>;
+}
+
+interface registry {
+  use operations.{builder};
+
+  record pattern-args {
+    base-panel: u8,
+    length: u8,
+    allow-mirror: bool,
+  }
+
+  record style-policy {
+    primary-weight: u32,
+    variation-weight: u32,
+    allow-mirror: bool,
+  }
+
+  instantiate-pattern: func(
+    target: borrow<builder>,
+    lock-entry-key: string,
+    export-name: string,
+    args: pattern-args,
+    occurrence-key: string,
+  ) -> result<u32, string>;
+
+  instantiate-style: func(lock-entry-key: string, export-name: string) -> result<style-policy, string>;
+}
+
+interface pattern {
+  use operations.{builder};
+  record pattern-args {
+    base-panel: u8,
+    length: u8,
+    allow-mirror: bool,
+  }
+  record description { contract: string, capabilities: list<string> }
+  describe: func() -> description;
+  render: func(target: borrow<builder>, args: pattern-args) -> result<u32, string>;
+}
+
+interface style {
+  record style-policy {
+    primary-weight: u32,
+    variation-weight: u32,
+    allow-mirror: bool,
+  }
+  record description { contract: string, policy-id: string }
+  describe: func() -> description;
+  policy: func() -> style-policy;
+}
+
+interface song {
+  build: func() -> result<_, string>;
+}
+
+world song-world {
+  import operations;
+  import lifecycle;
+  import registry;
+  export song;
+}
+
+world pattern-world {
+  import operations;
+  export pattern;
+}
+
+world style-world {
+  export style;
+}
