@@ -4,6 +4,11 @@ members = [
   "crates/pump-cli",
   "components/author",
   "components/runtime",
+  "components/pattern",
+  "components/style-calm",
+  "components/style-bold",
+  "components/song-a",
+  "components/song-b",
 ]
 resolver = "3"
 

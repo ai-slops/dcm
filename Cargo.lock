@@ -812,6 +812,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "pump-pattern-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-song-a-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-song-b-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-style-bold-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-style-calm-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
 name = "pump-core"
 version = "0.1.0"
 dependencies = [
