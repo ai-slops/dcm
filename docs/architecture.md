@@ -13,7 +13,7 @@ Rust author source
   -> versioned PUMP CommandTrace
 ```
 
-`components/author` is a replaceable authoring example. It cannot submit a serialized Plan or access WASI. The host owns one builder per invocation and accepts only backward node references. Guest IDs are scoped to that builder. Guest-provided provenance is a diagnostic source label, not authenticated evidence of authorship or musical intent.
+`components/author` is the backward-compatible raw authoring example. It cannot submit a serialized Plan or access WASI. The host owns one builder per invocation and accepts only backward node references. Its guest-provided provenance is a diagnostic source label, not authenticated evidence of authorship or musical intent. The additional package path uses role-specific worlds, shared session budgets, private builder views, and host-authored package provenance; see [local package format](package-format.md).
 
 `crates/pump-core` owns composition semantics, integer sampling, binary encoding, structural analysis, and validation. The compiler rechecks metadata at the public Plan boundary. Decoding reconstructs and verifies a RuntimePlan before execution. The shared implementation compiles both natively for testing and into the generic runtime component; the production CLI always calls the component rather than substituting native generation.
 
@@ -42,6 +42,6 @@ The CLI is a development tool, not an internet multi-tenant compiler service. It
 
 ## Extension points and limits
 
-The initial IR is already PUMP-specific at its tap boundary. General capability-based game adapters, reusable separately linked pattern/style components, evidence/intent semantics, embodiment paths, and calibrated difficulty require subsequent implementation. Keeping these explicitly absent is preferable to treating provenance strings as intent evidence or labeling note counts as a calibrated difficulty model.
+The initial IR is already PUMP-specific at its tap boundary. Locally locked pattern/style components now compose through the host registry. General capability-based game adapters, nested dependency graphs, fragment caches, evidence/intent semantics, embodiment paths, and calibrated difficulty still require subsequent implementation. Keeping these explicitly absent is preferable to treating provenance strings as intent evidence or labeling note counts as a calibrated difficulty model.
 
 No `bounded`, `exact`, or `ranked` certificate is emitted. The sole manifest certification value is `development`. Cross-architecture determinism is a design goal backed by integer-only semantics and golden tests, not a claim that ARM64 or macOS has been tested in this workspace.

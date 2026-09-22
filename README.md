@@ -1,6 +1,6 @@
 # PUMP component chart compiler
 
-This repository is an executable stage-1 foundation for deterministic procedural charts on a ten-panel PUMP layout. An untrusted Rust author component builds a bounded canonical plan only through a host-owned WIT resource. The host validates and compiles that plan into a versioned binary `RuntimePlan`. A separate import-free runtime WebAssembly component expands it into a deterministic `CommandTrace`.
+This repository implements a deterministic procedural chart pipeline for a ten-panel PUMP layout, including local reusable song, pattern, and style packages. Untrusted Rust components build a bounded plan only through host-owned WIT resources. The host validates and compiles that plan into a versioned binary `RuntimePlan`. A separate import-free runtime WebAssembly component expands it into a deterministic `CommandTrace`.
 
 ## Build
 
@@ -16,6 +16,7 @@ The build emits:
 - `dist/pump`
 - `dist/author.component.wasm`
 - `dist/runtime.component.wasm`
+- reusable package examples: one pattern, two songs, two styles, and two source manifests
 
 ## End-to-end quickstart
 
@@ -40,6 +41,18 @@ Run all automated and adversarial scenarios with `./scripts/test.sh`. It rebuild
 
 The output bundle directory must not already exist. Compiling a second bundle with the same inputs produces identical artifact bytes. The bundled example produces 52 tap commands; compare `commands`, not replay metadata, when measuring chart variation.
 
+## Local package composition
+
+```sh
+./dist/pump package resolve dist/song-a.package.json --out song-a.lock.json
+./dist/pump package compile dist/song-a.package.json \
+  --lock song-a.lock.json --runtime dist/runtime.component.wasm --out song-a.bundle
+./dist/pump generate song-a.bundle \
+  --seed 0000000000000000000000000000000000000000000000000000000000000000
+```
+
+`song-a.package.json` and `song-b.package.json` use the same locked pattern component and different locked style components. Package compilation needs source files, but generation and verification use only the completed bundle. See [local package format](docs/package-format.md).
+
 ## DIM gateway
 
 `.dim/` is preserved unchanged. Its existing launcher invokes the rewritten `app/server.mjs` on port 3000. The gateway has no editing UI and no arbitrary shell/path endpoint.
@@ -56,4 +69,4 @@ Generation uses `dist/pump` and `bundle/` from the quickstart. An operator may s
 
 The host links no WASI interfaces. Components run synchronously with fuel, one memory capped at 64 MiB, instance/table limits, and a hostcall budget. Threads, shared memory, SIMD, and relaxed SIMD are unavailable. Bundle hashes and the lock file provide integrity, not publisher authenticity; a trusted release signature is deliberately not claimed. The gateway is a development service, not an authenticated public generation service.
 
-This delivery does **not** implement the entire roadmap: package composition, intent scoring, calibrated difficulty, foot execution paths, holds, history-aware selection, signing, and ranked certification remain unimplemented. No physical feasibility or official level is inferred from structural validity.
+This delivery does **not** implement the entire roadmap: network/transitive package resolution, intent scoring, calibrated difficulty, foot execution paths, holds, history-aware selection, signing, and ranked certification remain unimplemented. No physical feasibility or official level is inferred from structural validity.
