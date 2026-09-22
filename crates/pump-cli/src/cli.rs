@@ -30,6 +30,37 @@ pub enum Command {
     Verify(BundleArgs),
     TestSeeds(TestSeedsArgs),
     Explain(GenerateArgs),
+    Package(PackageArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct PackageArgs {
+    #[command(subcommand)]
+    pub command: PackageCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PackageCommand {
+    Resolve {
+        manifest: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Compile {
+        manifest: PathBuf,
+        #[arg(long)]
+        lock: PathBuf,
+        #[arg(long)]
+        runtime: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Compatible {
+        required: PathBuf,
+        candidate: PathBuf,
+        #[arg(long)]
+        key: String,
+    },
 }
 
 #[derive(Debug, Args)]

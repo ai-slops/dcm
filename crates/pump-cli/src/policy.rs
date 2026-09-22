@@ -25,3 +25,22 @@ pub fn digest() -> anyhow::Result<String> {
     }
     Ok(bundle::digest(&bytes))
 }
+
+pub fn package_digest() -> anyhow::Result<String> {
+    let fields = [
+        crate::package_session::ROOT_FUEL,
+        crate::package_session::CHILD_FUEL,
+        u64::from(crate::package_session::REGISTRY_ATTEMPTS),
+        u64::try_from(crate::engine::PACKAGE_MEMORY_BYTES)?,
+        u64::try_from(crate::package::PACKAGE_LIMIT)?,
+        crate::package::TOTAL_COMPONENT_LIMIT,
+        crate::package::MANIFEST_LIMIT,
+    ];
+    let mut bytes = b"pump-package-policy-v1\0".to_vec();
+    bytes.extend_from_slice(digest()?.as_bytes());
+    for field in fields {
+        bytes.extend_from_slice(&field.to_le_bytes());
+    }
+    bytes.extend_from_slice(include_bytes!("../../../wit/package/world.wit"));
+    Ok(bundle::digest(&bytes))
+}

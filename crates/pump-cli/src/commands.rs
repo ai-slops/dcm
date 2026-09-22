@@ -10,7 +10,7 @@ use crate::artifact_io::{self, ARTIFACT_LIMIT};
 use crate::author_bindings::AuthorWorld;
 use crate::author_host::HostState;
 use crate::bundle;
-use crate::cli::{Cli, Command, ComponentCommand, OutputFormat};
+use crate::cli::{Cli, Command, ComponentCommand, OutputFormat, PackageCommand};
 use crate::runtime_runner::RuntimeRunner;
 
 #[derive(Serialize)]
@@ -32,6 +32,31 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Analyze(args) => analyze(&args.bundle, cli.format),
         Command::Verify(args) => output(&bundle::verify(&args.bundle)?, cli.format),
         Command::TestSeeds(args) => test_seeds(args, cli.format),
+        Command::Package(args) => match &args.command {
+            PackageCommand::Resolve { manifest, out } => {
+                output(&crate::package_compile::resolve(manifest, out)?, cli.format)
+            }
+            PackageCommand::Compile {
+                manifest,
+                lock,
+                runtime,
+                out,
+            } => output(
+                &crate::package_compile::compile(manifest, lock, runtime, out)?,
+                cli.format,
+            ),
+            PackageCommand::Compatible {
+                required,
+                candidate,
+                key,
+            } => {
+                crate::package_compile::compatible(required, candidate, key)?;
+                output(
+                    &serde_json::json!({ "compatible": true, "key": key }),
+                    cli.format,
+                )
+            }
+        },
     }
 }
 
@@ -104,6 +129,8 @@ fn compile(args: &crate::cli::CompileArgs, format: OutputFormat) -> Result<()> {
             runtime: &runtime_bytes,
             plan: &plan_bytes,
             analysis: &analysis_bytes,
+            package_lock: None,
+            invocation_report: None,
         },
     )?;
     output(&manifest, format)
@@ -164,7 +191,10 @@ fn test_seeds(args: &crate::cli::TestSeedsArgs, format: OutputFormat) -> Result<
     )
 }
 
-fn ensure_runtime_import_free(engine: &wasmtime::Engine, component: &Component) -> Result<()> {
+pub(crate) fn ensure_runtime_import_free(
+    engine: &wasmtime::Engine,
+    component: &Component,
+) -> Result<()> {
     let imports: Vec<String> = component
         .component_type()
         .imports(engine)

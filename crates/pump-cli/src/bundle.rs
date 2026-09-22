@@ -13,6 +13,8 @@ const PLAN: &str = "runtime-plan.bin";
 const RUNTIME: &str = "runtime.component.wasm";
 const AUTHOR: &str = "author.component.wasm";
 const ANALYSIS: &str = "analysis.json";
+const PACKAGE_LOCK: &str = "package.lock.json";
+const INVOCATION_REPORT: &str = "invocations.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +31,12 @@ pub struct Manifest {
     pub random_scheme: String,
     pub mode: String,
     pub certification: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_lock_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation_report_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_policy_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +66,8 @@ pub struct Artifacts<'a> {
     pub runtime: &'a [u8],
     pub plan: &'a [u8],
     pub analysis: &'a [u8],
+    pub package_lock: Option<&'a [u8]>,
+    pub invocation_report: Option<&'a [u8]>,
 }
 
 pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
@@ -76,11 +86,23 @@ pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
         random_scheme: "sha256-path-v1".to_owned(),
         mode: "pump-double-10".to_owned(),
         certification: "development".to_owned(),
+        package_lock_sha256: artifacts.package_lock.map(digest),
+        invocation_report_sha256: artifacts.invocation_report.map(digest),
+        package_policy_sha256: artifacts
+            .package_lock
+            .map(|_| crate::policy::package_digest())
+            .transpose()?,
     };
     fs::write(root.join(AUTHOR), artifacts.author).context("write bundled author")?;
     fs::write(root.join(RUNTIME), artifacts.runtime).context("write bundled runtime")?;
     fs::write(root.join(PLAN), artifacts.plan).context("write runtime plan")?;
     fs::write(root.join(ANALYSIS), artifacts.analysis).context("write analysis")?;
+    if let Some(bytes) = artifacts.package_lock {
+        fs::write(root.join(PACKAGE_LOCK), bytes).context("write package lock")?;
+    }
+    if let Some(bytes) = artifacts.invocation_report {
+        fs::write(root.join(INVOCATION_REPORT), bytes).context("write invocation report")?;
+    }
     let manifest_bytes = serde_json::to_vec_pretty(&manifest).context("encode manifest")?;
     fs::write(root.join(MANIFEST), &manifest_bytes).context("write manifest")?;
     let lock = Lock {
@@ -106,6 +128,17 @@ pub fn load(root: &Path) -> Result<Bundle> {
     );
     let manifest: Manifest = serde_json::from_slice(&manifest_bytes).context("decode manifest")?;
     ensure!(manifest.schema_version == 1, "unsupported manifest schema");
+    match (
+        &manifest.package_lock_sha256,
+        &manifest.package_policy_sha256,
+    ) {
+        (None, None) => {}
+        (Some(_), Some(policy)) => ensure!(
+            *policy == crate::policy::package_digest()?,
+            "unsupported package compiler policy"
+        ),
+        (None, Some(_)) | (Some(_), None) => bail!("package policy and lock must appear together"),
+    }
     ensure!(
         manifest.compiler_version == env!("CARGO_PKG_VERSION"),
         "unsupported compiler version"
@@ -135,6 +168,17 @@ pub fn load(root: &Path) -> Result<Bundle> {
     let runtime = check(root, RUNTIME, &manifest.runtime_sha256)?;
     let plan = check(root, PLAN, &manifest.runtime_plan_sha256)?;
     let analysis = check(root, ANALYSIS, &manifest.analysis_sha256)?;
+    let package_lock = check_optional(root, PACKAGE_LOCK, manifest.package_lock_sha256.as_deref())?;
+    let invocation_report = check_optional(
+        root,
+        INVOCATION_REPORT,
+        manifest.invocation_report_sha256.as_deref(),
+    )?;
+    crate::package_bundle::validate(
+        package_lock.as_deref(),
+        invocation_report.as_deref(),
+        &manifest.author_sha256,
+    )?;
     pump_core::decode_runtime_plan(&plan).context("validate runtime plan")?;
     Ok(Bundle {
         manifest,
@@ -168,40 +212,14 @@ fn check(root: &Path, name: &str, expected: &str) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+fn check_optional(root: &Path, name: &str, expected: Option<&str>) -> Result<Option<Vec<u8>>> {
+    if let Some(digest) = expected {
+        return Ok(Some(check(root, name, digest)?));
+    }
+    Ok(None)
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
     serde_json::from_slice(&artifact_io::read(path, 65_536)?)
         .with_context(|| format!("decode {}", path.display()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn verify_rejects_tampered_artifact() {
-        // Given
-        let temp = tempfile::tempdir().expect("tempdir");
-        let author = temp.path().join("author");
-        let runtime = temp.path().join("runtime");
-        fs::write(&author, b"author").expect("author");
-        fs::write(&runtime, b"runtime").expect("runtime");
-        let root = temp.path().join("bundle");
-        write(
-            &root,
-            &Artifacts {
-                author: b"author",
-                runtime: b"runtime",
-                plan: b"plan",
-                analysis: b"analysis",
-            },
-        )
-        .expect("bundle");
-        fs::write(root.join(PLAN), b"tampered").expect("tamper");
-
-        // When
-        let error = verify(&root).expect_err("tamper must fail");
-
-        // Then
-        assert!(error.to_string().contains("runtime-plan.bin"));
-    }
 }

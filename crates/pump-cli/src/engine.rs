@@ -8,6 +8,7 @@ pub const INSTANCES: usize = 32;
 pub const TABLES: usize = 32;
 pub const MEMORIES: usize = 1;
 pub const HOSTCALLS: u32 = 50_000;
+pub const PACKAGE_MEMORY_BYTES: usize = 32 * 1024 * 1024;
 
 pub fn engine() -> Result<Engine> {
     let mut config = Config::new();
@@ -22,6 +23,17 @@ pub fn engine() -> Result<Engine> {
 pub fn limits() -> StoreLimits {
     StoreLimitsBuilder::new()
         .memory_size(MEMORY_BYTES)
+        .table_elements(TABLE_ELEMENTS)
+        .instances(INSTANCES)
+        .tables(TABLES)
+        .memories(MEMORIES)
+        .trap_on_grow_failure(true)
+        .build()
+}
+
+pub fn package_limits() -> StoreLimits {
+    StoreLimitsBuilder::new()
+        .memory_size(PACKAGE_MEMORY_BYTES)
         .table_elements(TABLE_ELEMENTS)
         .instances(INSTANCES)
         .tables(TABLES)
