@@ -1,0 +1,18 @@
+[package]
+name = "pump-song-a-component"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+test-recovery = []
+
+[dependencies]
+wit-bindgen.workspace = true
+
+[lints]
+workspace = true
