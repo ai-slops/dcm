@@ -17,6 +17,8 @@ Compilation requires the supplied lock to equal a fresh resolution, compiles the
 
 ## Component roles
 
+The source-resolution requirement above applies to `package compile` and `package cache`. `package compile-locked` instead validates the lock and loads every component by verified digest from an explicit local store, then uses the identical compiler path. It does not require the original manifest or component paths. See [artifact store](artifact-store.md).
+
 - Song components import `operations`, `lifecycle`, and `registry`, and export `song.build`.
 - Pattern components import only `operations`, receive a borrowed store-local builder view, truthfully describe their `pump.pattern/v1` contract and capabilities, and export `render`.
 - Style components import nothing, describe `pump.style/v1`, and return typed weights plus mirror permission. They cannot mutate a builder.

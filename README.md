@@ -51,7 +51,18 @@ The output bundle directory must not already exist. Compiling a second bundle wi
   --seed 0000000000000000000000000000000000000000000000000000000000000000
 ```
 
-`song-a.package.json` and `song-b.package.json` use the same locked pattern component and different locked style components. Package compilation needs source files, but generation and verification use only the completed bundle. See [local package format](docs/package-format.md).
+`song-a.package.json` and `song-b.package.json` use the same locked pattern component and different locked style components. Source-based compilation checks the source files against the lock; generation and verification use only the completed bundle. See [local package format](docs/package-format.md).
+
+Retain those source artifacts in a local digest store before removing them:
+
+```sh
+./dist/pump package cache dist/song-a.package.json \
+  --lock song-a.lock.json --store .pump-store
+./dist/pump package compile-locked song-a.lock.json \
+  --store .pump-store --runtime dist/runtime.component.wasm --out restored-song-a.bundle
+```
+
+`compile-locked` does not read the source manifest or original song/pattern/style files. It verifies every stored component against its locked SHA-256 and uses the same compiler. With the same exact lock bytes and runtime component, the resulting bundle is byte-identical to source-based compilation. The runtime component remains an explicit input. See [artifact store](docs/artifact-store.md) for layout and filesystem trust limits.
 
 ## DIM gateway
 
