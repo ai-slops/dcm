@@ -17,6 +17,39 @@ The build emits:
 - `dist/author.component.wasm`
 - `dist/runtime.component.wasm`
 - reusable package examples: one pattern, two songs, two styles, and two source manifests
+- `dist/chart-author.component.wasm`, `dist/chart-runtime.component.wasm`, and `dist/feedback/` for the additive v2 pipeline
+
+## Feedback-grade v2 workflow
+
+Use `pump chart` for holds/rests, exact musical timing, two-foot execution paths, intent evidence,
+rule-based difficulty, exhaustive finite-candidate certification, history-aware generation, and
+optional trusted Ed25519 signatures. The original commands below continue to use v1 unchanged.
+
+```sh
+demo="$(mktemp -d)"
+node scripts/make-feedback-audio.mjs "$demo/music.wav"
+./dist/pump chart compile dist/chart-author.component.wasm \
+  --runtime dist/chart-runtime.component.wasm \
+  --music dist/feedback/music.json --audio "$demo/music.wav" \
+  --contract dist/feedback/contract.json --out "$demo/chart.bundle" --format json
+./dist/pump chart analyze "$demo/chart.bundle" --format json
+./dist/pump chart explain "$demo/chart.bundle" \
+  --seed 0000000000000000000000000000000000000000000000000000000000000000 --format json
+./dist/pump chart verify "$demo/chart.bundle" --audio "$demo/music.wav" --format json
+./dist/pump chart keygen --private "$demo/release.key" --public "$demo/release.pub"
+./dist/pump chart sign "$demo/chart.bundle" --key "$demo/release.key"
+./dist/pump chart verify "$demo/chart.bundle" --trusted-key "$demo/release.pub" --format json
+```
+
+The example has a real four-second metronome, a 100 ms offset, and a 120-to-150 BPM change.
+`explain` exposes exact song times and an execution witness. `evaluate` accepts a concrete chart
+for direct damaged-pattern or impossible-movement feedback. `compile --failure-report <path>`
+retains structured counterexamples when every candidate fails. `analyze` supplies hexadecimal
+candidate IDs for repeated `generate --history <id>` options.
+
+See [v2 CLI and bundles](docs/chart-v2.md), [evaluation model and units](docs/evaluation-v2.md),
+and [verification evidence](docs/verification.md). These are exact results within a declared,
+bounded rule model, not official PUMP ratings or guarantees of human safety.
 
 ## End-to-end quickstart
 
@@ -78,6 +111,6 @@ Generation uses `dist/pump` and `bundle/` from the quickstart. An operator may s
 
 ## Security boundary
 
-The host links no WASI interfaces. Components run synchronously with fuel, one memory capped at 64 MiB, instance/table limits, and a hostcall budget. Threads, shared memory, SIMD, and relaxed SIMD are unavailable. Bundle hashes and the lock file provide integrity, not publisher authenticity; a trusted release signature is deliberately not claimed. The gateway is a development service, not an authenticated public generation service.
+The host links no WASI interfaces. Components run synchronously with fuel, one memory capped at 64 MiB, instance/table limits, and a hostcall budget. Threads, shared memory, SIMD, and relaxed SIMD are unavailable. Hashes alone provide integrity, not publisher authenticity; v2 signature verification requires an explicitly supplied trusted public key. The existing HTTP gateway remains a v1 development service, not an authenticated public generation service. V2 is exposed through the `pump chart` CLI.
 
-This delivery does **not** implement the entire roadmap: network/transitive package resolution, intent scoring, calibrated difficulty, foot execution paths, holds, history-aware selection, signing, and ranked certification remain unimplemented. No physical feasibility or official level is inferred from structural validity.
+The six feedback domains are implemented in the finite v2 profile. Network/transitive package resolution, generic Plan-fragment caches, empirical difficulty calibration, full biomechanics, production game-engine integration, and official ranked policy remain separate work. Structural validity alone is not physical feasibility; v2 evaluates the explicitly declared contact model.

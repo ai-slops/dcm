@@ -8,7 +8,7 @@ Verified in this workspace on x86-64 Linux using the pinned Docker build. ARM64,
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
-- `cargo test --locked --workspace`: 61 tests passed (31 host/package/store tests and 30 core tests).
+- `cargo test --locked --workspace`: 134 tests passed (44 CLI/host tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
 - Release builds of the CLI and both WASM guests, followed by componentization.
 
 The end-to-end script runs the actual author and runtime through Wasmtime. It checks identical output for repeated requests, compares actual command arrays across seeds, exercises the gateway against a real bundle, and rejects malformed seeds, modified artifacts, and runtime components with imports. All five Node gateway tests passed, including successful WASM-backed generation.
@@ -37,7 +37,23 @@ Package compilation pins its separate fuel/memory/registry policy without changi
 
 The store extension adds nine filesystem regression tests. `scripts/test-store.sh` verifies two source-built bundles against lock-only rebuilds after deleting the source tree, compares every bundle file and generated output, preserves a deliberately reformatted lock, and verifies shared-pattern deduplication (five blobs for two three-package songs). Missing stores, missing blobs, corrupted blobs, and changed sources during caching are rejected. Concurrent matching writers, preexisting corruption, symlinks, invalid digest paths, and oversized blobs are covered by the filesystem tests.
 
-## Verification limitations
+## Feedback-grade v2
+
+The additive v2 acceptance driver (`scripts/test-chart-v2.mjs`) executes the real author and runtime components. It covers all six feedback domains, including:
+
+- Two retained weighted variants, with actual holds, center/corner brackets, silence, repetitions, and whole-layout mirroring.
+- A generated PCM WAV with a 100 ms offset and 120-to-150 BPM change; exact schedule checks at ticks 0, 16, and 32 give 100,000, 2,100,000, and 3,700,000 microseconds.
+- Deterministic replay, exact original/retained/rejected probability accounting, recent-history exclusion, and explicit all-excluded fallback.
+- Required accent damage, exclusive/shared credit, held negative space, mirrored motifs, impossible five-panel contact, and hold-release travel rejection.
+- Difficulty rejection, fatal evaluator budgets, malformed tempo fractions, and rejection of codec limits too small to publish a readable bundle.
+- Semantic certificate reproduction after a report is forged and its file digest updated, rather than trusting claimed witnesses.
+- Ed25519 key generation, restricted private-key permissions, externally anchored verification, wrong-key/signature rejection, and signature-symlink refusal.
+
+Independent review also added regressions for repeated same-pose contact clocks, overlapping accent allocation, iterative matching stack safety, indexed hold endpoints, encoder/decoder limit symmetry, and full native-reference comparison of guest selection/probability/history metadata. The old v1 zero-seed Plan and generated-trace digests remain fixed golden values and pass the complete suite.
+
+Manual CLI QA created `bundle/feedback-v2`, generated held notes at ticks 0, 8, 16, and 24, checked the exact music schedule and intent scores, and verified a locally signed bundle with an explicitly supplied trusted key. Generated demo artifacts and keys are not source-controlled; signing keys were created outside the workspace. No production publisher trust is implied.
+
+## Environment limitations
 
 Rust and JavaScript LSP servers were unavailable; compiler, Clippy, syntax checks, and executable tests were used instead. No LSP-clean claim is made.
 

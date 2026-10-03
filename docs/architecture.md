@@ -1,6 +1,6 @@
 # Executable architecture
 
-## Delivered boundary
+## Preserved v1 boundary
 
 ```text
 Rust author source
@@ -32,7 +32,24 @@ Rust author source
 
 Readers reject oversized or non-regular artifact paths, mismatched digests, unsupported versions/policy, and invalid runtime plans. `verify` checks integrity and data validity, not publisher trust or a universal physical-safety certificate. A lock stored alongside its artifacts cannot authenticate them against an attacker who replaces the whole directory. The caller must trust the runtime digest or use a future signed distribution channel.
 
-Generation binds the exact plan, seed, and runtime digest in CLI output, and returns a generated trace digest. Only double ten-panel mode is supported. There is no history input; repeated requests with the same supported inputs are replay-identical.
+V1 generation binds the exact plan, seed, and runtime digest in CLI output, and returns a generated trace digest. Only double ten-panel mode is supported. V1 has no history input; repeated requests with the same supported inputs are replay-identical.
+
+## Additive feedback-grade v2 boundary
+
+`pump chart` uses separate `pump-chart` types and binary codecs, `pump-eval` model evaluation,
+and a versioned `pump:chart` WIT world. It adds holds, rests, exact tempo/audio time, finite
+two-foot execution, concrete-note intent evidence, difficulty envelopes, full retained-candidate
+verification, recent-history sampling, and optional trusted signatures without changing v1.
+
+The compiler exhaustively enumerates the supported finite Plan, merges equal normalized musical
+traces, evaluates every candidate, and records all rejection witnesses and exact removed prior mass.
+The runtime receives only the retained weighted candidate table. The host compares each generated
+response with the native reference selector, including probability and history metadata.
+
+Schema-2 bundles contain the canonical author Plan, compile limits, evaluation contract, runtime
+table/component, and report. `chart verify` reproduces the complete evaluation, not merely the file
+hashes. Ed25519 authenticity requires an externally supplied trusted key. See
+[chart v2](chart-v2.md) and [the evaluation model](evaluation-v2.md) for limits and exact claims.
 
 ## Runtime and build limits
 
@@ -42,6 +59,6 @@ The CLI is a development tool, not an internet multi-tenant compiler service. It
 
 ## Extension points and limits
 
-The initial IR is already PUMP-specific at its tap boundary. Locally locked pattern/style components now compose through the host registry. General capability-based game adapters, nested dependency graphs, fragment caches, evidence/intent semantics, embodiment paths, and calibrated difficulty still require subsequent implementation. Keeping these explicitly absent is preferable to treating provenance strings as intent evidence or labeling note counts as a calibrated difficulty model.
+The initial IR is already PUMP-specific at its tap boundary. Locally locked v1 pattern/style components compose through the host registry; the additive v2 author has its own operations. General capability-based game adapters, nested dependency graphs, fragment caches, richer metric plugins, and empirical difficulty calibration remain future work. V2 evidence comes from actual notes and bound annotations, not provenance strings.
 
-No `bounded`, `exact`, or `ranked` certificate is emitted. The sole manifest certification value is `development`. Cross-architecture determinism is a design goal backed by integer-only semantics and golden tests, not a claim that ARM64 or macOS has been tested in this workspace.
+V1 remains `development`. V2 emits `exact-within-declared-model` for the finite retained candidate set. Neither path claims official ranked approval or human physical safety. Cross-architecture determinism is a design goal backed by integer-only semantics and golden tests, not a claim that ARM64 or macOS has been tested in this workspace.
