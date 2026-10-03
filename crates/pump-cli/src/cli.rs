@@ -41,6 +41,24 @@ pub struct PackageArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum PackageCommand {
+    /// Retain the exact source artifacts named by an existing lock.
+    Cache {
+        manifest: PathBuf,
+        #[arg(long)]
+        lock: PathBuf,
+        #[arg(long)]
+        store: PathBuf,
+    },
+    /// Compile only from an exact lock and its local content-addressed artifacts.
+    CompileLocked {
+        lock: PathBuf,
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        runtime: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     Resolve {
         manifest: PathBuf,
         #[arg(long)]

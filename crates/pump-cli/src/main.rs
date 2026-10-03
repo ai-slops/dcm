@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
 mod artifact_io;
+mod artifact_store;
+#[cfg(test)]
+mod artifact_store_tests;
 mod author_host;
 mod bundle;
 #[cfg(test)]
@@ -24,6 +27,7 @@ mod package_operations;
 mod package_path_tests;
 mod package_registry;
 mod package_session;
+mod package_store;
 mod package_style;
 #[cfg(test)]
 mod package_tests;

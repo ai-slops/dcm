@@ -7,7 +7,7 @@ use wasmtime::Store;
 use wasmtime::component::{HasSelf, Linker};
 
 use crate::bundle;
-use crate::package::{self, PackageLock};
+use crate::package::{self, LoadedResolution, PackageLock};
 use crate::package_bindings::SongWorld;
 use crate::package_lifecycle::empty_session;
 use crate::package_registry::PackageRegistry;
@@ -28,6 +28,15 @@ pub fn compile(
     runtime: &Path,
     out: &Path,
 ) -> Result<bundle::Manifest> {
+    compile_loaded(load_source(manifest, lock_path)?, runtime, out)
+}
+
+pub struct LockedResolution {
+    pub resolution: LoadedResolution,
+    pub lock_bytes: Vec<u8>,
+}
+
+pub fn load_source(manifest: &Path, lock_path: &Path) -> Result<LockedResolution> {
     let resolution = package::resolve(manifest)?;
     let lock_bytes = crate::artifact_io::read(lock_path, package::MANIFEST_LIMIT)?;
     let supplied: PackageLock =
@@ -40,6 +49,21 @@ pub fn compile(
         supplied == resolution.lock,
         "package lock does not exactly match source artifacts"
     );
+    Ok(LockedResolution {
+        resolution,
+        lock_bytes,
+    })
+}
+
+pub fn compile_loaded(
+    input: LockedResolution,
+    runtime: &Path,
+    out: &Path,
+) -> Result<bundle::Manifest> {
+    let LockedResolution {
+        resolution,
+        lock_bytes,
+    } = input;
     let engine = crate::engine::engine()?;
     let registry = PackageRegistry::compile(&engine, resolution)?;
     let song = registry.song_entry()?.clone();

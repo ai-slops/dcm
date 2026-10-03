@@ -33,6 +33,27 @@ pub fn run(cli: &Cli) -> Result<()> {
         Command::Verify(args) => output(&bundle::verify(&args.bundle)?, cli.format),
         Command::TestSeeds(args) => test_seeds(args, cli.format),
         Command::Package(args) => match &args.command {
+            PackageCommand::Cache {
+                manifest,
+                lock,
+                store,
+            } => output(
+                &crate::package_store::cache(manifest, lock, store)?,
+                cli.format,
+            ),
+            PackageCommand::CompileLocked {
+                lock,
+                store,
+                runtime,
+                out,
+            } => output(
+                &crate::package_compile::compile_loaded(
+                    crate::package_store::load(lock, store)?,
+                    runtime,
+                    out,
+                )?,
+                cli.format,
+            ),
             PackageCommand::Resolve { manifest, out } => {
                 output(&crate::package_compile::resolve(manifest, out)?, cli.format)
             }
