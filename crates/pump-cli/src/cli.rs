@@ -23,6 +23,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    Chart(crate::chart_cli::ChartArgs),
     Component(ComponentArgs),
     Compile(CompileArgs),
     Generate(GenerateArgs),

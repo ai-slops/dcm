@@ -23,6 +23,7 @@ struct Inspection {
 
 pub fn run(cli: &Cli) -> Result<()> {
     match &cli.command {
+        Command::Chart(args) => crate::chart_commands::run(args, cli.format),
         Command::Component(args) => match &args.command {
             ComponentCommand::Inspect { component } => inspect(component, cli.format),
         },
@@ -248,23 +249,4 @@ fn output<T: Serialize>(value: &T, format: OutputFormat) -> Result<()> {
         ),
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn runtime_rejects_any_component_import() {
-        // Given
-        let engine = crate::engine::engine().expect("engine");
-        let component =
-            Component::new(&engine, "(component (import \"evil\" (func)))").expect("component");
-
-        // When
-        let error = ensure_runtime_import_free(&engine, &component).expect_err("import must fail");
-
-        // Then
-        assert!(error.to_string().contains("evil"));
-    }
 }

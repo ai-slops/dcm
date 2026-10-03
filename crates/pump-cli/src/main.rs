@@ -8,6 +8,17 @@ mod author_host;
 mod bundle;
 #[cfg(test)]
 mod bundle_tests;
+mod chart_bundle;
+#[cfg(test)]
+mod chart_bundle_tests;
+mod chart_cli;
+mod chart_commands;
+mod chart_generate;
+mod chart_host;
+mod chart_runtime;
+#[cfg(test)]
+mod chart_runtime_tests;
+mod chart_signing;
 mod cli;
 mod commands;
 mod engine;
@@ -52,6 +63,19 @@ mod author_bindings {
 
 mod runtime_bindings {
     wasmtime::component::bindgen!({ path: "../../wit/runtime", world: "runtime-world" });
+}
+
+mod chart_author_bindings {
+    wasmtime::component::bindgen!({
+        path: "../../wit/chart",
+        world: "author-world",
+        with: { "pump:chart/plan-builder@0.2.0.builder": crate::chart_host::HostBuilder },
+        imports: { default: trappable },
+    });
+}
+
+mod chart_runtime_bindings {
+    wasmtime::component::bindgen!({ path: "../../wit/chart", world: "runtime-world" });
 }
 
 mod package_bindings {

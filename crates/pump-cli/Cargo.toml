@@ -8,7 +8,11 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+ed25519-dalek.workspace = true
+getrandom.workspace = true
 hex.workspace = true
+pump-chart = { path = "../pump-chart" }
+pump-eval = { path = "../pump-eval" }
 pump-core = { path = "../pump-core" }
 serde.workspace = true
 serde_json.workspace = true
