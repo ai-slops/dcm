@@ -4,3 +4,4 @@
 *.component.wasm
 /.omo/
 /.codegraph/
+/.pump-store/
