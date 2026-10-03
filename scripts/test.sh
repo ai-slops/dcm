@@ -19,6 +19,8 @@ node --input-type=module - "$work/a.json" "$work/c.json" <<'JS'
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const traces = process.argv.slice(2).map(path => JSON.parse(readFileSync(path, 'utf8')));
+assert.equal(traces[0].plan_digest, '9cbc36bc39973eeda592d28b031cc0918dda575d036e59955de633ba4b8ef08a');
+assert.equal(traces[0].generated_chart_digest, '616144e825965978dc2ceb4e5d3d588f950da611318271168a649985b8cb2fad');
 assert.notDeepEqual(traces[0].commands, traces[1].commands);
 JS
 dist/pump test-seeds "$work/bundle" --count 32 --format json
