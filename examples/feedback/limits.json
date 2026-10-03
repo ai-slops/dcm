@@ -1,0 +1,11 @@
+{
+  "max_nodes": 4096,
+  "max_depth": 128,
+  "max_edges": 16384,
+  "max_derivations": 4096,
+  "max_trace_notes": 65536,
+  "max_total_events": 1048576,
+  "max_work": 4194304,
+  "max_string_bytes": 256,
+  "max_codec_bytes": 67108864
+}

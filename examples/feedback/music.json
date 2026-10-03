@@ -1,0 +1,28 @@
+{
+  "duration_ticks": 32,
+  "ticks_per_beat": 4,
+  "offset_micros": 100000,
+  "tempo": [
+    {
+      "start_tick": 0,
+      "micros_per_beat": {
+        "numerator": 500000,
+        "denominator": 1
+      }
+    },
+    {
+      "start_tick": 16,
+      "micros_per_beat": {
+        "numerator": 400000,
+        "denominator": 1
+      }
+    }
+  ],
+  "audio_sha256": [
+    2, 198, 166, 30, 200, 245, 139, 71,
+    236, 86, 165, 99, 125, 42, 28, 37,
+    243, 68, 212, 73, 12, 118, 85, 233,
+    98, 199, 137, 223, 234, 251, 95, 26
+  ],
+  "reference_accents": [0, 4, 8, 12, 16, 20, 24, 28]
+}

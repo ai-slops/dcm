@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "history_policy": { "recent_window": 2, "max_request_history": 16 },
+  "foot_model": {
+    "version": 1,
+    "micros_per_panel_unit": 10000000,
+    "bracket_setup_micros": 10000000,
+    "crossover_penalty": 2,
+    "bracket_penalty": 3
+  },
+  "difficulty": {
+    "label": "impossible-density-fixture",
+    "density": { "minimum": 1000000, "maximum": 1000000 },
+    "movement": { "minimum": 0, "maximum": 1000000 },
+    "brackets": { "minimum": 0, "maximum": 1000000 },
+    "hold_occupancy": { "minimum": 0, "maximum": 10000000 },
+    "local_load": { "minimum": 0, "maximum": 1000000 },
+    "total": { "minimum": 1000000, "maximum": 1000000 },
+    "local_windows": []
+  },
+  "intents": [],
+  "budgets": {
+    "max_notes": 65536,
+    "max_frames": 65536,
+    "max_dp_work": 4194304,
+    "max_matching_work": 4194304
+  }
+}

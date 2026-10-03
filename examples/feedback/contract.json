@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "history_policy": { "recent_window": 2, "max_request_history": 16 },
+  "foot_model": {
+    "version": 1,
+    "micros_per_panel_unit": 100000,
+    "bracket_setup_micros": 100000,
+    "crossover_penalty": 2,
+    "bracket_penalty": 3
+  },
+  "difficulty": {
+    "label": "example-feedback-envelope",
+    "density": { "minimum": 1, "maximum": 1000000 },
+    "movement": { "minimum": 0, "maximum": 1000000 },
+    "brackets": { "minimum": 0, "maximum": 1000000 },
+    "hold_occupancy": { "minimum": 0, "maximum": 10000000 },
+    "local_load": { "minimum": 0, "maximum": 1000000 },
+    "total": { "minimum": 1, "maximum": 1000000 },
+    "local_windows": [
+      { "width_ticks": 8, "maximum_load": 1000000 }
+    ]
+  },
+  "intents": [
+    {
+      "id": "reference-accent",
+      "kind": { "kind": "reference_accents", "tolerance_ticks": 1 },
+      "requiredness": "optional",
+      "credit_policy": "shared",
+      "threshold": 1,
+      "weight": 1
+    },
+    {
+      "id": "negative-space",
+      "kind": { "kind": "negative_space", "start_tick": 4, "end_tick": 8 },
+      "requiredness": "optional",
+      "credit_policy": "exclusive",
+      "threshold": 1,
+      "weight": 1
+    },
+    {
+      "id": "relational-motif",
+      "kind": { "kind": "relational_motif", "minimum_notes": 2, "mirror_equivalent": true },
+      "requiredness": "optional",
+      "credit_policy": "shared",
+      "threshold": 1,
+      "weight": 1
+    }
+  ],
+  "budgets": {
+    "max_notes": 65536,
+    "max_frames": 65536,
+    "max_dp_work": 4194304,
+    "max_matching_work": 4194304
+  }
+}
