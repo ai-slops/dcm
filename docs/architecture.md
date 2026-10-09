@@ -51,6 +51,12 @@ table/component, and report. `chart verify` reproduces the complete evaluation, 
 hashes. Ed25519 authenticity requires an externally supplied trusted key. See
 [chart v2](chart-v2.md) and [the evaluation model](evaluation-v2.md) for limits and exact claims.
 
+`pump-bridge` connects existing v1 package Plans to that path. It enumerates v1 decision environments
+with their original scope/reuse correlations, then lowers the exact normalized distribution into a
+single-choice v2 Plan. The schema-2 package extension binds the original Plan, package lock and call
+report; loading reproduces the conversion. See [package feedback](package-feedback.md). This is an
+explicit version boundary with new v2 seed mapping, not reinterpretation of existing v1 bundles.
+
 ## Runtime and build limits
 
 The Wasmtime feature set excludes threads and shared memory. SIMD is disabled in engine configuration. Fuel controls guest instructions; hostcall counts and structural/string/edge caps bound builder work. One linear memory is allowed, so the 64 MiB per-memory bound is also the aggregate linear-memory bound. Wasmtime compiler allocation and all host-process memory are not covered by that limit.

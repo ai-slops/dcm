@@ -26,6 +26,7 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
 - Concrete-note evidence for accents, silence and relational motifs, with bounded exact exclusive/shared credit allocation.
 - Tempo-aware rule difficulty, local windows, all-feasible-path bounds, complete candidate enumeration/pruning, and rejection probability accounting.
 - Deterministic history-conditioned sampling, explicit exhaustion fallback, reproducible schema-2 certificates, and externally anchored Ed25519 signatures.
+- Exact bounded package-to-feedback conversion from source or CAS, preserving v1 correlated choice distributions and retaining signed, reproducible source provenance.
 
 ## Deliberately deferred
 

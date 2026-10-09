@@ -97,6 +97,20 @@ Retain those source artifacts in a local digest store before removing them:
 
 `compile-locked` does not read the source manifest or original song/pattern/style files. It verifies every stored component against its locked SHA-256 and uses the same compiler. With the same exact lock bytes and runtime component, the resulting bundle is byte-identical to source-based compilation. The runtime component remains an explicit input. See [artifact store](docs/artifact-store.md) for layout and filesystem trust limits.
 
+Existing packages can also enter the feedback-grade v2 pipeline without rewriting their components:
+
+```sh
+./dist/pump chart compile-package dist/song-a.package.json --lock song-a.lock.json \
+  --runtime dist/chart-runtime.component.wasm \
+  --music dist/package-feedback/song-a.music.json \
+  --contract dist/package-feedback/contract.json --out package-feedback.bundle
+```
+
+Use `chart compile-locked <lock> --store <store>` with the same feedback inputs for source-free
+compilation. The bridge preserves v1 timing, correlated choice outcomes, and exact nominal priors;
+the new bundle uses v2 seed mapping. Source Plan and package provenance are retained and verified.
+See [package feedback workflow](docs/package-feedback.md).
+
 ## DIM gateway
 
 `.dim/` is preserved unchanged. Its existing launcher invokes the rewritten `app/server.mjs` on port 3000. The gateway has no editing UI and no arbitrary shell/path endpoint.

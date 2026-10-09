@@ -8,7 +8,7 @@ Verified in this workspace on x86-64 Linux using the pinned Docker build. ARM64,
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
-- `cargo test --locked --workspace`: 134 tests passed (44 CLI/host tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
+- `cargo test --locked --workspace`: 155 tests passed (49 CLI/host tests, 16 bridge tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
 - Release builds of the CLI and both WASM guests, followed by componentization.
 
 The end-to-end script runs the actual author and runtime through Wasmtime. It checks identical output for repeated requests, compares actual command arrays across seeds, exercises the gateway against a real bundle, and rejects malformed seeds, modified artifacts, and runtime components with imports. All five Node gateway tests passed, including successful WASM-backed generation.
@@ -53,7 +53,17 @@ Independent review also added regressions for repeated same-pose contact clocks,
 
 Manual CLI QA created `bundle/feedback-v2`, generated held notes at ticks 0, 8, 16, and 24, checked the exact music schedule and intent scores, and verified a locally signed bundle with an explicitly supplied trusted key. Generated demo artifacts and keys are not source-controlled; signing keys were created outside the workspace. No production publisher trust is implied.
 
-## Environment limitations
+## Package feedback bridge
+
+The package-feedback driver (`scripts/test-package-feedback.mjs`) builds three real WASM package
+songs through both source and CAS paths, deletes the original source files, and requires every
+resulting bundle file to match. A correlated-repeat song retains exactly two outcomes with masses
+5/6 and 1/6; each generated second phrase equals its first after a five-tick shift. The driver also
+checks duration mismatch rejection, source-free verification, forged conversion statistics after
+rehashing, and signature rejection after removing the bridge extension. Existing signed standalone
+v2 demo bundles remain readable and reproducible.
+
+## Platform and tooling limitations
 
 Rust and JavaScript LSP servers were unavailable; compiler, Clippy, syntax checks, and executable tests were used instead. No LSP-clean claim is made.
 
