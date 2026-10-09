@@ -156,7 +156,7 @@ fn empty_frame(tick: u64) -> pump_chart::Frame {
     }
 }
 
-fn decode_32(value: &str, label: &str) -> Result<[u8; 32]> {
+pub(crate) fn decode_32(value: &str, label: &str) -> Result<[u8; 32]> {
     let bytes = hex::decode(value).with_context(|| format!("{label} must be hexadecimal"))?;
     if bytes.len() != 32 {
         bail!("{label} must decode to exactly 32 bytes");

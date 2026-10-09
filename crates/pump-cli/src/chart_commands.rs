@@ -102,6 +102,7 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
             let contract: EvalContract = read_json(&args.contract, "evaluation contract")?;
             output(&pump_eval::assess(&chart, &music, &contract)?, format)
         }
+        ChartCommand::ExportSsc(args) => output(&crate::chart_export::export(args)?, format),
     }
 }
 

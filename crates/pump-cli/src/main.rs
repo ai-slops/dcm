@@ -16,8 +16,13 @@ mod chart_bundle_files;
 mod chart_bundle_tests;
 mod chart_cli;
 mod chart_commands;
+mod chart_export;
+#[cfg(test)]
+mod chart_export_tests;
 mod chart_generate;
 mod chart_host;
+#[cfg(test)]
+mod chart_replay_tests;
 mod chart_runtime;
 #[cfg(test)]
 mod chart_runtime_tests;
@@ -49,6 +54,12 @@ mod package_validation;
 mod policy;
 mod runtime_runner;
 mod session;
+mod ssc;
+mod ssc_format;
+#[cfg(test)]
+mod ssc_limit_tests;
+#[cfg(test)]
+mod ssc_tests;
 
 use std::process::ExitCode;
 

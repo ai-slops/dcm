@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlin
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const binary = resolve("dist/pump");
+const binary = resolve(process.env.PUMP_BINARY ?? "dist/pump");
 const work = mkdtempSync(join(tmpdir(), "pump-feedback-v2-"));
 const seed = "00".repeat(32);
 const music = resolve("dist/feedback/music.json");
@@ -92,6 +92,32 @@ try {
   const first = run(["generate", bundle, "--seed", seed, "--request-out", join(work, "request.bin")]);
   assert.deepEqual(run(["generate", bundle, "--seed", seed]), first);
   const selected = generated(first);
+  const exportRoot = join(work, "ssc-export");
+  const exported = run(["export-ssc", bundle, "--seed", seed, "--audio", audio,
+    "--out", exportRoot, "--title", "Feedback Chart", "--artist", "PUMP"]);
+  const replay = read(join(exportRoot, "replay.json"));
+  const ssc = readFileSync(join(exportRoot, "chart.ssc"), "utf8");
+  assert.deepEqual(exported.replay, replay);
+  assert.equal(replay.schema_version, 2);
+  assert.equal(replay.exporter_semantics, "pump-ssc-export-v2");
+  assert.equal(replay.request.seed, seed);
+  assert.equal(replay.selection.candidate_id, id(selected.candidate_id));
+  assert.equal(replay.selection.program_sha256, id(selected.program_sha256));
+  assert.equal(replay.selection.request_sha256, id(selected.request_sha256));
+  assert.deepEqual(replay.chart, selected.chart);
+  assert.deepEqual(replay.music, read(music));
+  assert.equal(replay.signature_trust.status, "not_checked");
+  assert.equal(replay.artifacts.ssc_sha256, digest(readFileSync(join(exportRoot, "chart.ssc"))));
+  assert.equal(replay.artifacts.audio_sha256, digest(readFileSync(join(exportRoot, "music.wav"))));
+  assert.deepEqual(readFileSync(join(exportRoot, "music.wav")), readFileSync(audio));
+  assert.match(ssc, /#VERSION:0\.83;/);
+  assert.match(ssc, /#STEPSTYPE:pump-double;/);
+  assert.match(ssc, /#OFFSET:-0\.1;/);
+  assert.match(ssc, /#BPMS:0=120,4=150;/);
+  const preservedSsc = readFileSync(join(exportRoot, "chart.ssc"));
+  reject(["export-ssc", bundle, "--seed", seed, "--audio", audio,
+    "--out", exportRoot, "--title", "Replacement", "--artist", "PUMP"], /already exists|must not exist/);
+  assert.deepEqual(readFileSync(join(exportRoot, "chart.ssc")), preservedSsc);
   const next = generated(run(["generate", bundle, "--seed", seed, "--history", id(selected.candidate_id)]));
   assert.notEqual(id(next.candidate_id), id(selected.candidate_id));
   assert.equal(next.allow_repeat_fallback, false);
@@ -190,6 +216,12 @@ try {
   assert.equal(statSync(privateKey).mode & 0o777, 0o600);
   run(["sign", bundle, "--key", privateKey]);
   assert.equal(run(["verify", bundle, "--trusted-key", publicKey]).authenticity, true);
+  const trustedExport = run(["export-ssc", bundle, "--seed", seed, "--audio", audio,
+    "--out", join(work, "trusted-ssc-export"), "--title", "Trusted Feedback Chart",
+    "--artist", "PUMP", "--trusted-key", publicKey]);
+  assert.equal(trustedExport.replay.signature_trust.status, "trusted");
+  assert.equal(trustedExport.replay.signature_trust.trusted_signer, readFileSync(publicKey, "utf8").trim());
+  assert.equal(trustedExport.replay.source_manifest_sha256, digest(readFileSync(join(bundle, "manifest.json"))));
   assert.equal(run(["verify", bundle]).authenticity, false);
   const otherPublic = join(work, "other.pub");
   run(["keygen", "--private", join(work, "other.key"), "--public", otherPublic]);
@@ -210,6 +242,10 @@ try {
   const wrongAudio = join(work, "wrong.wav");
   writeFileSync(wrongAudio, "not the bound audio");
   reject(["verify", bundle, "--audio", wrongAudio], /audio/);
+  const rejectedExport = join(work, "wrong-audio-export");
+  reject(["export-ssc", bundle, "--seed", seed, "--audio", wrongAudio,
+    "--out", rejectedExport, "--title", "Rejected", "--artist", "PUMP"], /audio/);
+  assert.equal(existsSync(rejectedExport), false);
   reject(["generate", bundle, "--seed", "bad"], /seed/);
   console.log(JSON.stringify({ feedback_v2: "passed", retained_candidates: retained.length, seed_variants: sweep.unique_candidates, audio_digest: audioInfo.audio_digest }));
 } finally {
