@@ -27,6 +27,7 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
 - Tempo-aware rule difficulty, local windows, all-feasible-path bounds, complete candidate enumeration/pruning, and rejection probability accounting.
 - Deterministic history-conditioned sampling, explicit exhaustion fallback, reproducible schema-2 certificates, and externally anchored Ed25519 signatures.
 - Exact bounded package-to-feedback conversion from source or CAS, preserving v1 correlated choice distributions and retaining signed, reproducible source provenance.
+- Bounded SSC 0.83 notes/timing export for supported pump-double charts, with exact chart/music replay descriptors, verified WASM selection, byte-bound WAV/OGG/MP3 copying, optional explicit signature trust, and no-clobber output directories.
 
 ## Deliberately deferred
 

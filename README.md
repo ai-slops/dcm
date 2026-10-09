@@ -36,6 +36,9 @@ node scripts/make-feedback-audio.mjs "$demo/music.wav"
 ./dist/pump chart explain "$demo/chart.bundle" \
   --seed 0000000000000000000000000000000000000000000000000000000000000000 --format json
 ./dist/pump chart verify "$demo/chart.bundle" --audio "$demo/music.wav" --format json
+./dist/pump chart export-ssc "$demo/chart.bundle" \
+  --seed 0000000000000000000000000000000000000000000000000000000000000000 \
+  --audio "$demo/music.wav" --out "$demo/ssc" --title "Example" --artist "Artist"
 ./dist/pump chart keygen --private "$demo/release.key" --public "$demo/release.pub"
 ./dist/pump chart sign "$demo/chart.bundle" --key "$demo/release.key"
 ./dist/pump chart verify "$demo/chart.bundle" --trusted-key "$demo/release.pub" --format json
