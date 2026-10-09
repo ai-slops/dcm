@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 ./scripts/test-packages.sh
 ./scripts/test-store.sh
 node scripts/test-chart-v2.mjs
+sh scripts/test-ssc-parser.sh
 node scripts/test-package-feedback.mjs
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
