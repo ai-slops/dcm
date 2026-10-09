@@ -54,6 +54,21 @@ See [v2 CLI and bundles](docs/chart-v2.md), [evaluation model and units](docs/ev
 and [verification evidence](docs/verification.md). These are exact results within a declared,
 bounded rule model, not official PUMP ratings or guarantees of human safety.
 
+## Playtest in StepMania
+
+No plugin or custom skin is needed. After building on Linux/WSL, prepare two complete Pump Double
+smoke-test songs with a single command:
+
+```sh
+node scripts/prepare-stepmania.mjs --out bundle/stepmania-playtest
+```
+
+Copy `bundle/stepmania-playtest/Songs/PUMP Generated` into StepMania's user `Songs` folder.
+Select the Pump game, Double style, and Edit chart difficulty. See the
+[first-install and playtest guide](docs/stepmania.md) for Windows/Linux installation, WSL setup,
+keyboard mappings, built-in/custom skins, song loading, custom bundle export, and troubleshooting.
+The helper does not install or launch the game, change its preferences, or claim in-engine validation.
+
 ## End-to-end quickstart
 
 ```sh
