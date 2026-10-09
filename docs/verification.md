@@ -8,7 +8,7 @@ Verified in this workspace on x86-64 Linux using the pinned Docker build. ARM64,
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
-- `cargo test --locked --workspace`: 155 tests passed (49 CLI/host tests, 16 bridge tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
+- `cargo test --locked --workspace`: 168 tests passed (62 CLI/host tests, 16 bridge tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
 - Release builds of the CLI and both WASM guests, followed by componentization.
 
 The end-to-end script runs the actual author and runtime through Wasmtime. It checks identical output for repeated requests, compares actual command arrays across seeds, exercises the gateway against a real bundle, and rejects malformed seeds, modified artifacts, and runtime components with imports. All five Node gateway tests passed, including successful WASM-backed generation.
@@ -63,9 +63,33 @@ checks duration mismatch rejection, source-free verification, forged conversion 
 rehashing, and signature rejection after removing the bridge extension. Existing signed standalone
 v2 demo bundles remain readable and reproducible.
 
+## SSC export
+
+`scripts/test-chart-v2.mjs` exercises SSC export through the actual CLI, including bound audio
+bytes, replay digests, explicit signature trust, deterministic selection, and no-clobber output.
+`scripts/test-ssc-parser.sh` independently parses both history-conditioned chart variants with
+`simfile==2.1.1`. It compares every tap, hold head, hold tail, lane, and beat against the generated
+source chart, and checks the parser's timing engine against the exact source schedule across the
+offset and BPM change. Escaped metadata and invalid-seed rejection are also checked.
+
+The parser runs in a digest-pinned UV/Python Docker image and declares its Python dependencies in
+the script, separate from the product's Rust dependencies. The full test suite invokes it after
+rebuilding the CLI. To run just this interoperability check after building:
+
+```sh
+sh scripts/test-ssc-parser.sh
+```
+
+This is independent parser and timing-engine evidence, not an actual StepMania or OutFox gameplay
+test. Those applications were not launched. Their rendering, audio decoding, input handling, and
+platform-specific numeric precision remain outside these checks.
+
 ## Platform and tooling limitations
 
-Rust and JavaScript LSP servers were unavailable; compiler, Clippy, syntax checks, and executable tests were used instead. No LSP-clean claim is made.
+Rust, JavaScript, Python, and shell LSP servers were unavailable; compiler, Clippy, syntax checks,
+and executable tests were used instead. No LSP-clean claim is made.
+The Python parser driver passed Ruff and had zero BasedPyright errors; four warnings remain at
+the third-party simfile API's incomplete type annotations. No type-check suppressions were added.
 
 The upstream locked `wasm-tools` installation emits a warning about its yanked transitive `chacha20 0.10.0` dependency. The build preserves that upstream lock instead of silently changing dependency resolution. That tool is used only in the build image, not in the deployed runtime image; dependency/security auditing remains required before production release.
 
