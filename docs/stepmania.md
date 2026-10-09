@@ -23,6 +23,8 @@ Prerequisite installers: [Docker](https://docs.docker.com/get-started/get-docker
 [Node.js](https://nodejs.org/en/download), and, for Windows generation,
 [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
 Check `docker version` and `node --version` before building.
+For the optional `just` command runner and LF checkout recovery on Windows, see
+[build and checkout instructions](build.md). The direct script commands below still work.
 
 ## 2. Install genuine StepMania
 

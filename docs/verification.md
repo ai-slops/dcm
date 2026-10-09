@@ -4,12 +4,18 @@ Verified in this workspace on x86-64 Linux using the pinned Docker build. ARM64,
 
 ## Automated checks
 
-`./scripts/test.sh` builds current sources rather than reusing stale `dist` files. The Docker build runs:
+`just test` (`sh scripts/test.sh`) validates current sources rather than reusing stale `dist`
+files. It first tests Git checkout behavior with `core.autocrlf=true` and `core.eol=crlf`, then
+runs `scripts/check.sh` in the pinned Docker source image:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --locked --workspace`: 168 tests passed (62 CLI/host tests, 16 bridge tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
-- Release builds of the CLI and both WASM guests, followed by componentization.
+
+The separate `scripts/build.sh` then produces release builds of the CLI and WASM guests, followed
+by componentization. `just build` does not execute fmt, Clippy, or tests. `just check` runs only
+the Rust checks above, and `just test-e2e` runs the integration scenarios against existing `dist`.
+The original full gate is preserved; only the ordinary build no longer depends on lint/test success.
 
 The end-to-end script runs the actual author and runtime through Wasmtime. It checks identical output for repeated requests, compares actual command arrays across seeds, exercises the gateway against a real bundle, and rejects malformed seeds, modified artifacts, and runtime components with imports. All five Node gateway tests passed, including successful WASM-backed generation.
 
