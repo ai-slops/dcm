@@ -898,6 +898,7 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.4.3",
  "hex",
+ "pump-bridge",
  "pump-chart",
  "pump-core",
  "pump-eval",
@@ -913,6 +914,19 @@ name = "pump-author-component"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-bridge"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "pump-chart",
+ "pump-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -987,6 +1001,13 @@ dependencies = [
 
 [[package]]
 name = "pump-song-b-component"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-song-correlated-component"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.53.1",

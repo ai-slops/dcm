@@ -11,6 +11,8 @@ pub struct ChartArgs {
 #[derive(Debug, Subcommand)]
 pub enum ChartCommand {
     Compile(ChartCompileArgs),
+    CompilePackage(ChartPackageArgs),
+    CompileLocked(ChartLockedArgs),
     Generate(ChartGenerateArgs),
     Analyze(ChartBundleArgs),
     Explain(ChartGenerateArgs),
@@ -24,6 +26,30 @@ pub enum ChartCommand {
 #[derive(Debug, Args)]
 pub struct ChartCompileArgs {
     pub author: PathBuf,
+    #[command(flatten)]
+    pub options: ChartBuildOptions,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartPackageArgs {
+    pub manifest: PathBuf,
+    #[arg(long)]
+    pub lock: PathBuf,
+    #[command(flatten)]
+    pub options: ChartBuildOptions,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartLockedArgs {
+    pub lock: PathBuf,
+    #[arg(long)]
+    pub store: PathBuf,
+    #[command(flatten)]
+    pub options: ChartBuildOptions,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartBuildOptions {
     #[arg(long)]
     pub runtime: PathBuf,
     #[arg(long)]

@@ -17,6 +17,7 @@ fn oversized_artifact_is_rejected_before_bundle_directory_creation() -> anyhow::
         runtime_component: &[],
         report: &[],
         audio_sha256: "00",
+        bridge: None,
     };
 
     let error = match chart_bundle::write(&root, &artifacts) {

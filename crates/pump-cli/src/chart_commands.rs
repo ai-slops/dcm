@@ -1,16 +1,15 @@
-use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use pump_chart::{Limits, Music};
 use pump_eval::EvalContract;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use wasmtime::Store;
 use wasmtime::component::{Component, HasSelf, Linker};
 
 use crate::artifact_io::{self, ARTIFACT_LIMIT};
 use crate::chart_author_bindings::AuthorWorld;
+use crate::chart_build::{self, read_json, verify_audio};
 use crate::chart_cli::{ChartArgs, ChartCommand, ChartCompileArgs};
 use crate::chart_host::HostState;
 use crate::chart_runtime::ChartRuntime;
@@ -34,6 +33,22 @@ struct KeygenOutput<'a> {
 pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
     match &args.command {
         ChartCommand::Compile(args) => compile(args, format),
+        ChartCommand::CompilePackage(args) => {
+            let inputs = chart_build::load(&args.options)?;
+            let source = crate::package_compile::load_source(&args.manifest, &args.lock)?;
+            output(
+                &crate::chart_bridge::compile(source, inputs, &args.options)?,
+                format,
+            )
+        }
+        ChartCommand::CompileLocked(args) => {
+            let inputs = chart_build::load(&args.options)?;
+            let source = crate::package_store::load(&args.lock, &args.store)?;
+            output(
+                &crate::chart_bridge::compile(source, inputs, &args.options)?,
+                format,
+            )
+        }
         ChartCommand::Generate(args) => crate::chart_generate::generate(args, format, false),
         ChartCommand::Analyze(args) => {
             let bundle = crate::chart_bundle::load(&args.bundle)?;
@@ -79,63 +94,16 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
 
 fn compile(args: &ChartCompileArgs, format: OutputFormat) -> Result<()> {
     let author_bytes = artifact_io::read(&args.author, ARTIFACT_LIMIT)?;
-    let runtime_bytes = artifact_io::read(&args.runtime, ARTIFACT_LIMIT)?;
-    let music: Music = read_json(&args.music, "music")?;
-    let contract: EvalContract = read_json(&args.contract, "evaluation contract")?;
-    let limits = match &args.limits {
-        Some(path) => read_json(path, "compile limits")?,
-        None => Limits::default(),
-    };
-    pump_chart::validate_limits(&limits).context("validate compile limits")?;
-    pump_chart::validate_music(&music).context("validate music metadata")?;
-    verify_audio(args.audio.as_deref(), &music.audio_sha256)?;
-    ChartRuntime::new(&runtime_bytes)?;
-    let plan = run_author(&author_bytes, music, limits)?;
-    let compilation = match pump_eval::compile(&plan, &contract, &limits) {
-        Ok(compilation) => compilation,
-        Err(pump_eval::CompileError::NoRetainedCandidates(failed)) => {
-            let path = args
-                .failure_report
-                .clone()
-                .unwrap_or_else(|| args.out.with_extension("failure.json"));
-            fs::write(
-                &path,
-                serde_json::to_vec_pretty(&failed).context("encode compilation failure report")?,
-            )
-            .with_context(|| format!("write compilation failure report {}", path.display()))?;
-            bail!(
-                "no candidate satisfied the evaluation contract; counterexamples: {}",
-                path.display()
-            );
-        }
-        Err(error) => return Err(error).context("evaluate chart plan"),
-    };
-    ensure!(
-        !compilation.runtime.candidates.is_empty(),
-        "evaluation retained no deployable candidates"
-    );
-    let plan_bytes = pump_chart::encode_plan_with_limits(&plan, &limits)
-        .context("encode canonical author plan")?;
-    let program_bytes =
-        pump_chart::encode_runtime_program_with_limits(&compilation.runtime, &limits)
-            .context("encode runtime program")?;
-    let limits_bytes = serde_json::to_vec_pretty(&limits).context("encode compile limits")?;
-    let contract_bytes =
-        serde_json::to_vec_pretty(&contract).context("encode evaluation contract")?;
-    let report_bytes =
-        serde_json::to_vec_pretty(&compilation.report).context("encode compile report")?;
-    let manifest = crate::chart_bundle::write(
-        &args.out,
-        &crate::chart_bundle::Artifacts {
+    let inputs = chart_build::load(&args.options)?;
+    let plan = run_author(&author_bytes, inputs.music.clone(), inputs.limits)?;
+    let manifest = chart_build::publish(
+        chart_build::Source {
+            plan: &plan,
             author_component: &author_bytes,
-            plan: &plan_bytes,
-            limits: &limits_bytes,
-            contract: &contract_bytes,
-            program: &program_bytes,
-            runtime_component: &runtime_bytes,
-            report: &report_bytes,
-            audio_sha256: &hex::encode(plan.music.audio_sha256),
+            bridge: None,
         },
+        &inputs,
+        &args.options,
     )?;
     output(&manifest, format)
 }
@@ -195,23 +163,6 @@ fn verify(root: &Path, trusted_key: Option<&str>, audio: Option<&Path>) -> Resul
         manifest_sha256: crate::chart_bundle::digest(&bundle.manifest_bytes),
         signer: signature.map(|record| record.public_key),
     })
-}
-
-fn verify_audio(path: Option<&Path>, expected: &[u8; 32]) -> Result<()> {
-    if let Some(path) = path {
-        let bytes = artifact_io::read(path, ARTIFACT_LIMIT)?;
-        let actual: [u8; 32] = Sha256::digest(&bytes).into();
-        ensure!(
-            actual == *expected,
-            "audio SHA-256 does not match Music metadata"
-        );
-    }
-    Ok(())
-}
-
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path, label: &str) -> Result<T> {
-    serde_json::from_slice(&artifact_io::read(path, ARTIFACT_LIMIT)?)
-        .with_context(|| format!("decode {label} JSON"))
 }
 
 pub(crate) fn output<T: Serialize>(value: &T, format: OutputFormat) -> Result<()> {

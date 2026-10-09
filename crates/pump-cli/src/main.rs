@@ -8,7 +8,10 @@ mod author_host;
 mod bundle;
 #[cfg(test)]
 mod bundle_tests;
+mod chart_bridge;
+mod chart_build;
 mod chart_bundle;
+mod chart_bundle_files;
 #[cfg(test)]
 mod chart_bundle_tests;
 mod chart_cli;

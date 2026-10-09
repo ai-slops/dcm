@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::artifact_io::{self, ARTIFACT_LIMIT};
+pub use crate::chart_bridge::{BridgeArtifacts, BridgeMetadata};
+use crate::chart_bundle_files::{reject_unknown_files, required_files};
 
 pub const MANIFEST: &str = "manifest.json";
 pub const AUTHOR_COMPONENT: &str = "author.component.wasm";
@@ -18,16 +20,6 @@ pub const CONTRACT: &str = "contract.json";
 pub const PROGRAM: &str = "runtime.program";
 pub const RUNTIME_COMPONENT: &str = "runtime.component.wasm";
 pub const REPORT: &str = "report.json";
-
-const REQUIRED_FILES: [&str; 7] = [
-    AUTHOR_COMPONENT,
-    PLAN,
-    LIMITS,
-    CONTRACT,
-    PROGRAM,
-    RUNTIME_COMPONENT,
-    REPORT,
-];
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +34,8 @@ pub struct Manifest {
     pub certification: String,
     pub audio_sha256: String,
     pub files: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_bridge: Option<BridgeMetadata>,
 }
 
 pub struct Bundle {
@@ -63,10 +57,11 @@ pub struct Artifacts<'a> {
     pub runtime_component: &'a [u8],
     pub report: &'a [u8],
     pub audio_sha256: &'a str,
+    pub bridge: Option<&'a BridgeArtifacts>,
 }
 
 pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
-    let entries = [
+    let mut entries = vec![
         (AUTHOR_COMPONENT, artifacts.author_component),
         (PLAN, artifacts.plan),
         (LIMITS, artifacts.limits),
@@ -75,7 +70,11 @@ pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
         (RUNTIME_COMPONENT, artifacts.runtime_component),
         (REPORT, artifacts.report),
     ];
-    for (name, bytes) in entries {
+    if let Some(bridge) = artifacts.bridge {
+        bridge.metadata.validate()?;
+        entries.extend(bridge.entries());
+    }
+    for (name, bytes) in &entries {
         ensure!(
             u64::try_from(bytes.len()).context("artifact size conversion")? <= ARTIFACT_LIMIT,
             "chart bundle artifact exceeds size limit: {name}"
@@ -96,6 +95,7 @@ pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
         certification: "exact-within-declared-model".to_owned(),
         audio_sha256: artifacts.audio_sha256.to_owned(),
         files,
+        package_bridge: artifacts.bridge.map(|bridge| bridge.metadata.clone()),
     };
     let manifest_bytes = serde_json::to_vec_pretty(&manifest).context("encode chart manifest")?;
     ensure!(
@@ -116,11 +116,11 @@ pub fn write(root: &Path, artifacts: &Artifacts<'_>) -> Result<Manifest> {
 }
 
 pub fn load(root: &Path) -> Result<Bundle> {
-    reject_unknown_files(root)?;
     let manifest_bytes = artifact_io::read(&root.join(MANIFEST), 65_536)?;
     let manifest: Manifest =
         serde_json::from_slice(&manifest_bytes).context("decode chart manifest")?;
     validate_manifest(&manifest)?;
+    reject_unknown_files(root, &manifest)?;
     let author_component = checked(root, &manifest, AUTHOR_COMPONENT)?;
     ensure!(!author_component.is_empty(), "author component is empty");
     let plan_bytes = checked(root, &manifest, PLAN)?;
@@ -140,6 +140,16 @@ pub fn load(root: &Path) -> Result<Bundle> {
         hex::encode(plan.music.audio_sha256) == manifest.audio_sha256,
         "music audio digest differs from manifest"
     );
+    if let Some(metadata) = &manifest.package_bridge {
+        let bridge = BridgeArtifacts {
+            metadata: metadata.clone(),
+            package_lock: checked(root, &manifest, crate::chart_bridge::FILES[0])?,
+            invocations: checked(root, &manifest, crate::chart_bridge::FILES[1])?,
+            source_plan: checked(root, &manifest, crate::chart_bridge::FILES[2])?,
+            report: checked(root, &manifest, crate::chart_bridge::FILES[3])?,
+        };
+        bridge.reproduce(&digest(&author_component), &plan, &limits)?;
+    }
     Ok(Bundle {
         manifest_bytes,
         plan,
@@ -189,10 +199,13 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
         "unsupported certification claim"
     );
     ensure!(
-        manifest.files.len() == REQUIRED_FILES.len(),
+        manifest.files.len() == required_files(manifest).count(),
         "chart manifest file set differs from schema 2"
     );
-    for required in REQUIRED_FILES {
+    if let Some(bridge) = &manifest.package_bridge {
+        bridge.validate()?;
+    }
+    for required in required_files(manifest) {
         ensure!(
             manifest.files.contains_key(required),
             "chart manifest omits {required}"
@@ -212,22 +225,4 @@ fn checked(root: &Path, manifest: &Manifest, name: &str) -> Result<Vec<u8>> {
         "chart artifact digest mismatch: {name}"
     );
     Ok(bytes)
-}
-
-fn reject_unknown_files(root: &Path) -> Result<()> {
-    let mut allowed: BTreeSet<&str> = REQUIRED_FILES.into_iter().collect();
-    allowed.insert(MANIFEST);
-    allowed.insert(crate::chart_signing::SIGNATURE_FILE);
-    for entry in fs::read_dir(root).context("read chart bundle directory")? {
-        let entry = entry.context("read chart bundle entry")?;
-        let name = entry.file_name();
-        let name = name
-            .to_str()
-            .context("chart bundle filename is not UTF-8")?;
-        ensure!(
-            allowed.contains(name),
-            "unexpected chart bundle file: {name}"
-        );
-    }
-    Ok(())
 }
