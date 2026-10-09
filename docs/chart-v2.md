@@ -55,6 +55,55 @@ Pass prior candidate IDs in order with repeated `--history <64-hex-id>` options.
 recent window excludes those candidates. If that excludes every candidate, generation samples the
 complete distribution and sets `allow_repeat_fallback` to `true`; the seed is never redrawn.
 
+## StepMania and OutFox SSC export
+
+Export one verified runtime selection as a self-contained pump-double song directory:
+
+```sh
+pump chart export-ssc chart.bundle \
+  --seed 0000000000000000000000000000000000000000000000000000000000000000 \
+  --audio /path/to/music.wav --out exported-song \
+  --title "Example" --artist "Artist"
+```
+
+Repeat `--history <64-hex-candidate-id>` exactly as for `generate`. Supply
+`--trusted-key release.pub` to require the bundle's Ed25519 signature to match that explicit trust
+anchor. Without it, bundle hashes and full evaluation reproduction are still checked, but
+`replay.json` records signature trust as `not_checked`. The export is not itself signed.
+
+The output directory must not exist. Every input, chart constraint, digest, signature (when
+requested), runtime result, and rendered size is validated before the directory is created. The
+fixed output set is `chart.ssc`, `replay.json`, and `music.wav`, `music.ogg`, or `music.mp3` based on
+the verified source extension. Audio bytes are read once, checked against the bundle's bound
+SHA-256, then those same bytes are written; the exporter does not claim to decode or validate the
+audio codec. Audio inputs are limited to 32 MiB, matching the bundle artifact read limit.
+
+`replay.json` schema 2 records the `pump-ssc-export-v2` semantics version, canonical seed and
+history, selected candidate and runtime/request digests, selection ratios and fallback result,
+the exact generated `Chart` and bound `Music`, source manifest hash, SSC/audio names and hashes,
+and signature trust result. Signature verification and that source hash use the same manifest byte
+snapshot that bundle loading validated. The SSC uses version 0.83, `pump-double`, `Edit`, meter 1,
+and ten lanes in project panel-bit order: left
+`DL UL C UR DR`, then right `DL UL C UR DR`. User title and artist fields are ASCII-only, at most
+256 bytes, escape SSC delimiters and backslashes, and reject line controls and `//` comment starts.
+
+The supported profile writes all measures at 192 rows, or 48 rows per beat. Every note head, hold
+tail, and tempo change must lie exactly on that grid. A cell that would need both a hold tail and a
+new tap or hold head is rejected rather than changed. BPM and beat tags must have an exact
+terminating decimal of at most six fractional digits; BPM is limited to 1000, tempo positions to
+beat 1,000,000, offsets to 24 hours, and the SSC file to 32 MiB. Positive source
+`offset_micros`, where `song_time = offset + elapsed`, is negated for SSC `#OFFSET`. Metadata and
+timing are never silently rounded.
+
+SSC note rows and timing tags preserve every representable note onset, hold tail, panel, tempo
+change, and offset. SSC rows do not encode an exact trailing rest or a chart span ending inside an
+otherwise empty measure. The replay descriptor preserves the exact chart span, music duration,
+grid, notes, and timing map, so the complete export package remains reversible even when two exact
+charts have identical SSC note rows. StepMania and OutFox parse timing decimals into their engine
+numeric representation, so runtime floating-point timing is not a claim of mathematical
+exactness. Stops, delays, warps, rolls, mines, keysounds, attacks, arbitrary subdivisions,
+calibrated meter values, and formats beyond WAV/OGG/MP3 byte binding are outside this exporter.
+
 ## Integrity, reproduction, and signatures
 
 Schema 2 pins the exact author component, canonical Plan, limits, evaluation contract, runtime
