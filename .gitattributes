@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+*.bin binary
+*.wasm binary
+*.plan binary
+*.program binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.zip binary
+*.gz binary
