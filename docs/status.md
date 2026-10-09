@@ -29,6 +29,8 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
 - Exact bounded package-to-feedback conversion from source or CAS, preserving v1 correlated choice distributions and retaining signed, reproducible source provenance.
 - Bounded SSC 0.83 notes/timing export for supported pump-double charts, with exact chart/music replay descriptors, verified WASM selection, byte-bound WAV/OGG/MP3 copying, optional explicit signature trust, and no-clobber output directories.
 
+- Ready-to-copy StepMania Songs groups from a two-variant demo or existing chart bundle, with retained replay sources and a first-install, controls, and noteskin guide. Game installation and desktop playback remain manual.
+
 ## Deliberately deferred
 
 - Public publisher identity/revocation infrastructure, transparency logs, and official ranked release policy. Local v2 signature verification is implemented; hashes alone still prove only integrity.

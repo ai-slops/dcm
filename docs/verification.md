@@ -84,6 +84,15 @@ This is independent parser and timing-engine evidence, not an actual StepMania o
 test. Those applications were not launched. Their rendering, audio decoding, input handling, and
 platform-specific numeric precision remain outside these checks.
 
+## StepMania preparation
+
+`node scripts/test-prepare-stepmania.mjs` exercises the real preparation CLI from outside the
+repository directory. It checks both demo candidates, custom bundle/history fallback, spaced paths,
+replay equivalence, audio/SSC hashes, help before building, and rejection of invalid seeds,
+incomplete inputs, unknown options, existing destinations, and dangling output symlinks.
+See [the StepMania setup guide](stepmania.md) for the unexecuted desktop checklist; preparation is
+not evidence that the game was installed or played in this workspace.
+
 ## Platform and tooling limitations
 
 Rust, JavaScript, Python, and shell LSP servers were unavailable; compiler, Clippy, syntax checks,
