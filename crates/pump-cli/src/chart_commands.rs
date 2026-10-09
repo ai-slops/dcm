@@ -30,6 +30,11 @@ struct KeygenOutput<'a> {
     public: &'a Path,
 }
 
+struct VerifyOptions<'a> {
+    trusted_key: Option<&'a str>,
+    audio: Option<&'a Path>,
+}
+
 pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
     match &args.command {
         ChartCommand::Compile(args) => compile(args, format),
@@ -67,9 +72,17 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
             crate::chart_generate::test_seeds(&args.bundle, args.count, format)
         }
         ChartCommand::Sign(args) => {
-            verify(&args.bundle, None, None)?;
+            let bundle = crate::chart_bundle::load(&args.bundle)?;
+            verify_loaded(
+                &args.bundle,
+                &bundle,
+                VerifyOptions {
+                    trusted_key: None,
+                    audio: None,
+                },
+            )?;
             output(
-                &crate::chart_signing::sign(&args.bundle, &args.key)?,
+                &crate::chart_signing::sign(&args.bundle, &bundle.manifest_bytes, &args.key)?,
                 format,
             )
         }
@@ -143,8 +156,16 @@ fn run_author(author_bytes: &[u8], music: Music, limits: Limits) -> Result<pump_
 
 fn verify(root: &Path, trusted_key: Option<&str>, audio: Option<&Path>) -> Result<Verification> {
     let bundle = crate::chart_bundle::load(root)?;
+    verify_loaded(root, &bundle, VerifyOptions { trusted_key, audio })
+}
+
+fn verify_loaded(
+    root: &Path,
+    bundle: &crate::chart_bundle::Bundle,
+    options: VerifyOptions<'_>,
+) -> Result<Verification> {
     ChartRuntime::new(&bundle.runtime_component)?;
-    verify_audio(audio, &bundle.plan.music.audio_sha256)?;
+    verify_audio(options.audio, &bundle.plan.music.audio_sha256)?;
     pump_eval::reproduce(
         &bundle.plan,
         &bundle.contract,
@@ -153,8 +174,9 @@ fn verify(root: &Path, trusted_key: Option<&str>, audio: Option<&Path>) -> Resul
         &bundle.report,
     )
     .context("reproduce chart evaluation")?;
-    let signature = trusted_key
-        .map(|key| crate::chart_signing::verify(root, key))
+    let signature = options
+        .trusted_key
+        .map(|key| crate::chart_signing::verify(root, &bundle.manifest_bytes, key))
         .transpose()?;
     Ok(Verification {
         integrity: true,

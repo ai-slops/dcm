@@ -31,8 +31,7 @@ pub fn keygen(private_path: &Path, public_path: &Path) -> Result<()> {
     write_new(public_path, format!("{public}\n").as_bytes(), "public key")
 }
 
-pub fn sign(bundle: &Path, private_path: &Path) -> Result<BundleSignature> {
-    let manifest = artifact_io::read(&bundle.join(crate::chart_bundle::MANIFEST), 65_536)?;
+pub fn sign(bundle: &Path, manifest: &[u8], private_path: &Path) -> Result<BundleSignature> {
     let private = artifact_io::read(private_path, 64)?;
     ensure!(
         private.len() == 32,
@@ -42,12 +41,12 @@ pub fn sign(bundle: &Path, private_path: &Path) -> Result<BundleSignature> {
         .try_into()
         .map_err(|_| anyhow::anyhow!("invalid private key length"))?;
     let signing = SigningKey::from_bytes(&secret);
-    let signature = signing.sign(&message(&manifest));
+    let signature = signing.sign(&message(manifest));
     let record = BundleSignature {
         schema_version: 2,
         algorithm: "ed25519".to_owned(),
         public_key: hex::encode(signing.verifying_key().as_bytes()),
-        manifest_sha256: hex::encode(Sha256::digest(&manifest)),
+        manifest_sha256: hex::encode(Sha256::digest(manifest)),
         signature: hex::encode(signature.to_bytes()),
     };
     write_new(
@@ -58,8 +57,7 @@ pub fn sign(bundle: &Path, private_path: &Path) -> Result<BundleSignature> {
     Ok(record)
 }
 
-pub fn verify(bundle: &Path, trusted_key: &str) -> Result<BundleSignature> {
-    let manifest = artifact_io::read(&bundle.join(crate::chart_bundle::MANIFEST), 65_536)?;
+pub fn verify(bundle: &Path, manifest: &[u8], trusted_key: &str) -> Result<BundleSignature> {
     let bytes = artifact_io::read(&bundle.join(SIGNATURE_FILE), 65_536)?;
     let record: BundleSignature =
         serde_json::from_slice(&bytes).context("decode bundle signature")?;
@@ -69,7 +67,7 @@ pub fn verify(bundle: &Path, trusted_key: &str) -> Result<BundleSignature> {
         "unsupported signature algorithm"
     );
     ensure!(
-        record.manifest_sha256 == hex::encode(Sha256::digest(&manifest)),
+        record.manifest_sha256 == hex::encode(Sha256::digest(manifest)),
         "signature manifest binding mismatch"
     );
     let trusted = parse_public_key(trusted_key)?;
@@ -81,7 +79,7 @@ pub fn verify(bundle: &Path, trusted_key: &str) -> Result<BundleSignature> {
         hex::decode(&record.signature).context("signature must be hexadecimal")?;
     let signature = Signature::from_slice(&signature_bytes).context("invalid Ed25519 signature")?;
     trusted
-        .verify_strict(&message(&manifest), &signature)
+        .verify_strict(&message(manifest), &signature)
         .context("bundle signature verification failed")?;
     Ok(record)
 }
@@ -158,13 +156,18 @@ mod tests {
         let private = directory.path().join("private.key");
         let public = directory.path().join("public.key");
         keygen(&private, &public).expect("key generation");
-        sign(&bundle, &private).expect("sign bundle");
+        let manifest = b"manifest";
+        sign(&bundle, manifest, &private).expect("sign bundle");
         let other_private = directory.path().join("other.key");
         let other_public = directory.path().join("other.pub");
         keygen(&other_private, &other_public).expect("other key generation");
 
-        let error = verify(&bundle, other_public.to_str().expect("UTF-8 path"))
-            .expect_err("untrusted signer must fail");
+        let error = verify(
+            &bundle,
+            manifest,
+            other_public.to_str().expect("UTF-8 path"),
+        )
+        .expect_err("untrusted signer must fail");
 
         assert!(error.to_string().contains("trusted key"));
     }
@@ -185,7 +188,7 @@ mod tests {
         fs::write(&outside, b"sentinel").expect("outside fixture");
         symlink(&outside, bundle.join(SIGNATURE_FILE)).expect("signature symlink");
 
-        let result = sign(&bundle, &private);
+        let result = sign(&bundle, b"manifest", &private);
 
         assert!(result.is_err());
         assert_eq!(fs::read(outside).expect("outside bytes"), b"sentinel");
@@ -199,5 +202,35 @@ mod tests {
         let parsed = parse_public_key(&encoded).expect("literal public key");
 
         assert_eq!(parsed, key);
+    }
+
+    #[test]
+    fn verification_uses_the_supplied_manifest_snapshot() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let bundle = directory.path().join("bundle");
+        fs::create_dir(&bundle).expect("bundle directory");
+        let signed_manifest = b"signed manifest snapshot";
+        fs::write(bundle.join(crate::chart_bundle::MANIFEST), signed_manifest)
+            .expect("manifest fixture");
+        let private = directory.path().join("private.key");
+        let public = directory.path().join("public.key");
+        keygen(&private, &public).expect("key generation");
+        sign(&bundle, signed_manifest, &private).expect("sign snapshot");
+        fs::write(
+            bundle.join(crate::chart_bundle::MANIFEST),
+            b"different filesystem manifest",
+        )
+        .expect("replace filesystem manifest");
+        let trusted_key = public.to_str().expect("UTF-8 path");
+
+        let verified = verify(&bundle, signed_manifest, trusted_key).expect("verify snapshot");
+        let mismatch = verify(&bundle, b"different supplied snapshot", trusted_key)
+            .expect_err("different supplied bytes must fail");
+
+        assert_eq!(
+            verified.manifest_sha256,
+            hex::encode(Sha256::digest(signed_manifest))
+        );
+        assert!(mismatch.to_string().contains("manifest binding"));
     }
 }
