@@ -60,6 +60,33 @@ pub fn compile_loaded(
     runtime: &Path,
     out: &Path,
 ) -> Result<bundle::Manifest> {
+    let authored = build(input)?;
+    let runtime_bytes = crate::artifact_io::read(runtime, crate::artifact_io::ARTIFACT_LIMIT)?;
+    crate::runtime_runner::RuntimeRunner::new(&runtime_bytes)?;
+    let runtime_plan = pump_core::compile(&authored.plan).context("compile package plan")?;
+    let plan_bytes = pump_core::encode_runtime_plan(&runtime_plan)?;
+    let analysis = serde_json::to_vec_pretty(&pump_core::analyze(&runtime_plan)?)?;
+    bundle::write(
+        out,
+        &bundle::Artifacts {
+            author: &authored.author_component,
+            runtime: &runtime_bytes,
+            plan: &plan_bytes,
+            analysis: &analysis,
+            package_lock: Some(&authored.lock_bytes),
+            invocation_report: Some(&authored.invocations),
+        },
+    )
+}
+
+pub struct AuthoredPackage {
+    pub plan: pump_core::Plan,
+    pub author_component: Vec<u8>,
+    pub lock_bytes: Vec<u8>,
+    pub invocations: Vec<u8>,
+}
+
+pub fn build(input: LockedResolution) -> Result<AuthoredPackage> {
     let LockedResolution {
         resolution,
         lock_bytes,
@@ -92,24 +119,12 @@ pub fn compile_loaded(
     })
     .context("encode invocation report")?;
     drop(session);
-    let runtime_bytes = crate::artifact_io::read(runtime, crate::artifact_io::ARTIFACT_LIMIT)?;
-    let runtime_component = wasmtime::component::Component::new(&engine, &runtime_bytes)?;
-    crate::commands::ensure_runtime_import_free(&engine, &runtime_component)?;
-    crate::runtime_runner::RuntimeRunner::new(&runtime_bytes)?;
-    let runtime_plan = pump_core::compile(&plan).context("compile package plan")?;
-    let plan_bytes = pump_core::encode_runtime_plan(&runtime_plan)?;
-    let analysis = serde_json::to_vec_pretty(&pump_core::analyze(&runtime_plan)?)?;
-    bundle::write(
-        out,
-        &bundle::Artifacts {
-            author: &song.bytes,
-            runtime: &runtime_bytes,
-            plan: &plan_bytes,
-            analysis: &analysis,
-            package_lock: Some(&lock_bytes),
-            invocation_report: Some(&report),
-        },
-    )
+    Ok(AuthoredPackage {
+        plan,
+        author_component: song.bytes,
+        lock_bytes,
+        invocations: report,
+    })
 }
 
 pub fn compatible(required: &Path, candidate: &Path, key: &str) -> Result<()> {
