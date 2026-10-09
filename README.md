@@ -4,12 +4,24 @@ This repository implements a deterministic procedural chart pipeline for a ten-p
 
 ## Build
 
-Docker is the build prerequisite. Node.js 24 is also required for the DIM gateway and its end-to-end tests; DIM already provides it. The build pins Rust 1.94.0, Wasmtime 40.0.4, `wit-bindgen` 0.53.1, `wasm-tools` 1.254.0, and the build/runtime image digests. The extracted CLI runs on Linux with glibc 2.36 or newer, using the Docker host's architecture.
+Docker is the build prerequisite. Node.js 24 is also required for the DIM gateway and its end-to-end tests; DIM already provides it. Install [just](https://just.systems/man/en/installation.html) for the daily commands below. The build pins Rust 1.94.0, Wasmtime 40.0.4, `wit-bindgen` 0.53.1, `wasm-tools` 1.254.0, and the build/runtime image digests. The extracted CLI runs on Linux with glibc 2.36 or newer, using the Docker host's architecture. On Windows, run these recipes in WSL2 with Docker integration.
 
 ```sh
-./scripts/build.sh
-./dist/pump --help
+just build
+just pump --help
 ```
+
+`just build` only compiles and packages artifacts. It does **not** run formatting, Clippy, or
+tests. `just check` runs Rust formatting, Clippy, and workspace tests; `just test` runs the complete
+verification gate, including a fresh build and all end-to-end scenarios. Clippy remains available
+as a quality check, but no longer prevents an ordinary artifact build.
+
+Run `just` to list recipes, including `lint`, `fmt-check`, `test-unit`, `test-e2e`, `check-eol`,
+`stepmania`, and `serve`. The shell entry points still work without installing just:
+`sh scripts/build.sh`, `sh scripts/check.sh`, and `sh scripts/test.sh`.
+See [build and checkout instructions](docs/build.md) for the command matrix and safe recovery
+of an existing Windows checkout containing CRLF files. `.gitattributes` pins text checkouts to LF
+even when `core.autocrlf=true`; binary artifacts are not converted.
 
 The build emits:
 
@@ -60,7 +72,7 @@ No plugin or custom skin is needed. After building on Linux/WSL, prepare two com
 smoke-test songs with a single command:
 
 ```sh
-node scripts/prepare-stepmania.mjs --out bundle/stepmania-playtest
+just stepmania --out bundle/stepmania-playtest
 ```
 
 Copy `bundle/stepmania-playtest/Songs/PUMP Generated` into StepMania's user `Songs` folder.
@@ -88,7 +100,7 @@ The helper does not install or launch the game, change its preferences, or claim
 
 `generate` invokes the bundled runtime component in Wasmtime. It does not use the native generator as a fallback. The author receives no serialized-plan input path; it can only call the bounded host resource.
 
-Run all automated and adversarial scenarios with `./scripts/test.sh`. It rebuilds first to prevent stale artifacts from passing tests. Build-time checks include Rust formatting, Clippy, and the workspace test suite. See [semantics](docs/semantics.md), [architecture](docs/architecture.md), and [implementation status](docs/status.md).
+Run all automated and adversarial scenarios with `just test` (or `sh scripts/test.sh`). It runs the checkout regression and Rust quality checks, then rebuilds before end-to-end tests to avoid stale artifacts. `just test-e2e` intentionally uses existing artifacts for a faster targeted run. See [semantics](docs/semantics.md), [architecture](docs/architecture.md), and [implementation status](docs/status.md).
 
 The output bundle directory must not already exist. Compiling a second bundle with the same inputs produces identical artifact bytes. The bundled example produces 52 tap commands; compare `commands`, not replay metadata, when measuring chart variation.
 
