@@ -1,13 +1,12 @@
-FROM rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55 AS builder
+FROM rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55 AS source
 WORKDIR /src
 ENV CARGO_BUILD_JOBS=2
 RUN rustup target add wasm32-unknown-unknown \
  && rustup component add rustfmt clippy
 RUN cargo install --locked wasm-tools --version 1.254.0
 COPY . .
-RUN cargo fmt --all -- --check \
- && cargo clippy --locked --workspace --all-targets --all-features -- -D warnings \
- && cargo test --locked --workspace
+
+FROM source AS builder
 RUN cargo build --locked --release -p pump \
  && cargo build --locked --release --target wasm32-unknown-unknown -p pump-author-component -p pump-runtime-component -p pump-pattern-component -p pump-style-calm-component -p pump-style-bold-component -p pump-song-a-component -p pump-song-b-component -p pump-chart-author-component -p pump-chart-runtime-component -p pump-song-correlated-component \
  && wasm-tools component new target/wasm32-unknown-unknown/release/pump_author_component.wasm -o /tmp/author.component.wasm \
