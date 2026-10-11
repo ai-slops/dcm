@@ -4,8 +4,10 @@ import {
   cpSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, extname, join, relative, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { resolvePumpBinary } from "./pump-binary.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const zeroSeed = "00".repeat(32);
@@ -97,6 +99,7 @@ const id = candidate => Buffer.from(candidate.candidate_id).toString("hex");
 const generated = value => value.generated ?? value;
 const digest = path => createHash("sha256").update(readFileSync(path)).digest("hex");
 const classification = candidate => candidate.chart.notes.some(note => note.hold_ticks > 0) ? "Holds" : "Taps";
+const packagePath = (root, path) => relative(root, path).split(sep).join("/");
 
 let published = false;
 let stage;
@@ -116,7 +119,7 @@ try {
 
   const output = resolve(options.out);
   if (exists(output)) throw new Error(`output path already exists: ${output}`);
-  const binary = resolve(process.env.PUMP_BINARY ?? join(repoRoot, "dist/pump"));
+  const binary = resolvePumpBinary();
   requireInput(binary, "file", "PUMP binary");
   const custom = Boolean(options.bundle);
   const bundleInput = custom ? resolve(options.bundle) : join(repoRoot, "dist/chart-author.component.wasm");
@@ -171,12 +174,12 @@ try {
       "--title", title, "--artist", artist, "--format", "json"]);
     const replay = JSON.parse(readFileSync(join(folder, "replay.json"), "utf8"));
     if (replay.selection.candidate_id !== id(request.candidate)) throw new Error("exported replay differs from generated candidate");
-    songs.push({ folder: relative(stage, folder), classification: kind.toLowerCase(), title, artist,
-      candidate_id: id(request.candidate), history: request.history, replay: relative(stage, join(folder, "replay.json")) });
+    songs.push({ folder: packagePath(stage, folder), classification: kind.toLowerCase(), title, artist,
+      candidate_id: id(request.candidate), history: request.history, replay: packagePath(stage, join(folder, "replay.json")) });
   }
 
   const summary = { schema_version: 1, mode: custom ? "custom" : "demo", seed: options.seed,
-    source: { bundle: "source/chart.bundle", audio: relative(stage, audio), audio_sha256: digest(audio) }, songs };
+    source: { bundle: "source/chart.bundle", audio: packagePath(stage, audio), audio_sha256: digest(audio) }, songs };
   writeFileSync(join(stage, "preparation.json"), `${JSON.stringify(summary, null, 2)}\n`, { flag: "wx" });
   const histories = songs.map(song => `${song.folder}: ${song.history.length ? song.history.join(", ") : "none"}`).join("\n");
   writeFileSync(join(stage, "README.txt"), `StepMania test songs\n\nCopy the group folder Songs/PUMP Generated into your StepMania Songs directory.\nChoose the Pump game, Double style, and Edit chart difficulty in normal gameplay. Meter 1 is uncalibrated.\nUse the bundled default Pump noteskin; no plugin is required. See docs/stepmania.md in the repository for installation and controls.\nThis command prepared files only; it did not launch StepMania or change preferences, skins, or system paths.\n\nSeed: ${options.seed}\nSource bundle: source/chart.bundle\nSource audio: ${relative(stage, audio)}\nHistory by song:\n${histories}\n\nKeep source/chart.bundle, the source audio, and each replay.json together for exact replay reference.\n`, { flag: "wx" });

@@ -2,15 +2,18 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolvePumpBinary } from "./pump-binary.mjs";
+import { createSymlinkFixture } from "./signing-test-helpers.mjs";
+
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const script = join(repoRoot, "scripts/prepare-stepmania.mjs");
-const binary = resolve(process.env.PUMP_BINARY ?? join(repoRoot, "dist/pump"));
+const binary = resolvePumpBinary();
 const work = mkdtempSync(join(tmpdir(), "pump-prepare-stepmania-"));
 const seed = "00".repeat(32);
 const expectedAudio = "02c6a61ec8f58b47ec56a5637d2a1c25f344d4490c7655e962c789dfeafb5f1a";
@@ -124,9 +127,10 @@ try {
   assert.equal(readFileSync(existing, "utf8"), "preserve me");
   const danglingTarget = join(work, "absent-target");
   const danglingOutput = join(work, "dangling-output");
-  symlinkSync(danglingTarget, danglingOutput);
-  reject(["--out", danglingOutput], /already exists/);
-  assert.equal(lstatSync(danglingOutput).isSymbolicLink(), true);
+  if (createSymlinkFixture(danglingTarget, danglingOutput, "dangling output defense")) {
+    reject(["--out", danglingOutput], /already exists/);
+    assert.equal(lstatSync(danglingOutput).isSymbolicLink(), true);
+  }
 
   console.log(JSON.stringify({ prepare_stepmania: "passed", default_output: defaultOutput,
     songs: summary.songs.map(song => ({ folder: song.folder, candidate_id: song.candidate_id })), custom_output: customOutput }));
