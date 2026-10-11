@@ -5,9 +5,11 @@ import { createServer } from "node:http";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { resolvePumpBinary } from "../scripts/pump-binary.mjs";
+
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL("../", import.meta.url));
-const binary = process.env.PUMP_BINARY ?? `${root}dist/pump`;
+const binary = resolvePumpBinary();
 const bundle = process.env.PUMP_BUNDLE ?? `${root}bundle`;
 let active = 0;
 
