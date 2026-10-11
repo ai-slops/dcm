@@ -38,12 +38,12 @@ test-e2e:
 
 # Pass arguments to the built Linux CLI, preserving spaces and shell characters.
 pump *args:
-    ./dist/pump "$@"
+    sh scripts/run.sh pump "$@"
 
 # Prepare StepMania songs; pass --out and optional seed/bundle/audio arguments.
 stepmania *args:
-    node scripts/prepare-stepmania.mjs "$@"
+    sh scripts/run.sh stepmania "$@"
 
 # Run the development HTTP gateway using existing dist and bundle artifacts.
 serve:
-    node app/server.mjs
+    sh scripts/run.sh serve
