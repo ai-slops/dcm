@@ -115,20 +115,21 @@ fn message(manifest: &[u8]) -> Vec<u8> {
     message
 }
 
+#[cfg(unix)]
 fn write_new_private(path: &Path, bytes: &[u8]) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)
-            .with_context(|| format!("create private key {}", path.display()))?;
-        file.write_all(bytes).context("write private key")?;
-        Ok(())
-    }
-    #[cfg(not(unix))]
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .with_context(|| format!("create private key {}", path.display()))?;
+    file.write_all(bytes).context("write private key")?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_new_private(_path: &Path, _bytes: &[u8]) -> Result<()> {
     anyhow::bail!("private key permission enforcement is unsupported on this platform")
 }
 
@@ -147,6 +148,16 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn write_test_key(private: &Path, public: &Path, seed_byte: u8) {
+        let signing = SigningKey::from_bytes(&[seed_byte; 32]);
+        fs::write(private, signing.as_bytes()).expect("private key fixture");
+        fs::write(
+            public,
+            format!("{}\n", hex::encode(signing.verifying_key().as_bytes())),
+        )
+        .expect("public key fixture");
+    }
+
     #[test]
     fn trusted_key_must_match_embedded_signer() {
         let directory = tempfile::tempdir().expect("temporary directory");
@@ -155,12 +166,12 @@ mod tests {
         fs::write(bundle.join(crate::chart_bundle::MANIFEST), b"manifest").expect("manifest");
         let private = directory.path().join("private.key");
         let public = directory.path().join("public.key");
-        keygen(&private, &public).expect("key generation");
+        write_test_key(&private, &public, 7);
         let manifest = b"manifest";
         sign(&bundle, manifest, &private).expect("sign bundle");
         let other_private = directory.path().join("other.key");
         let other_public = directory.path().join("other.pub");
-        keygen(&other_private, &other_public).expect("other key generation");
+        write_test_key(&other_private, &other_public, 8);
 
         let error = verify(
             &bundle,
@@ -183,7 +194,7 @@ mod tests {
         fs::write(bundle.join(crate::chart_bundle::MANIFEST), b"manifest").expect("manifest");
         let private = directory.path().join("private.key");
         let public = directory.path().join("public.key");
-        keygen(&private, &public).expect("key generation");
+        write_test_key(&private, &public, 7);
         let outside = directory.path().join("outside");
         fs::write(&outside, b"sentinel").expect("outside fixture");
         symlink(&outside, bundle.join(SIGNATURE_FILE)).expect("signature symlink");
@@ -214,7 +225,7 @@ mod tests {
             .expect("manifest fixture");
         let private = directory.path().join("private.key");
         let public = directory.path().join("public.key");
-        keygen(&private, &public).expect("key generation");
+        write_test_key(&private, &public, 7);
         sign(&bundle, signed_manifest, &private).expect("sign snapshot");
         fs::write(
             bundle.join(crate::chart_bundle::MANIFEST),
@@ -232,5 +243,23 @@ mod tests {
             hex::encode(Sha256::digest(signed_manifest))
         );
         assert!(mismatch.to_string().contains("manifest binding"));
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn keygen_fails_closed_without_private_key_permission_enforcement() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let private = directory.path().join("private.key");
+        let public = directory.path().join("public.key");
+
+        let error = keygen(&private, &public).expect_err("non-Unix keygen must fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("permission enforcement is unsupported")
+        );
+        assert!(!private.exists());
+        assert!(!public.exists());
     }
 }
