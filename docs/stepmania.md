@@ -10,21 +10,23 @@ There are two separate programs:
 
 | Program | Where to run it | Requirements |
 | --- | --- | --- |
-| This repository's generator | Linux, or a Linux environment under Windows WSL2 | Docker, Node.js 24, repository checkout |
+| This repository's generator | Linux, or Windows Git Bash with Docker Desktop | Docker Linux containers, Node.js 24, just, repository checkout |
 | StepMania | Your graphical desktop | Graphics/audio support; Windows or compatible Linux recommended for this baseline |
 
 The built `dist/pump` is a **Linux executable**, not a Windows `.exe` or macOS application. On
-Windows, run the generator in WSL2 with Docker Desktop's WSL integration, then copy its output to
-native Windows StepMania. A remote workspace can generate the files instead: transfer the prepared
+Windows, `just pump` and `just stepmania` run it inside Docker from Git Bash, without a WSL shell.
+Output is saved into your Windows checkout for native Windows StepMania. A remote workspace can
+also generate the files instead: transfer the prepared
 directory to your desktop. StepMania does not need Rust, Docker, Node.js, or the generator to play
 an already exported song.
 
 Prerequisite installers: [Docker](https://docs.docker.com/get-started/get-docker/),
-[Node.js](https://nodejs.org/en/download), and, for Windows generation,
-[WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+[Node.js](https://nodejs.org/en/download), [just](https://just.systems/man/en/installation.html),
+and, for Windows generation, [Git for Windows with Git Bash](https://gitforwindows.org/).
 Check `docker version` and `node --version` before building.
 For the optional `just` command runner and LF checkout recovery on Windows, see
-[build and checkout instructions](build.md). The direct script commands below still work.
+[build and checkout instructions](build.md). Without just, use `sh scripts/build.sh` and
+`sh scripts/run.sh stepmania ...`; do not run the raw Linux binary on Windows.
 
 ## 2. Install genuine StepMania
 
@@ -77,15 +79,17 @@ test; it is not silently substituted here.
 
 ## 3. Generate the test pack
 
-From this repository on Linux/WSL2:
+From this repository on Linux or Windows Git Bash:
 
 ```sh
-./scripts/build.sh
-node scripts/prepare-stepmania.mjs --help
-node scripts/prepare-stepmania.mjs --out bundle/stepmania-playtest
+just build
+just stepmania --help
+just stepmania --out bundle/stepmania-playtest
 ```
 
-If `dist/` was already built from the current checkout, skip the build. The output directory must
+If `dist/` and the local runner image were already built from the current checkout, skip the build.
+On Windows, use repository-relative paths; the checkout is mounted at `/workspace` in the runner.
+The output directory must
 not already exist. Choose a new name for each run instead of overwriting an installed song.
 The command generates a four-second metronome, compiles a verified v2 source bundle, and exports
 both retained variants with real WASM generation and history exclusion:
@@ -139,7 +143,7 @@ Copy the **`PUMP Generated` group directory** from the pack's `Songs/` into the 
 `Songs/Songs/PUMP Generated/...` or `Songs/01-Taps/chart.ssc`. If the group already exists,
 use a new group name or back up the old copy instead of merging blindly.
 
-On Windows, press Win+R and enter `%APPDATA%\StepMania 5` to open the correct folder. From WSL,
+On Windows, press Win+R and enter `%APPDATA%\StepMania 5` to open the correct folder. From Git Bash,
 `explorer.exe bundle/stepmania-playtest` opens the generated folder for copying; the game itself
 still runs on the Windows desktop. On Linux, enable hidden files in your file manager to find
 `.stepmania-5.0`.
@@ -230,14 +234,16 @@ audio device, and any loading or timing problem before changing settings.
 ## 8. Generate another seed or your own bundle
 
 ```sh
-node scripts/prepare-stepmania.mjs --out bundle/stepmania-next \
+just stepmania --out bundle/stepmania-next \
   --seed 0101010101010101010101010101010101010101010101010101010101010101
 
-node scripts/prepare-stepmania.mjs --out bundle/my-playtest \
-  --bundle /path/to/chart.bundle --audio /path/to/bound-music.wav \
+just stepmania --out bundle/my-playtest \
+  --bundle inputs/chart.bundle --audio inputs/bound-music.wav \
   --title "My chart" --artist "My artist"
 ```
 
+For custom mode, first copy the bundle and its bound audio into the checkout's `inputs/` directory.
+Arbitrary Windows paths outside the checkout are not visible in the runtime container.
 The demo has only two retained candidates, so new seeds do not create unlimited new musical
 patterns. Custom mode exports one candidate; repeated `--history <candidate-id>` options use the
 same exclusion/fallback semantics as `pump chart generate`. The helper does not author arbitrary
@@ -247,7 +253,7 @@ patterns from audio. Modify/rebuild a Rust author or use the package compilation
 Titles/artists must satisfy the exporter's ASCII/escaping limits. Audio is limited to 32 MiB and
 WAV/OGG/MP3 extensions; no audio decoding is certified. The helper performs integrity and semantic
 reproduction checks, but does not supply a trusted publisher key. Use direct
-`pump chart export-ssc ... --trusted-key <public-key>` when publisher authentication is required.
+`just pump chart export-ssc ... --trusted-key <public-key>` when publisher authentication is required.
 Never keep private signing keys inside a bundle directory you copy or distribute.
 
 Restart StepMania to discover a new song. For changes to the selected existing song, the
@@ -264,7 +270,7 @@ can rewrite SSC data and invalidate the replay descriptor's recorded file hash.
 | No sound | `music.wav` beside SSC; OS output/volume; test the WAV independently |
 | Constant timing shift | Audio device latency/global calibration; do not randomly alter source OFFSET |
 | Skin errors | Revert to bundled Pump `default`; check 5.0.x Pump compatibility |
-| Generator cannot execute | Linux binary needs Linux/WSL; run `./scripts/build.sh`; check Node 24 and Docker |
+| Generator cannot execute | Use `just pump` / `just stepmania`, not `dist/pump`, on Windows; run `just build`; check Git Bash, Node 24, and Docker Linux containers |
 | Output already exists | Use a fresh `--out`; existing files are deliberately preserved |
 | Export rejects timing/cell | Consult [SSC constraints](chart-v2.md#stepmania-and-outfox-ssc-export); no silent rounding is performed |
 

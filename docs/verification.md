@@ -101,6 +101,15 @@ not evidence that the game was installed or played in this workspace.
 
 ## Platform and tooling limitations
 
+The Git Bash runtime boundary is checked with fake MINGW/cygpath/Docker commands for path conversion,
+quoted arguments, dispatch, and exit status. The Node runner also passed actual forced-container
+CLI/E2E execution from a daemon-visible shared checkout. Manual container QA generated a StepMania
+pack under a spaced path and exercised the live gateway: ready health, deterministic 52-command
+generation, and invalid-seed HTTP 400. The SSC parser restores executable permission inside its
+Linux container and accepts a relative `PUMP_BINARY` override in native mode.
+These are Linux-container and simulated Git Bash checks, not a claim that a physical Windows
+Docker Desktop installation was exercised. Windows users no longer need to run a WSL shell.
+
 Rust, JavaScript, Python, and shell LSP servers were unavailable; compiler, Clippy, syntax checks,
 and executable tests were used instead. No LSP-clean claim is made.
 The Python parser driver passed Ruff and had zero BasedPyright errors; four warnings remain at
