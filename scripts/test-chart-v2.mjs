@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const binary = resolve(process.env.PUMP_BINARY ?? "dist/pump");
+import { resolvePumpBinary } from "./pump-binary.mjs";
+import { createSymlinkFixture, useWindowsSigningKeyFixture, writeSigningKeyFixture } from "./signing-test-helpers.mjs";
+
+const binary = resolvePumpBinary();
 const work = mkdtempSync(join(tmpdir(), "pump-feedback-v2-"));
 const seed = "00".repeat(32);
 const music = resolve("dist/feedback/music.json");
@@ -210,10 +213,13 @@ try {
   manifest.files["report.json"] = digest(readFileSync(join(tampered, "report.json")));
   save(join(tampered, "manifest.json"), manifest);
   reject(["verify", tampered], /reproduced|report|certificate/);
-  const privateKey = join(work, "private.key");
-  const publicKey = join(work, "public.key");
-  run(["keygen", "--private", privateKey, "--public", publicKey]);
-  assert.equal(statSync(privateKey).mode & 0o777, 0o600);
+  const privateKey = join(work, "private.key"), publicKey = join(work, "public.key");
+  if (process.platform === "win32") {
+    useWindowsSigningKeyFixture(invoke(["keygen", "--private", privateKey, "--public", publicKey]), privateKey, publicKey);
+  } else {
+    run(["keygen", "--private", privateKey, "--public", publicKey]);
+    assert.equal(statSync(privateKey).mode & 0o777, 0o600);
+  }
   run(["sign", bundle, "--key", privateKey]);
   assert.equal(run(["verify", bundle, "--trusted-key", publicKey]).authenticity, true);
   const trustedExport = run(["export-ssc", bundle, "--seed", seed, "--audio", audio,
@@ -224,7 +230,7 @@ try {
   assert.equal(trustedExport.replay.source_manifest_sha256, digest(readFileSync(join(bundle, "manifest.json"))));
   assert.equal(run(["verify", bundle]).authenticity, false);
   const otherPublic = join(work, "other.pub");
-  run(["keygen", "--private", join(work, "other.key"), "--public", otherPublic]);
+  writeSigningKeyFixture(join(work, "other.key"), otherPublic, 8);
   reject(["verify", bundle, "--trusted-key", otherPublic], /trusted|signature/);
   const signature = read(join(bundle, "signature.json"));
   signature.signature = "00".repeat(64);
@@ -236,9 +242,10 @@ try {
   cpSync(join(bundle, "manifest.json"), join(linked, "manifest.json"));
   const sentinel = join(work, "sentinel");
   writeFileSync(sentinel, "must survive");
-  symlinkSync(sentinel, join(linked, "signature.json"));
-  reject(["sign", linked, "--key", privateKey]);
-  assert.equal(readFileSync(sentinel, "utf8"), "must survive");
+  if (createSymlinkFixture(sentinel, join(linked, "signature.json"), "signature symlink defense")) {
+    reject(["sign", linked, "--key", privateKey]);
+    assert.equal(readFileSync(sentinel, "utf8"), "must survive");
+  }
   const wrongAudio = join(work, "wrong.wav");
   writeFileSync(wrongAudio, "not the bound audio");
   reject(["verify", bundle, "--audio", wrongAudio], /audio/);

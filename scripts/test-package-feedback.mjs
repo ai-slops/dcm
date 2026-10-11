@@ -5,7 +5,10 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writ
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const binary = resolve(process.env.PUMP_BINARY ?? "dist/pump");
+import { resolvePumpBinary } from "./pump-binary.mjs";
+import { useWindowsSigningKeyFixture } from "./signing-test-helpers.mjs";
+
+const binary = resolvePumpBinary();
 const work = mkdtempSync(join(tmpdir(), "pump-package-feedback-"));
 const source = join(work, "source");
 const store = join(work, "store");
@@ -113,7 +116,11 @@ try {
 
   const privateKey = join(work, "release.key");
   const publicKey = join(work, "release.pub");
-  run(["chart", "keygen", "--private", privateKey, "--public", publicKey]);
+  if (process.platform === "win32") {
+    useWindowsSigningKeyFixture(call(["chart", "keygen", "--private", privateKey, "--public", publicKey]), privateKey, publicKey);
+  } else {
+    run(["chart", "keygen", "--private", privateKey, "--public", publicKey]);
+  }
   run(["chart", "sign", correlated, "--key", privateKey]);
   assert.equal(run(["chart", "verify", correlated, "--trusted-key", publicKey]).authenticity, true);
   const stripped = join(work, "stripped");
