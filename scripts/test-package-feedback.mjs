@@ -5,7 +5,7 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writ
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const binary = resolve("dist/pump");
+const binary = resolve(process.env.PUMP_BINARY ?? "dist/pump");
 const work = mkdtempSync(join(tmpdir(), "pump-package-feedback-"));
 const source = join(work, "source");
 const store = join(work, "store");

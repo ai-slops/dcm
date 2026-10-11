@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 seed="0000000000000000000000000000000000000000000000000000000000000000"
+pump_binary="${PUMP_BINARY:-dist/pump}"
 
 mkdir "$work/a" "$work/b"
 cp dist/song-a.package.json "$work/a/pump.package.json"
@@ -12,8 +13,8 @@ cp dist/song-a.component.wasm dist/pattern.component.wasm dist/style-calm.compon
 cp dist/song-b.package.json "$work/b/pump.package.json"
 cp dist/song-b.component.wasm dist/pattern.component.wasm dist/style-bold.component.wasm "$work/b/"
 
-dist/pump package resolve "$work/a/pump.package.json" --out "$work/a.lock" --format json
-dist/pump package resolve "$work/b/pump.package.json" --out "$work/b.lock" --format json
+"$pump_binary" package resolve "$work/a/pump.package.json" --out "$work/a.lock" --format json
+"$pump_binary" package resolve "$work/b/pump.package.json" --out "$work/b.lock" --format json
 node --input-type=module - "$work/a.lock" "$work/b.lock" <<'JS'
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -23,11 +24,11 @@ assert.equal(pick(locks[0], 'pattern'), pick(locks[1], 'pattern'));
 assert.notEqual(pick(locks[0], 'style'), pick(locks[1], 'style'));
 JS
 
-dist/pump package compile "$work/a/pump.package.json" --lock "$work/a.lock" --runtime dist/runtime.component.wasm --out "$work/bundle-a" --format json
-dist/pump package compile "$work/b/pump.package.json" --lock "$work/b.lock" --runtime dist/runtime.component.wasm --out "$work/bundle-b" --format json
-dist/pump package compatible "$work/a.lock" "$work/b.lock" --key pattern --format json
-dist/pump verify "$work/bundle-a" --format json
-dist/pump verify "$work/bundle-b" --format json
+"$pump_binary" package compile "$work/a/pump.package.json" --lock "$work/a.lock" --runtime dist/runtime.component.wasm --out "$work/bundle-a" --format json
+"$pump_binary" package compile "$work/b/pump.package.json" --lock "$work/b.lock" --runtime dist/runtime.component.wasm --out "$work/bundle-b" --format json
+"$pump_binary" package compatible "$work/a.lock" "$work/b.lock" --key pattern --format json
+"$pump_binary" verify "$work/bundle-a" --format json
+"$pump_binary" verify "$work/bundle-b" --format json
 node --input-type=module - "$work/bundle-a/invocations.json" "$work/bundle-b/invocations.json" <<'JS'
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -40,8 +41,8 @@ assert.equal(reports[1].invocations.filter(entry => entry.package_key === 'patte
 JS
 
 rm -rf "$work/a" "$work/b"
-dist/pump generate "$work/bundle-a" --seed "$seed" --format json >"$work/a.json"
-dist/pump generate "$work/bundle-b" --seed "$seed" --format json >"$work/b.json"
+"$pump_binary" generate "$work/bundle-a" --seed "$seed" --format json >"$work/a.json"
+"$pump_binary" generate "$work/bundle-b" --seed "$seed" --format json >"$work/b.json"
 node --input-type=module - "$work/a.json" "$work/b.json" <<'JS'
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
@@ -53,16 +54,16 @@ mkdir "$work/tamper"
 cp dist/song-a.package.json "$work/tamper/pump.package.json"
 cp dist/song-a.component.wasm dist/pattern.component.wasm dist/style-calm.component.wasm "$work/tamper/"
 printf x >>"$work/tamper/pattern.component.wasm"
-if dist/pump package compile "$work/tamper/pump.package.json" --lock "$work/a.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-tamper" --format json; then exit 1; fi
-if dist/pump package compile "$work/tamper/pump.package.json" --lock "$work/b.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-lock" --format json; then exit 1; fi
+if "$pump_binary" package compile "$work/tamper/pump.package.json" --lock "$work/a.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-tamper" --format json; then exit 1; fi
+if "$pump_binary" package compile "$work/tamper/pump.package.json" --lock "$work/b.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-lock" --format json; then exit 1; fi
 
 mkdir "$work/failure"
 cp dist/song-a.package.json "$work/failure/pump.package.json"
 cp dist/fixture-pattern-failure.component.wasm "$work/failure/pattern.component.wasm"
 cp dist/fixture-song-recovery.component.wasm "$work/failure/song-a.component.wasm"
 cp dist/style-calm.component.wasm "$work/failure/"
-dist/pump package resolve "$work/failure/pump.package.json" --out "$work/failure.lock" --format json
-if dist/pump package compile "$work/failure/pump.package.json" --lock "$work/failure.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-poison" --format json 2>"$work/poison.json"; then exit 1; fi
+"$pump_binary" package resolve "$work/failure/pump.package.json" --out "$work/failure.lock" --format json
+if "$pump_binary" package compile "$work/failure/pump.package.json" --lock "$work/failure.lock" --runtime dist/runtime.component.wasm --out "$work/rejected-poison" --format json 2>"$work/poison.json"; then exit 1; fi
 node --input-type=module - "$work/poison.json" <<'JS'
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';

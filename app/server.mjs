@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL("../", import.meta.url));
-const binary = `${root}dist/pump`;
+const binary = process.env.PUMP_BINARY ?? `${root}dist/pump`;
 const bundle = process.env.PUMP_BUNDLE ?? `${root}bundle`;
 let active = 0;
 
