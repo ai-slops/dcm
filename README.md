@@ -4,7 +4,7 @@ This repository implements a deterministic procedural chart pipeline for a ten-p
 
 ## Build
 
-Docker, Git, Node.js 24, and [just](https://just.systems/man/en/installation.html) provide the daily workflow. On Windows, use **Git Bash and Docker Desktop with Linux containers; no WSL shell is required**. Windows recipes run the CLI and Node workflows inside a pinned runner container. Native Linux continues using the extracted CLI directly. The build pins Rust 1.94.0, Wasmtime 40.0.4, `wit-bindgen` 0.53.1, `wasm-tools` 1.254.0, and the Rust, Node, and runtime image digests.
+The default workflow is **native and does not require Docker or WSL**. Install Rust 1.94.0, a host C/C++ toolchain, `wasm-tools` 1.254.0, Git, Node.js 24, and [just](https://just.systems/man/en/installation.html). On Windows, use Git Bash with Rust's MSVC toolchain and Visual Studio C++ Build Tools. Full tests additionally use uv and Python 3.12. See [native setup instructions](docs/build.md) for installation commands. Dependency versions remain pinned in the Rust manifests and lockfile.
 
 ```sh
 just build
@@ -22,13 +22,15 @@ Run `just` to list recipes, including `lint`, `fmt-check`, `test-unit`, `test-e2
 See [build and checkout instructions](docs/build.md) for the command matrix and safe recovery
 of an existing Windows checkout containing CRLF files. `.gitattributes` pins text checkouts to LF
 even when `core.autocrlf=true`; binary artifacts are not converted.
-On Windows, pass repository-relative file paths to `just pump` / `just stepmania`; copy external
-inputs into the checkout first. Outputs under `bundle/` are saved directly into the host checkout.
-The raw `dist/pump` remains Linux ELF, not a Windows executable; use the recipes instead.
+The CLI runs directly on the host: `dist/pump.exe` on Windows and `dist/pump` elsewhere.
+Relative and absolute host paths are supported; quote paths containing spaces.
+Docker is opt-in only: `just build-docker` writes separate Linux artifacts to `dist/docker`, and
+`just check-docker` runs Rust checks in the pinned container. Missing host tools never trigger an
+automatic Docker fallback.
 
 The build emits:
 
-- `dist/pump`
+- `dist/pump.exe` on Windows, or `dist/pump` on other hosts
 - `dist/author.component.wasm`
 - `dist/runtime.component.wasm`
 - reusable package examples: one pattern, two songs, two styles, and two source manifests
@@ -55,13 +57,20 @@ just pump chart verify "$demo/chart.bundle" --audio "$demo/music.wav" --format j
 just pump chart export-ssc "$demo/chart.bundle" \
   --seed 0000000000000000000000000000000000000000000000000000000000000000 \
   --audio "$demo/music.wav" --out "$demo/ssc" --title "Example" --artist "Artist"
+```
+
+Optional signing below requires Unix key generation. Native Windows can sign/verify with an
+existing securely provisioned key, but `keygen` deliberately refuses creation until owner-only
+Windows permissions can be enforced atomically:
+
+```sh
 just pump chart keygen --private "$demo/release.key" --public "$demo/release.pub"
 just pump chart sign "$demo/chart.bundle" --key "$demo/release.key"
 just pump chart verify "$demo/chart.bundle" --trusted-key "$demo/release.pub" --format json
 ```
 
 Use a fresh demo directory. Do not distribute the private `release.key` alongside exported songs.
-Windows host ACLs remain responsible for protecting keys stored on a Windows bind mount.
+Windows host ACLs remain responsible for protecting existing private keys used on Windows.
 The example has a real four-second metronome, a 100 ms offset, and a 120-to-150 BPM change.
 `explain` exposes exact song times and an execution witness. `evaluate` accepts a concrete chart
 for direct damaged-pattern or impossible-movement feedback. `compile --failure-report <path>`
@@ -157,7 +166,7 @@ curl http://localhost:3000/health
 curl 'http://localhost:3000/api/generate?seed=0000000000000000000000000000000000000000000000000000000000000000'
 ```
 
-Generation uses the configured binary and the v1 bundle from the quickstart. An operator may set `PUMP_BUNDLE` to another bundle path (the direct server defaults to `bundle/`). On Windows, `just serve` runs Node and the CLI in the runner image and publishes localhost port 3000. Before artifacts are available to a running service, health reports `ready: false` and generation returns HTTP 503. Invalid seeds return HTTP 400. At most two generation subprocesses run concurrently, with a 30-second deadline.
+Generation uses the native binary and the v1 bundle from the quickstart. An operator may set `PUMP_BUNDLE` to another host bundle path (the direct server defaults to `bundle/`). `just serve` runs host Node and the host CLI on port 3000, with no container or port forwarding. Before artifacts are available to a running service, health reports `ready: false` and generation returns HTTP 503. Invalid seeds return HTTP 400. At most two generation subprocesses run concurrently, with a 30-second deadline.
 
 ## Security boundary
 
