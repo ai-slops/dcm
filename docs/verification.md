@@ -1,12 +1,14 @@
 # Verification record
 
-Verified in this workspace on x86-64 Linux using the pinned Docker build. ARM64, macOS, console hosts, and production game engines were not tested.
+Verified in this workspace natively on x86-64 Linux with Rust 1.94.0 and wasm-tools 1.254.0.
+Docker is optional, not part of the default gate. Physical Windows/MSVC, ARM64, macOS, console
+hosts, and production game engines were not tested.
 
 ## Automated checks
 
 `just test` (`sh scripts/test.sh`) validates current sources rather than reusing stale `dist`
-files. It first tests Git checkout behavior with `core.autocrlf=true` and `core.eol=crlf`, then
-runs `scripts/check.sh` in the pinned Docker source image:
+files. It tests Git checkout behavior with `core.autocrlf=true` and `core.eol=crlf`, host binary
+resolution, and native build/dispatch behavior, then runs `scripts/check.sh` on the host:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
@@ -78,8 +80,8 @@ bytes, replay digests, explicit signature trust, deterministic selection, and no
 source chart, and checks the parser's timing engine against the exact source schedule across the
 offset and BPM change. Escaped metadata and invalid-seed rejection are also checked.
 
-The parser runs in a digest-pinned UV/Python Docker image and declares its Python dependencies in
-the script, separate from the product's Rust dependencies. The full test suite invokes it after
+The parser runs locally through uv with Python 3.12 and declares its pinned Python dependencies
+in the script, separate from the product's Rust dependencies. The full test suite invokes it after
 rebuilding the CLI. To run just this interoperability check after building:
 
 ```sh
@@ -101,20 +103,23 @@ not evidence that the game was installed or played in this workspace.
 
 ## Platform and tooling limitations
 
-The Git Bash runtime boundary is checked with fake MINGW/cygpath/Docker commands for path conversion,
-quoted arguments, dispatch, and exit status. The Node runner also passed actual forced-container
-CLI/E2E execution from a daemon-visible shared checkout. Manual container QA generated a StepMania
-pack under a spaced path and exercised the live gateway: ready health, deterministic 52-command
-generation, and invalid-seed HTTP 400. The SSC parser restores executable permission inside its
-Linux container and accepts a relative `PUMP_BINARY` override in native mode.
-These are Linux-container and simulated Git Bash checks, not a claim that a physical Windows
-Docker Desktop installation was exercised. Windows users no longer need to run a WSL shell.
+The native default gate passed with a failing Docker sentinel first on PATH; no Docker call was
+made. Command doubles exercise host-target publication, ordinary-versus-fixture component builds,
+Windows `pump.exe` selection, quoted arguments, and missing-tool failures without Docker fallback.
+Three resolver unit tests cover Windows/non-Windows names and explicit overrides. Manual native
+QA created and verified a StepMania pack at a spaced absolute path outside the repository.
+These are Linux execution and simulated Git Bash checks, not a physical Windows/MSVC run.
+
+Windows keygen remains deliberately fail-closed because private-key ACL enforcement is not yet
+implemented. Tests preserve sign/verify/tamper coverage using deterministic test-only keys after
+checking rejection creates no files. Symlink-specific cases may report a Windows capability skip
+when the OS denies symlink creation; Unix coverage and core filesystem defenses remain intact.
 
 Rust, JavaScript, Python, and shell LSP servers were unavailable; compiler, Clippy, syntax checks,
 and executable tests were used instead. No LSP-clean claim is made.
 The Python parser driver passed Ruff and had zero BasedPyright errors; four warnings remain at
 the third-party simfile API's incomplete type annotations. No type-check suppressions were added.
 
-The upstream locked `wasm-tools` installation emits a warning about its yanked transitive `chacha20 0.10.0` dependency. The build preserves that upstream lock instead of silently changing dependency resolution. That tool is used only in the build image, not in the deployed runtime image; dependency/security auditing remains required before production release.
+The upstream locked `wasm-tools` installation emits a warning about its yanked transitive `chacha20 0.10.0` dependency. Installation preserves that upstream lock instead of silently changing dependency resolution. It is a build-time tool, on the host by default or in the optional build image, not part of the deployed CLI runtime; dependency/security auditing remains required before production release.
 
 These checks are development evidence, not a signed certification, a calibrated difficulty assessment, or a proof of human physical feasibility.
