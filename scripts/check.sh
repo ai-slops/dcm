@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-. scripts/docker.sh
 
 if [ "$#" -gt 1 ]; then
   printf '%s\n' 'Usage: sh scripts/check.sh [all|fmt|lint|unit]' >&2
@@ -14,8 +13,4 @@ case "${1:-all}" in
   unit) command='cargo test --locked --workspace' ;;
   *) printf '%s\n' 'Usage: sh scripts/check.sh [all|fmt|lint|unit]' >&2; exit 2 ;;
 esac
-
-image="pump-check:0.1.0"
-root_host="$(docker_host_path "$(pwd -P)")"
-docker_cmd build --target source --tag "$image" "$root_host"
-docker_cmd run --rm "$image" sh -eu -c "$command"
+sh -eu -c "$command"

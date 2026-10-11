@@ -4,13 +4,21 @@ set positional-arguments
 default:
     @just --list
 
-# Compile release CLI, WASM components, and fixtures into dist; no quality checks.
+# Compile native release CLI, WASM components, and fixtures into dist.
 build:
     sh scripts/build.sh
 
-# Check Rust formatting, Clippy, and workspace tests in the pinned Docker toolchain.
+# Build the compact Linux runtime image and extract it into dist/docker.
+build-docker:
+    sh scripts/build-docker.sh
+
+# Check Rust formatting, Clippy, and workspace tests with the host toolchain.
 check:
     sh scripts/check.sh
+
+# Check Rust formatting, Clippy, and workspace tests in Docker.
+check-docker:
+    sh scripts/check-docker.sh
 
 # Check formatting without changing source files.
 fmt-check:
@@ -36,7 +44,7 @@ test:
 test-e2e:
     sh scripts/test-e2e.sh
 
-# Pass arguments to the built Linux CLI, preserving spaces and shell characters.
+# Pass arguments to the native CLI, preserving spaces and shell characters.
 pump *args:
     sh scripts/run.sh pump "$@"
 
