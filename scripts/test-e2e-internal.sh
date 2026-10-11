@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+. scripts/native.sh
 
-pump_binary="${PUMP_BINARY:-dist/pump}"
+pump_binary="$PUMP_BINARY"
 ./scripts/test-packages.sh
 ./scripts/test-store.sh
 node scripts/test-chart-v2.mjs

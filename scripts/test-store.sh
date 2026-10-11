@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+. scripts/native.sh
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 seed="0000000000000000000000000000000000000000000000000000000000000000"
-pump_binary="${PUMP_BINARY:-dist/pump}"
+pump_binary="$PUMP_BINARY"
 
 expect_failure() {
   expected="$1"
