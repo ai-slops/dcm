@@ -5,13 +5,13 @@
 # ///
 # How to run:
 #   uv run scripts/test-ssc-parser.py /absolute/path/to/music.wav
-# Or use scripts/test-ssc-parser.sh for isolated Docker execution.
 """Compare real CLI exports with an independent SSC note and timing parser."""
 
 from __future__ import annotations
 
 import hashlib
 import math
+import os
 import subprocess
 import sys
 from fractions import Fraction
@@ -26,7 +26,12 @@ from simfile.timing import Beat, TimingData
 from simfile.timing.engine import TimingEngine
 
 ROOT: Final = Path(__file__).resolve().parent.parent
-BINARY: Final = ROOT / "dist/pump"
+BINARY_OVERRIDE: Final = os.environ.get("PUMP_BINARY")
+BINARY: Final = (
+    Path(BINARY_OVERRIDE)
+    if BINARY_OVERRIDE is not None
+    else ROOT / "dist" / ("pump.exe" if sys.platform == "win32" else "pump")
+).resolve()
 SEED: Final = "00" * 32
 TITLE: Final = r"Parser \ # : ; title"
 
