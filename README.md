@@ -4,7 +4,7 @@ This repository implements a deterministic procedural chart pipeline for a ten-p
 
 ## Build
 
-Docker is the build prerequisite. Node.js 24 is also required for the DIM gateway and its end-to-end tests; DIM already provides it. Install [just](https://just.systems/man/en/installation.html) for the daily commands below. The build pins Rust 1.94.0, Wasmtime 40.0.4, `wit-bindgen` 0.53.1, `wasm-tools` 1.254.0, and the build/runtime image digests. The extracted CLI runs on Linux with glibc 2.36 or newer, using the Docker host's architecture. On Windows, run these recipes in WSL2 with Docker integration.
+Docker, Git, Node.js 24, and [just](https://just.systems/man/en/installation.html) provide the daily workflow. On Windows, use **Git Bash and Docker Desktop with Linux containers; no WSL shell is required**. Windows recipes run the CLI and Node workflows inside a pinned runner container. Native Linux continues using the extracted CLI directly. The build pins Rust 1.94.0, Wasmtime 40.0.4, `wit-bindgen` 0.53.1, `wasm-tools` 1.254.0, and the Rust, Node, and runtime image digests.
 
 ```sh
 just build
@@ -22,6 +22,9 @@ Run `just` to list recipes, including `lint`, `fmt-check`, `test-unit`, `test-e2
 See [build and checkout instructions](docs/build.md) for the command matrix and safe recovery
 of an existing Windows checkout containing CRLF files. `.gitattributes` pins text checkouts to LF
 even when `core.autocrlf=true`; binary artifacts are not converted.
+On Windows, pass repository-relative file paths to `just pump` / `just stepmania`; copy external
+inputs into the checkout first. Outputs under `bundle/` are saved directly into the host checkout.
+The raw `dist/pump` remains Linux ELF, not a Windows executable; use the recipes instead.
 
 The build emits:
 
@@ -38,24 +41,27 @@ rule-based difficulty, exhaustive finite-candidate certification, history-aware 
 optional trusted Ed25519 signatures. The original commands below continue to use v1 unchanged.
 
 ```sh
-demo="$(mktemp -d)"
+demo="bundle/feedback-demo"
+mkdir -p "$demo"
 node scripts/make-feedback-audio.mjs "$demo/music.wav"
-./dist/pump chart compile dist/chart-author.component.wasm \
+just pump chart compile dist/chart-author.component.wasm \
   --runtime dist/chart-runtime.component.wasm \
   --music dist/feedback/music.json --audio "$demo/music.wav" \
   --contract dist/feedback/contract.json --out "$demo/chart.bundle" --format json
-./dist/pump chart analyze "$demo/chart.bundle" --format json
-./dist/pump chart explain "$demo/chart.bundle" \
+just pump chart analyze "$demo/chart.bundle" --format json
+just pump chart explain "$demo/chart.bundle" \
   --seed 0000000000000000000000000000000000000000000000000000000000000000 --format json
-./dist/pump chart verify "$demo/chart.bundle" --audio "$demo/music.wav" --format json
-./dist/pump chart export-ssc "$demo/chart.bundle" \
+just pump chart verify "$demo/chart.bundle" --audio "$demo/music.wav" --format json
+just pump chart export-ssc "$demo/chart.bundle" \
   --seed 0000000000000000000000000000000000000000000000000000000000000000 \
   --audio "$demo/music.wav" --out "$demo/ssc" --title "Example" --artist "Artist"
-./dist/pump chart keygen --private "$demo/release.key" --public "$demo/release.pub"
-./dist/pump chart sign "$demo/chart.bundle" --key "$demo/release.key"
-./dist/pump chart verify "$demo/chart.bundle" --trusted-key "$demo/release.pub" --format json
+just pump chart keygen --private "$demo/release.key" --public "$demo/release.pub"
+just pump chart sign "$demo/chart.bundle" --key "$demo/release.key"
+just pump chart verify "$demo/chart.bundle" --trusted-key "$demo/release.pub" --format json
 ```
 
+Use a fresh demo directory. Do not distribute the private `release.key` alongside exported songs.
+Windows host ACLs remain responsible for protecting keys stored on a Windows bind mount.
 The example has a real four-second metronome, a 100 ms offset, and a 120-to-150 BPM change.
 `explain` exposes exact song times and an execution witness. `evaluate` accepts a concrete chart
 for direct damaged-pattern or impossible-movement feedback. `compile --failure-report <path>`
@@ -68,7 +74,7 @@ bounded rule model, not official PUMP ratings or guarantees of human safety.
 
 ## Playtest in StepMania
 
-No plugin or custom skin is needed. After building on Linux/WSL, prepare two complete Pump Double
+No plugin or custom skin is needed. After building on Linux or Windows Git Bash, prepare two Pump Double
 smoke-test songs with a single command:
 
 ```sh
@@ -77,23 +83,23 @@ just stepmania --out bundle/stepmania-playtest
 
 Copy `bundle/stepmania-playtest/Songs/PUMP Generated` into StepMania's user `Songs` folder.
 Select the Pump game, Double style, and Edit chart difficulty. See the
-[first-install and playtest guide](docs/stepmania.md) for Windows/Linux installation, WSL setup,
+[first-install and playtest guide](docs/stepmania.md) for Windows/Linux installation, Git Bash setup,
 keyboard mappings, built-in/custom skins, song loading, custom bundle export, and troubleshooting.
 The helper does not install or launch the game, change its preferences, or claim in-engine validation.
 
 ## End-to-end quickstart
 
 ```sh
-./dist/pump component inspect dist/runtime.component.wasm --format json
-./dist/pump compile dist/author.component.wasm \
-  --runtime dist/runtime.component.wasm --out bundle --format json
-./dist/pump generate bundle \
+just pump component inspect dist/runtime.component.wasm --format json
+just pump compile dist/author.component.wasm \
+  --runtime dist/runtime.component.wasm --out bundle/v1-demo --format json
+just pump generate bundle/v1-demo \
   --seed 0000000000000000000000000000000000000000000000000000000000000000 \
   --format json
-./dist/pump analyze bundle --format json
-./dist/pump verify bundle --format json
-./dist/pump test-seeds bundle --count 32 --format json
-./dist/pump explain bundle \
+just pump analyze bundle/v1-demo --format json
+just pump verify bundle/v1-demo --format json
+just pump test-seeds bundle/v1-demo --count 32 --format json
+just pump explain bundle/v1-demo \
   --seed 0101010101010101010101010101010101010101010101010101010101010101 \
   --format json
 ```
@@ -107,10 +113,10 @@ The output bundle directory must not already exist. Compiling a second bundle wi
 ## Local package composition
 
 ```sh
-./dist/pump package resolve dist/song-a.package.json --out song-a.lock.json
-./dist/pump package compile dist/song-a.package.json \
+just pump package resolve dist/song-a.package.json --out song-a.lock.json
+just pump package compile dist/song-a.package.json \
   --lock song-a.lock.json --runtime dist/runtime.component.wasm --out song-a.bundle
-./dist/pump generate song-a.bundle \
+just pump generate song-a.bundle \
   --seed 0000000000000000000000000000000000000000000000000000000000000000
 ```
 
@@ -119,9 +125,9 @@ The output bundle directory must not already exist. Compiling a second bundle wi
 Retain those source artifacts in a local digest store before removing them:
 
 ```sh
-./dist/pump package cache dist/song-a.package.json \
+just pump package cache dist/song-a.package.json \
   --lock song-a.lock.json --store .pump-store
-./dist/pump package compile-locked song-a.lock.json \
+just pump package compile-locked song-a.lock.json \
   --store .pump-store --runtime dist/runtime.component.wasm --out restored-song-a.bundle
 ```
 
@@ -130,7 +136,7 @@ Retain those source artifacts in a local digest store before removing them:
 Existing packages can also enter the feedback-grade v2 pipeline without rewriting their components:
 
 ```sh
-./dist/pump chart compile-package dist/song-a.package.json --lock song-a.lock.json \
+just pump chart compile-package dist/song-a.package.json --lock song-a.lock.json \
   --runtime dist/chart-runtime.component.wasm \
   --music dist/package-feedback/song-a.music.json \
   --contract dist/package-feedback/contract.json --out package-feedback.bundle
@@ -146,12 +152,12 @@ See [package feedback workflow](docs/package-feedback.md).
 `.dim/` is preserved unchanged. Its existing launcher invokes the rewritten `app/server.mjs` on port 3000. The gateway has no editing UI and no arbitrary shell/path endpoint.
 
 ```sh
-node app/server.mjs
+PUMP_BUNDLE=bundle/v1-demo just serve
 curl http://localhost:3000/health
 curl 'http://localhost:3000/api/generate?seed=0000000000000000000000000000000000000000000000000000000000000000'
 ```
 
-Generation uses `dist/pump` and `bundle/` from the quickstart. An operator may set `PUMP_BUNDLE` to another bundle path. Before artifacts are built, the service remains available with `ready: false`, and generation returns HTTP 503. Invalid seeds return HTTP 400. At most two generation subprocesses run concurrently, with a 30-second deadline.
+Generation uses the configured binary and the v1 bundle from the quickstart. An operator may set `PUMP_BUNDLE` to another bundle path (the direct server defaults to `bundle/`). On Windows, `just serve` runs Node and the CLI in the runner image and publishes localhost port 3000. Before artifacts are available to a running service, health reports `ready: false` and generation returns HTTP 503. Invalid seeds return HTTP 400. At most two generation subprocesses run concurrently, with a 30-second deadline.
 
 ## Security boundary
 
