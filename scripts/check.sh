@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+. scripts/docker.sh
 
 if [ "$#" -gt 1 ]; then
   printf '%s\n' 'Usage: sh scripts/check.sh [all|fmt|lint|unit]' >&2
@@ -15,5 +16,6 @@ case "${1:-all}" in
 esac
 
 image="pump-check:0.1.0"
-docker build --target source --tag "$image" .
-docker run --rm "$image" sh -eu -c "$command"
+root_host="$(docker_host_path "$(pwd -P)")"
+docker_cmd build --target source --tag "$image" "$root_host"
+docker_cmd run --rm "$image" sh -eu -c "$command"
