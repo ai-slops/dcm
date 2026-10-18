@@ -36,6 +36,26 @@ The build emits:
 - reusable package examples: one pattern, two songs, two styles, and two source manifests
 - `dist/chart-author.component.wasm`, `dist/chart-runtime.component.wasm`, and `dist/feedback/` for the additive v2 pipeline
 
+## Web chart studio and Part agent
+
+The optional web studio provides ten-panel tap/hold editing, tempo-aware audio preview, undo/redo,
+saved project/audio import, finite-model evaluation, SSC ZIP export, and reviewable agent proposals.
+The agent uses the real `@slop-lab/part` runtime; provider credentials remain on the local server.
+
+After the native prerequisites above, use Node.js **24.22.0+** and Corepack:
+
+```sh
+just build
+just studio-install
+just studio-build
+just studio
+```
+
+Open `http://127.0.0.1:4173`. Docker is not required. Without an API provider configured, the editor
+works and the agent panel displays setup instructions rather than fake replies. See
+[the studio guide](docs/studio.md) for model configuration, development commands, import/export,
+and the distinction between edited drafts and verified native bundles.
+
 ## Feedback-grade v2 workflow
 
 Use `pump chart` for holds/rests, exact musical timing, two-foot execution paths, intent evidence,
