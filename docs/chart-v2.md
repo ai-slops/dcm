@@ -104,6 +104,24 @@ numeric representation, so runtime floating-point timing is not a claim of mathe
 exactness. Stops, delays, warps, rolls, mines, keysounds, attacks, arbitrary subdivisions,
 calibrated meter values, and formats beyond WAV/OGG/MP3 byte binding are outside this exporter.
 
+## Exporting an edited chart
+
+For a chart edited outside a verified bundle, use the separate native command:
+
+```sh
+just pump chart export-edited-ssc draft-chart.json \
+  --music music.json --audio music.wav --out edited-song \
+  --title "Edited chart" --artist "Author"
+```
+
+It normalizes the chart, checks its grid/span against Music, verifies the bound audio bytes, and
+uses the same exact SSC renderer and rejection profile as verified export. It writes `chart.ssc`,
+`music.wav`/`music.ogg`/`music.mp3`, and `edited-export.json` into a new directory. The descriptor
+contains the exact chart/music and artifact hashes but explicitly records `source: "user_edited"`
+and `certification.status: "none"`. It contains no source-manifest, candidate, signature, or
+evaluation claims. Run `chart evaluate` separately for a finite-model assessment. The
+[web studio](studio.md) uses this command for its SSC ZIP downloads.
+
 ## Integrity, reproduction, and signatures
 
 Schema 2 pins the exact author component, canonical Plan, limits, evaluation contract, runtime
