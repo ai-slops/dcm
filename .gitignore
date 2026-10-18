@@ -5,3 +5,13 @@
 /.omo/
 /.codegraph/
 /.pump-store/
+/web/node_modules/
+/web/dist/
+/.pump-studio/
+/web/.env
+/web/.env.local
+/.playwright-mcp/
+/web/artifacts/
+/artifacts/font-qa/
+/core.[0-9]*
+/web/core.[0-9]*
