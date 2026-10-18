@@ -31,6 +31,17 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
 
 - Ready-to-copy StepMania Songs groups from a two-variant demo or existing chart bundle, with retained replay sources and a first-install, controls, and noteskin guide. Game installation and desktop playback remain manual.
 
+## Local web studio
+
+- Native-first chart editor with tap/hold tools, timing controls, undo/redo, explicit revisioned
+  saves, audio-clock preview, and portable project/audio import.
+- Native finite-model evaluation, review-only deterministic generation, and edited SSC ZIP export
+  that explicitly carries no verified-bundle certification.
+- Real `@slop-lab/part` 0.1.0 runtime with server-only OpenAI-compatible provider configuration,
+  scoped chart tools, cancellation, SSE recovery, and explicit proposal approval.
+- Independent Node 24.22+ web commands, documented in `studio.md`; existing CLI and v1 gateway
+  remain separate. Provider credentials and physical Windows/game-engine validation are not assumed.
+
 ## Deliberately deferred
 
 - Public publisher identity/revocation infrastructure, transparency logs, and official ranked release policy. Local v2 signature verification is implemented; hashes alone still prove only integrity.

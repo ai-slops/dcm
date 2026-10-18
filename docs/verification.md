@@ -12,7 +12,8 @@ resolution, and native build/dispatch behavior, then runs `scripts/check.sh` on 
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
-- `cargo test --locked --workspace`: 168 tests passed (62 CLI/host tests, 16 bridge tests, 32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
+- `cargo test --locked --workspace`: 174 tests passed (68 CLI/host tests, 16 bridge tests,
+  32 v2 core tests, 28 evaluator tests, and 30 preserved v1 core tests).
 
 The separate `scripts/build.sh` then produces release builds of the CLI and WASM guests, followed
 by componentization. `just build` does not execute fmt, Clippy, or tests. `just check` runs only
@@ -100,6 +101,27 @@ replay equivalence, audio/SSC hashes, help before building, and rejection of inv
 incomplete inputs, unknown options, existing destinations, and dangling output symlinks.
 See [the StepMania setup guide](stepmania.md) for the unexecuted desktop checklist; preparation is
 not evidence that the game was installed or played in this workspace.
+
+## Web studio and Part runtime
+
+`just studio-check` checks strict TypeScript and Biome; `just studio-test` covers shared schemas,
+editing/timing boundaries, the local HTTP API, revision conflicts, transactional audio/document
+persistence, cancellation, and native generation/export. Part tests use the real `createAgent`,
+OpenAI-compatible adapter, HTTP fetch transport, and function tools against a scripted local
+provider. This is runtime integration evidence, not live external-LLM quality or credential testing.
+
+Browser QA exercises tap/hold editing, erase, undo/redo, explicit save, audio-clock pre-roll/hold
+tail behavior, proposal Apply and undo, concurrent-edit preservation, modal focus, dirty import
+guards, provider/action errors, cancellation, reconnect, and responsive layouts. Self-hosted
+Latin fonts and OS CJK fallbacks were checked with Korean text. No StepMania gameplay or physical
+Windows browser/MSVC run is implied. See [the studio guide](studio.md) for setup and limitations.
+
+Production Lighthouse was measured with its Node API against real Chrome 155 over CDP, three runs
+per profile. Medians were desktop 100/100/100/100 and mobile 95/100/100/100 for performance,
+accessibility, best practices, and SEO. Mobile simulated-network startup still has performance
+headroom; this is not an all-100 mobile claim. Static JS/CSS and HTML are compressed, hashed assets
+are cached, production CSS is inlined, and the validated bootstrap request overlaps rendering-code
+loading. Private API and SSE responses are not put through the static compression/cache path.
 
 ## Platform and tooling limitations
 
