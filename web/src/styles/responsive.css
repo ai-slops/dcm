@@ -1,0 +1,244 @@
+@media (max-width: 1439px) and (min-width: 1200px) {
+  .center-studio {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 224px;
+  }
+  .preview {
+    display: block;
+    min-block-size: 0;
+    align-self: stretch;
+    margin: var(--space-2);
+    overflow: auto;
+  }
+  .preview .panel__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4);
+  }
+  .preview .playfields {
+    max-inline-size: 360px;
+    max-block-size: 132px;
+  }
+  .preview .playfield {
+    max-block-size: 132px;
+  }
+}
+@media (max-width: 1199px) {
+  .timeline {
+    --timeline-row-size: var(--timeline-row-touch);
+  }
+  :is(.button, .tool-chip, .field input, .field select, .field textarea, .composer textarea),
+  .action-dialog__body input,
+  .timeline__controls :is(input, select, button),
+  .mobile-tabs button,
+  .transport :is(input, select, label) {
+    min-block-size: var(--control-touch);
+  }
+  .icon-button,
+  .toolbar-actions .icon-button {
+    inline-size: var(--control-touch);
+    block-size: var(--control-touch);
+  }
+  .transport input[type="checkbox"] {
+    inline-size: var(--space-4);
+    min-inline-size: var(--space-4);
+    min-block-size: var(--space-4);
+  }
+  .tool-chip {
+    min-inline-size: var(--control-touch);
+  }
+  .studio-shell {
+    grid-template-rows: var(--toolbar-height) var(--mobile-tabs-height) minmax(0, 1fr) var(
+        --transport-height
+      );
+  }
+  .mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    background: var(--surface-shell);
+    border-block-end: 1px solid var(--border-subtle);
+  }
+  .document-toolbar > .badge {
+    display: none;
+  }
+  .transport > .badge {
+    position: absolute;
+    inset-block-start: var(--space-1);
+    inset-inline-end: var(--space-2);
+  }
+  .transport__error {
+    position: absolute;
+    inset-inline-end: var(--space-2);
+    inset-block-end: calc(100% + var(--space-2));
+    padding: var(--space-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-panel);
+  }
+  .mobile-tabs button {
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    text-transform: capitalize;
+  }
+  .mobile-tabs button[aria-selected="true"] {
+    color: var(--text-primary);
+    box-shadow: inset 0 -2px var(--coral-primary);
+  }
+  .studio-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .studio-body:has(.center-studio.mobile-editor) {
+    grid-template-columns: min(248px, 32vw) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .inspector,
+  .agent-rail {
+    display: none;
+  }
+  .center-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .preview {
+    display: none;
+  }
+  .document-title {
+    inline-size: min(240px, 28vw);
+  }
+  .inspector.mobile-editor {
+    display: block;
+    max-block-size: none;
+    padding: var(--space-2);
+  }
+  .center-studio.mobile-editor,
+  .center-studio.mobile-preview {
+    display: grid;
+  }
+  .center-studio.mobile-preview .timeline {
+    display: none;
+  }
+  .center-studio.mobile-preview .preview {
+    display: block;
+    margin: var(--space-4);
+  }
+  .center-studio.mobile-agent,
+  .center-studio.mobile-preview + .agent-rail {
+    display: none;
+  }
+  .agent-rail.mobile-agent {
+    display: block;
+  }
+}
+@media (pointer: coarse) {
+  .timeline {
+    --timeline-row-size: var(--timeline-row-touch);
+  }
+  :is(.button, .tool-chip, .field input, .field select, .field textarea, .composer textarea),
+  .action-dialog__body input,
+  .timeline__controls :is(input, select, button),
+  .mobile-tabs button,
+  .transport :is(input, select, label) {
+    min-block-size: var(--control-touch);
+  }
+  .icon-button,
+  .toolbar-actions .icon-button {
+    inline-size: var(--control-touch);
+    block-size: var(--control-touch);
+  }
+  .transport input[type="checkbox"] {
+    inline-size: var(--space-4);
+    min-inline-size: var(--space-4);
+    min-block-size: var(--space-4);
+  }
+  .tool-chip {
+    min-inline-size: var(--control-touch);
+  }
+}
+@media (max-width: 767px) {
+  .document-toolbar {
+    padding-inline: var(--space-2);
+  }
+  .brand strong,
+  .brand__mark,
+  .document-toolbar > .badge,
+  .document-title {
+    display: none;
+  }
+  .toolbar-actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+    justify-content: space-between;
+    gap: var(--space-1);
+  }
+  .save-button {
+    inline-size: var(--control-touch);
+    padding: 0;
+  }
+  .save-button span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .timeline__controls {
+    min-inline-size: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-content: center;
+  }
+  .timeline__controls label {
+    min-inline-size: 0;
+  }
+  .timeline__controls input,
+  .timeline__controls select {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+  .transport__compact {
+    display: none;
+  }
+  .inspector.mobile-editor {
+    display: block;
+    max-block-size: 220px;
+    padding: var(--space-2);
+  }
+  .studio-body:has(.center-studio.mobile-editor) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 220px minmax(0, 1fr);
+  }
+  .center-studio.mobile-editor,
+  .center-studio.mobile-preview {
+    display: grid;
+  }
+  .center-studio.mobile-preview .timeline {
+    display: none;
+  }
+  .center-studio.mobile-preview .preview {
+    display: block;
+    margin: var(--space-4);
+  }
+  .center-studio.mobile-agent {
+    display: none;
+  }
+  .agent-rail.mobile-agent {
+    display: block;
+    padding: var(--space-2);
+  }
+  .transport {
+    padding-inline: var(--space-2);
+    gap: var(--space-2);
+  }
+  .showcase {
+    padding: var(--space-4);
+  }
+  .showcase__header {
+    align-items: start;
+    flex-direction: column;
+  }
+  .showcase__grid {
+    grid-template-columns: 1fr;
+  }
+}
