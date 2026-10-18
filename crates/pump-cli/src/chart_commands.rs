@@ -103,6 +103,9 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
             output(&pump_eval::assess(&chart, &music, &contract)?, format)
         }
         ChartCommand::ExportSsc(args) => output(&crate::chart_export::export(args)?, format),
+        ChartCommand::ExportEditedSsc(args) => {
+            output(&crate::newchart_edited_export::export(args)?, format)
+        }
     }
 }
 

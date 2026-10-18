@@ -12,7 +12,7 @@ use crate::chart_cli::ChartExportSscArgs;
 use crate::chart_runtime::ChartRuntime;
 use crate::ssc::{SscInput, render};
 
-const SSC_FILE: &str = "chart.ssc";
+pub(crate) const SSC_FILE: &str = "chart.ssc";
 const REPLAY_FILE: &str = "replay.json";
 const EXPORTER_SEMANTICS: &str = "pump-ssc-export-v2";
 
@@ -190,7 +190,7 @@ fn request(seed: &str, history: &[String]) -> Result<GenerationRequest> {
     })
 }
 
-fn audio_name(path: &Path) -> Result<String> {
+pub(crate) fn audio_name(path: &Path) -> Result<String> {
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -203,7 +203,7 @@ fn audio_name(path: &Path) -> Result<String> {
     Ok(format!("music.{extension}"))
 }
 
-fn ensure_destination_available(root: &Path) -> Result<()> {
+pub(crate) fn ensure_destination_available(root: &Path) -> Result<()> {
     match fs::symlink_metadata(root) {
         Ok(_) => bail!("SSC output directory already exists: {}", root.display()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -223,7 +223,7 @@ pub(crate) fn publish(root: &Path, files: &ExportFiles<'_>) -> Result<()> {
     write_new(&root.join(REPLAY_FILE), files.replay)
 }
 
-fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -233,6 +233,6 @@ fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
         .with_context(|| format!("write export artifact {}", path.display()))
 }
 
-fn digest(bytes: &[u8]) -> String {
+pub(crate) fn digest(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }

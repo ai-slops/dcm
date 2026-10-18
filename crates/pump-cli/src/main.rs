@@ -16,6 +16,8 @@ mod chart_bundle_files;
 mod chart_bundle_tests;
 mod chart_cli;
 mod chart_commands;
+#[cfg(test)]
+mod chart_edited_export_tests;
 mod chart_export;
 #[cfg(test)]
 mod chart_export_tests;
@@ -32,6 +34,7 @@ mod commands;
 mod engine;
 #[cfg(test)]
 mod host_tests;
+mod newchart_edited_export;
 mod package;
 mod package_abi;
 mod package_budget;

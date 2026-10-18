@@ -22,6 +22,7 @@ pub enum ChartCommand {
     Keygen(ChartKeygenArgs),
     Evaluate(ChartEvaluateArgs),
     ExportSsc(ChartExportSscArgs),
+    ExportEditedSsc(ChartExportEditedSscArgs),
 }
 
 #[derive(Debug, Args)]
@@ -140,4 +141,19 @@ pub struct ChartExportSscArgs {
     pub artist: String,
     #[arg(long)]
     pub trusted_key: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartExportEditedSscArgs {
+    pub chart: PathBuf,
+    #[arg(long)]
+    pub music: PathBuf,
+    #[arg(long)]
+    pub audio: PathBuf,
+    #[arg(long)]
+    pub out: PathBuf,
+    #[arg(long)]
+    pub title: String,
+    #[arg(long)]
+    pub artist: String,
 }
