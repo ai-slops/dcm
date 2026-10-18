@@ -1,0 +1,174 @@
+@font-face {
+  font-family: "Satoshi Variable";
+  src: url("/fonts/satoshi-variable.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-600.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  --surface-canvas: #080b0f;
+  --surface-shell: #0d1117;
+  --surface-panel: #121821;
+  --surface-raised: #18202a;
+  --surface-floating: #1e2834;
+  --surface-sunken: #07090c;
+  --surface-scrim: rgb(2 5 8 / 0.72);
+  --text-primary: #f4f7fa;
+  --text-secondary: #bcc6d1;
+  --text-muted: #8995a3;
+  --text-disabled: #66717d;
+  --border-subtle: #202a35;
+  --border-default: #2c3947;
+  --border-strong: #465669;
+  --coral-low: #3a1c1b;
+  --coral-mid: #c94e45;
+  --coral-primary: #ff7668;
+  --coral-high: #ffb2a9;
+  --cyan-low: #123039;
+  --cyan-mid: #2aa9ba;
+  --cyan-primary: #55d7e7;
+  --cyan-high: #a9f3fa;
+  --status-success: #6fd39a;
+  --status-warning: #f1c65b;
+  --status-error: #ff6b76;
+  --status-info: #72b7ff;
+  --status-stale: #c8a6ff;
+  --grid-beat: #354353;
+  --grid-measure: #68798c;
+  --grid-subdivision: #1b252f;
+  --grid-hover: rgb(244 247 250 / 0.08);
+  --selection-fill: rgb(255 118 104 / 0.16);
+  --selection-outline: #ff9a8f;
+  --playhead: #fff0c7;
+  --hold-fill: rgb(255 240 199 / 0.24);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --control-compact: 32px;
+  --control-default: 36px;
+  --control-touch: 44px;
+  --timeline-row-compact: 34px;
+  --timeline-row-touch: 44px;
+  --toolbar-height: 56px;
+  --transport-height: 64px;
+  --mobile-tabs-height: 52px;
+  --inspector-width: 264px;
+  --agent-width: 360px;
+  --preview-width: 288px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --layer-sticky: 10;
+  --depth-control:
+    0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.28);
+  --depth-panel: 0 0 0 1px rgb(255 255 255 / 0.05), inset 0 1px 0 rgb(255 255 255 / 0.035);
+  --depth-floating:
+    0 16px 40px rgb(0 0 0 / 0.42), 0 0 0 1px rgb(255 255 255 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --depth-focus-coral: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--coral-primary);
+  --depth-focus-cyan: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--cyan-primary);
+  --motion-press: 90ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-micro: 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-standard: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family:
+    "Satoshi Variable", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", Arial,
+    system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  block-size: 100%;
+  margin: 0;
+}
+body {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  color: inherit;
+}
+.mono {
+  font-family:
+    "IBM Plex Mono", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.agent-event {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.skip-link {
+  position: fixed;
+  inset: var(--space-2) auto auto var(--space-2);
+  z-index: 100;
+  transform: translateY(-160%);
+  background: var(--coral-primary);
+  color: var(--surface-canvas);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition-duration: 0ms;
+    animation-duration: 0ms;
+  }
+}
