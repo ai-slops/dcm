@@ -12,10 +12,23 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
   `csrf_token` from bootstrap. Every state-changing request and the agent event stream sends that
   value as `x-csrf-token`. The event stream uses `fetch`/ky, not `EventSource`, so it can set the
   header and process non-2xx responses.
-- CORS is disabled by default. If explicitly enabled at startup, use a fixed `allowedOrigins` list,
-  never reflection. Part's fetch transport receives only the configured provider origin.
+- CORS is disabled. Exact Host/Origin allowlists admit local origins and, in public mode, the
+  configured HTTPS origin. For ingress that rewrites Host, only its exact configured
+  `X-Forwarded-Host` plus `X-Forwarded-Proto: https` is accepted. Forwarded headers never bypass
+  authentication. Part's local-mode fetch transport receives only its configured provider origin.
 - No provider credential exists by default. A configured key is bound by `bearerAuth`; the key is
   never returned to the browser or accepted over HTTP.
+- Public preview requires `STUDIO_PUBLIC_ORIGIN` and an owner-only `STUDIO_PASSWORD_FILE`
+  containing `studio:<password>`. HTTP Basic sign-in protects every static/API/audio request,
+  including loopback requests. Missing or invalid sign-in returns `401` with `WWW-Authenticate`,
+  before session bootstrap. Cookies are Secure in public mode, including behind the HTTP proxy.
+- Public mode disables Part even if provider settings exist. The preview launcher also uses an
+  allowlisted runtime environment and does not load `web/.env`, so provider/router credentials
+  are not inherited by the public server or its native children. Local mode retains `.env` setup.
+- `GET /health` is the only unauthenticated route. It returns
+  `{ service: "pump-studio", ready: true, instance }`, where `instance` is the launcher-owned
+  `STUDIO_INSTANCE_ID` or `"foreground"`. This is process readiness, not native certification.
+  It exposes no project, audio, model, credential, or filesystem data.
 
 ## Shared exports
 
@@ -55,9 +68,11 @@ own those changes and verify SHA-256 from uploaded bytes.
 All JSON responses use `application/json`. Contract failures use
 `{ error: { code, message, current_revision? } }`. A stale `base_revision` is `409` and includes the
 current revision. Validation is `400`; missing session/CSRF is `403`; native unavailable is `503`.
+Public Basic-auth failures are plain-text `401` challenges rather than JSON contract errors.
 
 | Method and path | Request | Success |
 | --- | --- | --- |
+| `GET /health` | none; no sign-in | process readiness JSON described above |
 | `GET /api/v1/bootstrap` | none | `Bootstrap` |
 | `GET /api/v1/audio` | optional single `Range: bytes=start-end` | `200` bytes or `206` with standard range headers; immutable ETag is audio SHA-256 |
 | `PUT /api/v1/document` | `PutDocumentRequest` | `CurrentDocument` |

@@ -36,6 +36,9 @@ argument, or printed command output. In public mode, sign-in protects static fil
 audio, uploads, edits, native operations, and agent endpoints, including loopback requests.
 Session/CSRF and revision checks still apply. Part is disabled in this mode even if provider
 environment variables exist; preview never needs or borrows the workspace's agent-router credentials.
+The public server and its native children receive only allowlisted runtime settings, and public
+startup does not load `web/.env`. Set a custom data directory with `STUDIO_DATA` in the launcher's
+environment; local `--local` mode retains normal `.env` and provider behavior.
 Only process readiness is available without sign-in. HTTPS is terminated by the approved ingress;
 the app accepts only its configured public origin (including the ingress's exact forwarded host)
 and local origins, not arbitrary forwarded hostnames.
