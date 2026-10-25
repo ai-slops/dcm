@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 node scripts/test-line-endings.mjs
 node --test scripts/test-native-binary.mjs
 node scripts/test-native-workflow.mjs
+node scripts/test-studio-preview.mjs
 sh scripts/check.sh
 sh scripts/build.sh
 sh scripts/test-e2e.sh
