@@ -2,9 +2,11 @@ import { timingSafeEqual } from "node:crypto"
 
 import { serveStatic } from "@hono/node-server/serve-static"
 import { type Context, Hono } from "hono"
+import { basicAuth } from "hono/basic-auth"
 import { bodyLimit } from "hono/body-limit"
 import { compress } from "hono/compress"
 import { getCookie, setCookie } from "hono/cookie"
+import { HTTPException } from "hono/http-exception"
 import { z } from "zod"
 import { AgentRuns } from "./agent/runs.ts"
 import type { StudioConfig } from "./config.ts"
@@ -34,7 +36,11 @@ export async function createStudioApp(
 
   app.use("*", async (context, next) => {
     const host = context.req.header("host") ?? new URL(context.req.url).host
-    if (!config.allowedHosts.has(host))
+    const publicProxy =
+      config.publicAccess !== undefined &&
+      context.req.header("x-forwarded-host") === new URL(config.publicAccess.origin).host &&
+      context.req.header("x-forwarded-proto") === "https"
+    if (!config.allowedHosts.has(host) && !publicProxy)
       throw new StudioError(403, "host_denied", "Host is not allowed")
     const origin = context.req.header("origin")
     if (origin !== undefined && !config.allowedOrigins.has(origin)) {
@@ -46,6 +52,29 @@ export async function createStudioApp(
     }
     await next()
   })
+  app.get("/health", (context) =>
+    context.json({
+      service: "pump-studio",
+      ready: true,
+      instance: config.instanceId,
+    }),
+  )
+  if (config.publicAccess !== undefined) {
+    app.use("*", async (context, next) => {
+      context.header("Cache-Control", "private, no-store")
+      context.header("X-Robots-Tag", "noindex, nofollow")
+      await next()
+      context.header("Cache-Control", "private, no-store")
+    })
+    app.use(
+      "*",
+      basicAuth({
+        username: "studio",
+        password: config.publicAccess.password,
+        realm: "PUMP Studio",
+      }),
+    )
+  }
   app.use(
     "/api/v1/*",
     bodyLimit({
@@ -65,7 +94,7 @@ export async function createStudioApp(
         httpOnly: true,
         sameSite: "Strict",
         path: "/",
-        secure: new URL(context.req.url).protocol === "https:",
+        secure: config.publicAccess !== undefined || new URL(context.req.url).protocol === "https:",
       })
     } else if (session === undefined) {
       throw new StudioError(403, "session_required", "Bootstrap the browser session first")
@@ -130,6 +159,7 @@ function tokensEqual(received: string | undefined, expected: string): boolean {
 }
 
 function errorResponse(error: Error, context: Context) {
+  if (error instanceof HTTPException) return error.getResponse()
   if (error instanceof StudioError) {
     return context.json(
       {
