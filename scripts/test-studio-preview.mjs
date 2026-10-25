@@ -27,7 +27,7 @@ const localOrigin = `http://127.0.0.1:${port}/`;
 const env = {
   ...process.env,
   PATH: `${binDir}:${process.env.PATH}`,
-  STUDIO_PREVIEW_ROOT: root,
+  STUDIO_PREVIEW_ROOT: work,
   STUDIO_PREVIEW_STATE_DIR: stateDir,
   STUDIO_PREVIEW_SERVER: server,
   STUDIO_PREVIEW_NODE: process.execPath,
@@ -35,6 +35,8 @@ const env = {
   STUDIO_PREVIEW_PORT: String(port),
   STUDIO_PREVIEW_READY_TIMEOUT_MS: "5000",
   STUDIO_PREVIEW_ROUTE_TIMEOUT_MS: "1000",
+  PART_API_KEY: "test-only-part-sentinel",
+  OPENAI_API_KEY: "test-only-upstream-sentinel",
 };
 
 function executable(path, contents) {
@@ -66,12 +68,15 @@ try {
   assert.doesNotMatch(prerequisites, /scripts\/build\.sh|docker/i);
   writeFileSync(server, `
 import { createServer } from "node:http";
+import { spawnSync } from "node:child_process";
 const instance = process.env.STUDIO_INSTANCE_ID;
 const publicMode = Boolean(process.env.STUDIO_PUBLIC_ORIGIN);
+const keys = ["PART_API_KEY", "OPENAI_API_KEY", "PREVIEW_DOTENV_SENTINEL"];
 createServer((request, response) => {
   if (request.url === "/health") {
+    const child = JSON.parse(spawnSync(process.execPath, ["-e", "process.stdout.write(JSON.stringify(" + JSON.stringify(keys) + ".map(name => Boolean(process.env[name]))))"], {encoding:"utf8"}).stdout);
     response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ service: "pump-studio", ready: true, instance }));
+    response.end(JSON.stringify({ service: "pump-studio", ready: true, instance, environment:keys.map(name => Boolean(process.env[name])), child }));
     return;
   }
   if (publicMode && request.headers.authorization !== "Basic fixture") {
@@ -83,6 +88,7 @@ createServer((request, response) => {
   response.end("ok");
 }).listen(Number(process.env.STUDIO_PORT), "127.0.0.1");
 `);
+  writeFileSync(join(work, ".env"), "PREVIEW_DOTENV_SENTINEL=test-only-dotenv-sentinel\n");
   executable(join(binDir, "dim-expose"), `#!/bin/sh
 case " $* " in
   *" --name studio --port ${port} --ingress shared "*) ;;
@@ -101,6 +107,9 @@ printf '%s\n' 'HTTP/2 401' 'www-authenticate: Basic realm="pump-studio"' ''
 
   const local = run(["start", "--local"]);
   assert.equal(local.stdout.trim(), localOrigin);
+  const localHealth = await (await fetch(`${localOrigin}health`)).json();
+  assert.deepEqual(localHealth.environment, [true, true, true]);
+  assert.deepEqual(localHealth.child, [true, true, true]);
   const password = join(stateDir, "password");
   assert.equal(statSync(password).mode & 0o777, 0o600);
   assert.match(readFileSync(password, "utf8"), /^studio:[A-Za-z0-9_-]{32,}\n$/);
@@ -118,6 +127,9 @@ printf '%s\n' 'HTTP/2 401' 'www-authenticate: Basic realm="pump-studio"' ''
   assert.doesNotMatch(`${publicStart.stdout}${publicStart.stderr}`, /studio:[A-Za-z0-9_-]/);
   const publicState = JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8"));
   assert.equal(publicState.approval, "approved");
+  const publicHealth = await (await fetch(`${localOrigin}health`)).json();
+  assert.deepEqual(publicHealth.environment, [false, false, false]);
+  assert.deepEqual(publicHealth.child, [false, false, false]);
   run(["start"]);
   assert.equal(JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8")).pid, publicState.pid);
   assert.match(run(["status"]).stdout, /https:\/\/workspace--studio\.example\//);
@@ -143,6 +155,16 @@ printf '%s\n' 'HTTP/2 401' 'www-authenticate: Basic realm="pump-studio"' ''
   executable(failedDim, "#!/bin/sh\nprintf '%s\\n' 'route unavailable' >&2\nexit 1\n");
   const failedRoute = run(["start"], 1, { STUDIO_PREVIEW_ROUTE_TIMEOUT_MS: "200", STUDIO_PREVIEW_DIM_EXPOSE: failedDim });
   assert.match(failedRoute.stderr, /dim-expose|approved route/);
+  assert.match(run(["status"]).stdout, /running/);
+  run(["stop"]);
+
+  const pendingDim = join(work, "pending-dim");
+  executable(pendingDim, `#!/bin/sh
+printf '%s\n' '{"urls":[{"id":"pending-route-42","ingress":"shared","subdomain":"workspace--studio","target":{"port":${port},"containers":[]},"url":"https://workspace--studio.example/","approval":"pending"}]}'
+`);
+  const pending = run(["start"], 1, { STUDIO_PREVIEW_ROUTE_TIMEOUT_MS: "200", STUDIO_PREVIEW_DIM_EXPOSE: pendingDim });
+  assert.match(pending.stderr, /route pending-route-42 is pending/);
+  assert.equal(pending.stdout, "");
   assert.match(run(["status"]).stdout, /running/);
   run(["stop"]);
 

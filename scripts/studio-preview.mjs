@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { serverArguments, serverEnvironment } from "./studio-preview-env.mjs";
 
 const root = resolve(process.env.STUDIO_PREVIEW_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
 const stateDir = resolve(process.env.STUDIO_PREVIEW_STATE_DIR ?? join(root, ".studio-dev"));
@@ -115,12 +116,12 @@ function launch(instance, publicOrigin, local) {
   const server = process.env.STUDIO_PREVIEW_SERVER ?? join(root, "web/dist/server.js");
   const output = openSync(logFile, "a", 0o600);
   chmodSync(logFile, 0o600);
-  const child = spawn(node, process.env.STUDIO_PREVIEW_SERVER ? [server] : ["--env-file-if-exists=.env", server], {
+  const child = spawn(node, serverArguments(server, local), {
     cwd: process.env.STUDIO_PREVIEW_SERVER ? root : join(root, "web"),
     detached: true,
     stdio: ["ignore", output, output],
     env: {
-      ...process.env,
+      ...serverEnvironment(process.env, local),
       STUDIO_PORT: String(port),
       STUDIO_REPO_ROOT: root,
       STUDIO_INSTANCE_ID: instance,
