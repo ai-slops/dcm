@@ -76,6 +76,10 @@ studio-test:
 studio:
     sh scripts/studio.sh start
 
+# Bootstrap and manage the detached preview; prints the approved DIM URL.
+studio-preview *args:
+    sh scripts/studio-preview.sh "$@"
+
 # Run the Vite client; use studio-dev-server in another terminal.
 studio-dev:
     sh scripts/studio.sh dev

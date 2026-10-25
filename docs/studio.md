@@ -7,6 +7,58 @@ There is no Docker requirement for the normal workflow.
 
 ## Start the studio
 
+### One-command persistent preview (Linux)
+
+```sh
+sh scripts/studio-preview.sh start
+```
+
+Or use `just studio-preview start`. This launches **this same Studio**, not a second preview app.
+The first run installs missing managed prerequisites under ignored `.studio-dev/tools/`: Node
+24.22.0 if the installed Node is too old, Corepack 0.36.0, pnpm 10.17.1, Rust 1.94.0, and
+wasm-tools 1.254.0. Have a native C/C++ compiler, npm, curl, tar/xz, and SHA-256 utilities available.
+The Linux helper supports glibc and musl; Node's musl archive comes from the Node project's
+unofficial-builds service, with its published SHA-256 manifest checked before extraction.
+Only the `pump` CLI and chart author/runtime components are built, then the exact web lockfile.
+It does not install just, Docker, provider credentials, or a DIM runtime. Existing package-client
+mirror settings are honored; this workspace's DIM mirror plugin is currently unconfigured.
+
+The server binds **127.0.0.1:4173** directly in the workspace. The helper waits for `/health`, asks
+`dim-expose --name studio --port 4173 --ingress shared` for the workspace route, and checks its real
+HTTPS response before printing the URL. Pending approval prints the exact route ID, not a guessed
+working link. Only the operator can approve routes. Exposure failure leaves the protected local
+process running so it can be inspected and retried.
+
+**Sign in:** the public preview uses the browser's HTTP Basic authentication dialog. Username is
+`studio`. The owner-only file **`.studio-dev/password`** contains `studio:<password>`; read it
+privately on your workstation, not in shared logs or screenshots. No secret is placed in a URL,
+argument, or printed command output. In public mode, sign-in protects static files, all API reads,
+audio, uploads, edits, native operations, and agent endpoints, including loopback requests.
+Session/CSRF and revision checks still apply. Part is disabled in this mode even if provider
+environment variables exist; preview never needs or borrows the workspace's agent-router credentials.
+Only process readiness is available without sign-in. HTTPS is terminated by the approved ingress;
+the app accepts only its configured public origin (including the ingress's exact forwarded host)
+and local origins, not arbitrary forwarded hostnames.
+
+```sh
+sh scripts/studio-preview.sh status
+sh scripts/studio-preview.sh restart
+sh scripts/studio-preview.sh stop
+```
+
+`start` reuses the same healthy service; `restart` rebuilds and replaces only the owned process.
+PID/start-time identity and an instance readiness nonce prevent stale state from killing an unrelated
+process. A lock prevents concurrent lifecycle commands. Logs are `.studio-dev/studio.log`; process
+state and the credential stay in private `.studio-dev/`. These are separate from saved projects and
+audio in `.pump-studio/`, which stop/restart never clears. Back up `.pump-studio/` for valuable work.
+Restarting clears in-memory browser sessions and proposals, not saved chart/audio data.
+
+Outside DIM, use **`sh scripts/studio-preview.sh start --local`** and open the printed localhost URL.
+This does not call DIM or enable public sign-in/Part restrictions; keep the local port private.
+The original cross-platform foreground workflow below is also unchanged.
+
+### Foreground local workflow
+
 First install the [native build prerequisites](build.md). The web application additionally needs
 **Node.js 24.22.0 or newer**, required by Part, and Corepack for the pinned pnpm `10.17.1` package
 manager. This does not change the older CLI/gateway's Node 24 requirement. If your Node installation
@@ -165,11 +217,15 @@ recovery does not resend the original prompt.
   independent studio server processes against the same data directory.
 - Browser sessions, run history, and proposals are in memory and disappear when the server restarts.
   Saved project/audio persist. Refreshing a page does not restart a provider request.
-- The API requires session/CSRF credentials and exact local Host/Origin checks. It accepts chart
+- The API requires session/CSRF credentials and exact configured Host/Origin checks. It accepts chart
   data and uploads, never arbitrary native executable paths or provider URLs. This is a local
   single-user tool, not an authenticated public multi-user service.
 - Operator settings include `STUDIO_PORT` (default 4173), `STUDIO_DATA` (private data directory),
   and `STUDIO_REPO_ROOT` (checkout root). Normal startup through just needs neither path override.
+- The preview helper additionally owns `STUDIO_PUBLIC_ORIGIN`, `STUDIO_PASSWORD_FILE`, and
+  `STUDIO_INSTANCE_ID`. Do not set a public origin without an owner-only credential file or expose
+  the unguarded foreground/local mode. `.dim/repos.yml` remains declarative policy only; changing
+  repository files never approves ingress or installs operator policy.
 - Imports use safe JavaScript integers, at most 10,000 notes and 4,096 tempo segments. Native
   formats supporting larger integer values do not imply that the browser can represent them.
 

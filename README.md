@@ -42,7 +42,20 @@ The optional web studio provides ten-panel tap/hold editing, tempo-aware audio p
 saved project/audio import, finite-model evaluation, SSC ZIP export, and reviewable agent proposals.
 The agent uses the real `@slop-lab/part` runtime; provider credentials remain on the local server.
 
-After the native prerequisites above, use Node.js **24.22.0+** and Corepack:
+In a Linux DIM workspace, the shortest path is:
+
+```sh
+sh scripts/studio-preview.sh start
+```
+
+This builds the existing Studio and its required native artifacts, starts it on loopback port 4173,
+and prints the actual approved HTTPS URL returned by `dim-expose`. The browser asks for HTTP Basic
+sign-in: username `studio`, with the private credential stored in `.studio-dev/password` (never
+printed). Use `status`, `restart`, or `stop` with the same script. The process stays running after
+the command exits; repeated `start` reuses it. Use `start --local` outside DIM.
+
+For the ordinary foreground workflow, install the native prerequisites above, Node.js **24.22.0+**,
+and Corepack:
 
 ```sh
 just build
@@ -176,9 +189,12 @@ compilation. The bridge preserves v1 timing, correlated choice outcomes, and exa
 the new bundle uses v2 seed mapping. Source Plan and package provenance are retained and verified.
 See [package feedback workflow](docs/package-feedback.md).
 
-## DIM gateway
+## Repository policy and legacy gateway
 
-`.dim/` is preserved unchanged. Its existing launcher invokes the rewritten `app/server.mjs` on port 3000. The gateway has no editing UI and no arbitrary shell/path endpoint.
+`.dim/repos.yml` is the only project-owned DIM file. It is declarative repository/review policy,
+not an installed runtime or lifecycle launcher. Editing it does not import policy into DIM.
+Developer behavior lives in `scripts/` and `justfile`; external URL approval remains operator-owned.
+The separate legacy v1 gateway, `app/server.mjs` on port 3000, has no editing UI and is not the Studio:
 
 ```sh
 PUMP_BUNDLE=bundle/v1-demo just serve
