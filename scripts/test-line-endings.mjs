@@ -11,7 +11,7 @@ const repository = join(work, "repository");
 const checkout = join(work, "checkout");
 const source = Buffer.from("first line\nsecond line\n");
 const binary = Buffer.from("binary fixture\r\nwithout a NUL\r\n");
-const textFiles = ["Dockerfile", "justfile", "Cargo.lock", "src/lib.rs", "scripts/build.sh", ".dim/agent/start.sh"];
+const textFiles = ["Dockerfile", "justfile", "Cargo.lock", "src/lib.rs", "scripts/build.sh", ".dim/repos.yml"];
 const binaryFiles = ["fixture.bin", "fixture.wasm", "fixture.wav", "fixture.plan", "fixture.program"];
 
 function git(...args) {

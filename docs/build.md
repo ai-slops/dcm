@@ -161,8 +161,9 @@ the native `dist/pump`. The separate Node runner image is no longer built or use
 send the source context and copy artifacts without host bind mounts, so remote daemons remain
 usable. Git Bash path-conversion handling is confined to these optional Docker scripts.
 
-No default recipe invokes these commands when host tools are missing. The `.dim` Docker files
-belong to the separate agent environment and are untouched; they are not application prerequisites.
+No default recipe invokes these commands when host tools are missing. Project-owned DIM Docker
+and lifecycle files have been removed. `.dim/repos.yml` contains declarative repository policy
+only; it is not an application prerequisite or an installed workspace runtime.
 
 ## 6. Windows line endings
 
