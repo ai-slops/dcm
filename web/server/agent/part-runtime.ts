@@ -1,35 +1,70 @@
-import { isJsonObject, ok, schema } from "@slop-lab/part/contracts/index.js"
+import { ok } from "@slop-lab/part/contracts/index.js"
 import { bearerAuth, createFetchTransport, noAuth } from "@slop-lab/part/model/index.js"
-import type { Contracts, Model, Runtime } from "@slop-lab/part/reference/index.js"
+import type { Contracts, Model, Runtime, Tools } from "@slop-lab/part/reference/index.js"
 import { functionTool } from "@slop-lab/part/tools.js"
 import { createAgent } from "@slop-lab/part-plugins/agent/index.js"
 import { createOpenAICompatibleAdapter } from "@slop-lab/part-plugins/providers/openai-compatible/index.js"
-import { z } from "zod"
-
-import {
-  type EvaluationResponse,
-  EvaluationResponseSchema,
-  type NativeChart,
-  NativeChartSchema,
-  type StudioProjectV1,
-  StudioProjectV1Schema,
+import type {
+  EvaluationResponse,
+  NativeChart,
+  NativeMusic,
+  StudioProjectV1,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
+import {
+  ChartSchema,
+  EmptySchema,
+  EvaluationSchema,
+  ProjectSchema,
+  ProposalOutputSchema,
+  ProposalSchema,
+  SeedSchema,
+  TextDeltaSchema,
+  toolJsonSchemas,
+  UcsInputSchema,
+  UcsOutputSchema,
+} from "./part-schemas.ts"
+import { createStudioResponsesAdapter } from "./responses-adapter.ts"
 
 export type PartRuntimeOptions = {
   readonly endpoint: URL
   readonly model: string
   readonly apiKey?: string
+  readonly api?: "chat" | "responses"
   readonly signal: AbortSignal
   readonly project: StudioProjectV1
   readonly evaluateChart: (signal: AbortSignal) => Promise<EvaluationResponse>
   readonly generateVariant: (seed: string, signal: AbortSignal) => Promise<NativeChart>
   readonly proposeChart: (input: ProposalInput, signal: AbortSignal) => Promise<ProposalOutput>
-  readonly onToolState: (toolId: string, state: "started" | "completed") => void
+  readonly validateUcs: (
+    mode: "Single" | "Double",
+    signal: AbortSignal,
+  ) => Promise<ValidateUcsOutput>
+  readonly onToolState: (
+    toolId: string,
+    state: "started" | "completed" | "failed",
+    detail: ToolStateDetail,
+  ) => void
 }
 
-export type ProposalInput = { readonly summary: string; readonly chart: NativeChart }
+export type ProposalInput = {
+  readonly summary: string
+  readonly chart: NativeChart
+  readonly music?: NativeMusic | undefined
+}
 export type ProposalOutput = { readonly proposal_id: string }
+export type ValidateUcsOutput = {
+  readonly valid: true
+  readonly mode: "Single" | "Double"
+  readonly byte_length: number
+}
+type ToolStateDetail = {
+  readonly call_id: string
+  readonly input_preview: string
+  readonly output_preview?: string
+  readonly error?: { readonly code: string; readonly message: string }
+  readonly truncated?: boolean
+}
 
 export type PartRun = {
   readonly done: Promise<PartOutcome>
@@ -52,23 +87,6 @@ export type PartRuntime = {
 export type PartRuntimeFactory = (options: PartRuntimeOptions) => Contracts.Result<PartRuntime>
 
 const MAX_TOOL_OUTPUT_BYTES = 1024 * 1024
-
-const EmptySchema = schema<Readonly<Record<string, never>>>(
-  "pump-studio/empty",
-  (value): value is Readonly<Record<string, never>> =>
-    isJsonObject(value) && Object.keys(value).length === 0,
-)
-const ProjectSchema = partSchema("pump-studio/project", StudioProjectV1Schema)
-const EvaluationSchema = partSchema("pump-studio/evaluation", EvaluationResponseSchema)
-const ChartSchema = partSchema("pump-studio/chart", NativeChartSchema)
-const SeedInput = z.strictObject({ seed: z.string().regex(/^[0-9a-f]{64}$/) }).readonly()
-const SeedSchema = partSchema("pump-studio/seed", SeedInput)
-const ProposalInputZod = z
-  .strictObject({ summary: z.string().min(1).max(1_024), chart: NativeChartSchema })
-  .readonly()
-const ProposalSchema = partSchema("pump-studio/proposal", ProposalInputZod)
-const ProposalOutputZod = z.strictObject({ proposal_id: z.string().min(1) }).readonly()
-const ProposalOutputSchema = partSchema("pump-studio/proposal-output", ProposalOutputZod)
 
 export const createPartRuntime: PartRuntimeFactory = (options) => {
   const tools = [
@@ -107,39 +125,39 @@ export const createPartRuntime: PartRuntimeFactory = (options) => {
         options.proposeChart(input, signal),
       ),
     }),
+    functionTool({
+      id: "validate_ucs",
+      description:
+        "Validate that the frozen project can be exported as native UCS in the requested mode.",
+      input: UcsInputSchema,
+      output: UcsOutputSchema,
+      execute: withTool(options, "validate_ucs", (input, signal) =>
+        options.validateUcs(input.mode, signal),
+      ),
+    }),
   ]
+  const responses = options.api === "responses"
   const created = createAgent({
     model: {
       profile: {
         id: "pump-studio",
         revision: "1",
-        adapterId: "part/openai-compatible",
+        adapterId: responses ? "part/openai-responses" : "part/openai-compatible",
         transportId: "part/fetch",
         authStrategyId: options.apiKey === undefined ? "none" : "bearer",
         model: options.model,
         endpoint: options.endpoint.toString(),
-        defaults: { stream: true, max_tokens: 4_096 },
+        defaults: responses
+          ? { stream: true, max_output_tokens: 4_096 }
+          : { stream: true, max_tokens: 4_096 },
         capabilities: { revision: "1", entries: [] },
       },
-      adapter: createOpenAICompatibleAdapter(),
+      adapter: responses ? createStudioResponsesAdapter() : createOpenAICompatibleAdapter(),
       transport: createFetchTransport({ allowedOrigins: [options.endpoint.origin] }),
       auth: options.apiKey === undefined ? noAuth : bearerAuth(() => options.apiKey ?? ""),
     },
     tools,
-    toolSchemas: {
-      read_document: objectSchema({}),
-      evaluate_chart: objectSchema({}),
-      generate_variant: objectSchema({ seed: { type: "string", pattern: "^[0-9a-f]{64}$" } }, [
-        "seed",
-      ]),
-      propose_chart: objectSchema(
-        {
-          summary: { type: "string", minLength: 1, maxLength: 1_024 },
-          chart: chartJsonSchema(),
-        },
-        ["summary", "chart"],
-      ),
-    },
+    toolSchemas: toolJsonSchemas,
     limits: {
       maxModelInvocations: 8,
       maxToolDispatches: 16,
@@ -170,15 +188,45 @@ function withTool<I, O>(
   options: PartRuntimeOptions,
   toolId: string,
   operation: (input: I, signal: AbortSignal) => Promise<O> | O,
-): (input: I, context: { readonly signal: AbortSignal }) => Promise<O> {
+): (input: I, context: Tools.ExecutionContext) => Promise<O> {
   return async (input, context) => {
-    options.onToolState(toolId, "started")
-    const result = await operation(input, AbortSignal.any([context.signal, options.signal]))
-    if (Buffer.byteLength(JSON.stringify(result), "utf8") > MAX_TOOL_OUTPUT_BYTES) {
-      throw new StudioError(500, "agent_tool_output_limit", "Agent tool output exceeded its limit")
+    const inputPreview = preview(input)
+    const callId = context.operationId
+    options.onToolState(toolId, "started", {
+      call_id: callId,
+      input_preview: inputPreview.text,
+      ...(inputPreview.truncated ? { truncated: true } : {}),
+    })
+    try {
+      const result = await operation(input, AbortSignal.any([context.signal, options.signal]))
+      if (Buffer.byteLength(JSON.stringify(result), "utf8") > MAX_TOOL_OUTPUT_BYTES) {
+        throw new StudioError(
+          500,
+          "agent_tool_output_limit",
+          "Agent tool output exceeded its limit",
+        )
+      }
+      const outputPreview = preview(result)
+      options.onToolState(toolId, "completed", {
+        call_id: callId,
+        input_preview: inputPreview.text,
+        output_preview: outputPreview.text,
+        ...(inputPreview.truncated || outputPreview.truncated ? { truncated: true } : {}),
+      })
+      return result
+    } catch (error) {
+      const safe =
+        error instanceof StudioError
+          ? { code: error.code, message: error.message }
+          : { code: "tool_failed", message: "Tool execution failed" }
+      options.onToolState(toolId, "failed", {
+        call_id: callId,
+        input_preview: inputPreview.text,
+        error: safe,
+        ...(inputPreview.truncated ? { truncated: true } : {}),
+      })
+      throw error
     }
-    options.onToolState(toolId, "completed")
-    return result
   }
 }
 
@@ -206,41 +254,9 @@ function normalizeOutcome(outcome: Runtime.ManagedOutcome<Model.Response>): Part
   return { phase: "failed", code: outcome.error.code, message: outcome.error.message }
 }
 
-function partSchema<T>(id: string, validator: z.ZodType<T>): Contracts.Schema<T> {
-  return schema(id, (value): value is T => validator.safeParse(value).success)
+function preview(value: unknown): { readonly text: string; readonly truncated: boolean } {
+  const text = JSON.stringify(value)
+  const bytes = Buffer.from(text, "utf8")
+  if (bytes.byteLength <= 8_192) return { text, truncated: false }
+  return { text: bytes.subarray(0, 8_192).toString("utf8"), truncated: true }
 }
-
-function objectSchema(
-  properties: Readonly<Record<string, Contracts.Json>>,
-  required: readonly string[] = [],
-): Contracts.Json {
-  return { type: "object", properties, required, additionalProperties: false }
-}
-
-function chartJsonSchema(): Contracts.Json {
-  return {
-    type: "object",
-    required: ["ticks_per_beat", "span_ticks", "notes"],
-    additionalProperties: false,
-    properties: {
-      ticks_per_beat: { type: "integer", minimum: 1, maximum: 4_096 },
-      span_ticks: { type: "integer", minimum: 1, maximum: 1_000_000 },
-      notes: {
-        type: "array",
-        maxItems: 10_000,
-        items: {
-          type: "object",
-          required: ["tick", "panel_mask", "hold_ticks"],
-          additionalProperties: false,
-          properties: {
-            tick: { type: "integer", minimum: 0 },
-            panel_mask: { type: "integer", minimum: 1, maximum: 1_023 },
-            hold_ticks: { type: "integer", minimum: 0 },
-          },
-        },
-      },
-    },
-  }
-}
-
-const TextDeltaSchema = z.strictObject({ text: z.string() })

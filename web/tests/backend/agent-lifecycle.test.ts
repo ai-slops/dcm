@@ -53,7 +53,7 @@ describe("agent run lifecycle", () => {
 
     // Then
     expect(snapshot.status).toBe("failed")
-    expect(events).toContain('"code":"agent_runtime_failed"')
+    expect(events).toContain('"code":"agent_provider_unavailable"')
     expect(events).not.toContain("secret-provider-detail")
   })
 

@@ -1,6 +1,10 @@
 import { streamSSE } from "hono/streaming"
 
-import { AgentRunRequestSchema, type AgentStreamEvent } from "../../shared/index.ts"
+import {
+  AgentRunRequestSchema,
+  type AgentStreamEvent,
+  AgentStreamEventSchema,
+} from "../../shared/index.ts"
 import type { RunRecord } from "../agent/run-record.ts"
 import { StudioError } from "../errors.ts"
 import { parseJson } from "../http.ts"
@@ -18,7 +22,12 @@ export function registerAgentRoutes(app: StudioApp, services: Services): void {
         document.revision,
       )
     }
-    const snapshot = services.runs.start(context.get("session"), document, request.prompt)
+    const snapshot = services.runs.start(
+      context.get("session"),
+      document,
+      request.prompt,
+      request.model_id,
+    )
     return context.json(snapshot, 202)
   })
 
@@ -53,7 +62,19 @@ export async function streamRunEvents(
     resume?.()
   })
   try {
-    for (const event of record.replay(after)) {
+    const replay = record.replay(after)
+    const first = replay[0]
+    if (after >= 0 && first !== undefined && first.sequence > after + 1) {
+      const recovery = AgentStreamEventSchema.parse({
+        run_id: record.snapshot.id,
+        sequence: record.snapshot.last_sequence,
+        type: "snapshot",
+        snapshot: record.snapshot,
+      })
+      await writeEvent(stream, recovery)
+      lastSequence = recovery.sequence
+    }
+    for (const event of replay) {
       if (stream.aborted) return
       if (event.sequence <= lastSequence) continue
       await writeEvent(stream, event)

@@ -14,6 +14,8 @@ import { loadDemo } from "./demo.ts"
 import { StudioError } from "./errors.ts"
 import { JSON_LIMIT, MULTIPART_LIMIT } from "./http.ts"
 import { NativeService } from "./native/service.ts"
+import { NativeUcsService } from "./native/ucs.ts"
+import { configurationForModel, resolveAgentProvider } from "./provider/resolve.ts"
 import { registerAgentRoutes } from "./routes/agent.ts"
 import { registerDocumentRoutes } from "./routes/document.ts"
 import { registerNativeRoutes } from "./routes/native.ts"
@@ -31,7 +33,21 @@ export async function createStudioApp(
   const store = await StudioStore.open(config.dataRoot, demo.document, demo.audio)
   const sessions = new SessionStore()
   const native = new NativeService(config.repoRoot, config.dataRoot)
-  const runs = new AgentRuns({ configuration: config.part, store, native })
+  const ucs = new NativeUcsService(config.repoRoot)
+  const provider = await resolveAgentProvider(config)
+  const runs = new AgentRuns({
+    configuration: provider.configuration,
+    resolveConfiguration: (modelId) => configurationForModel(config, modelId),
+    store,
+    native: {
+      evaluate: (project, signal) => native.evaluate(project, signal),
+      generate: (project, audio, seed, signal) => native.generate(project, audio, seed, signal),
+      validateUcs: async (project, mode, signal) => {
+        const bytes = await ucs.export(project, mode, signal)
+        return { valid: true, mode, byte_length: bytes.byteLength }
+      },
+    },
+  })
   const services: Services = { config, store, sessions, native, runs }
   const app = new Hono<StudioEnv>()
 
@@ -112,19 +128,56 @@ export async function createStudioApp(
   app.get("/api/v1/bootstrap", async (context) => {
     const session = context.get("session")
     const readiness = await native.readiness()
+    const generatorCompatible =
+      readiness.ready &&
+      JSON.stringify(store.document().project.music) === JSON.stringify(demo.document.project.music)
+    const refreshedProvider = await resolveAgentProvider(config)
+    const recentRuns = [...session.runs.values()]
+      .filter((run) => run.status !== "queued" && run.status !== "running")
+      .slice(-8)
+      .reverse()
     return context.json({
       document: store.document(),
       csrf_token: session.csrfToken,
       session_id: session.id,
       native: readiness,
-      agent: {
-        configured: config.part !== undefined,
-        provider: config.part === undefined ? null : "openai-compatible",
-        model: config.part?.model ?? null,
-      },
+      agent: refreshedProvider.status,
+      tools: [
+        { id: "read_document", description: "Read the frozen saved project.", available: true },
+        {
+          id: "evaluate_chart",
+          description: "Evaluate the frozen chart with the native finite model.",
+          available: readiness.ready,
+          ...(readiness.ready ? {} : { reason: readiness.message }),
+        },
+        {
+          id: "generate_variant",
+          description: "Generate a native candidate chart.",
+          available: generatorCompatible,
+          ...(generatorCompatible
+            ? {}
+            : {
+                reason: readiness.ready
+                  ? "Current timing/audio differs from the bundled generator profile"
+                  : readiness.message,
+              }),
+        },
+        {
+          id: "propose_chart",
+          description: "Create a reviewable chart and timing proposal.",
+          available: true,
+        },
+        {
+          id: "validate_ucs",
+          description: "Validate native UCS export for the frozen project.",
+          available: readiness.ready,
+          ...(readiness.ready ? {} : { reason: readiness.message }),
+        },
+      ],
       proposals: [...session.proposals.values()],
       active_run:
         session.activeRunId === undefined ? null : (session.runs.get(session.activeRunId) ?? null),
+      recent_runs: recentRuns,
     })
   })
   registerDocumentRoutes(app, services)

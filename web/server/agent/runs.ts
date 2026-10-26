@@ -1,4 +1,9 @@
-import type { CurrentDocument, EvaluationResponse, NativeChart } from "../../shared/index.ts"
+import type {
+  AgentRunSnapshot,
+  CurrentDocument,
+  EvaluationResponse,
+  NativeChart,
+} from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import type { StudioSession } from "../sessions.ts"
 import type { AudioRecord, StudioStore } from "../store.ts"
@@ -12,6 +17,7 @@ export type AgentConfiguration = {
   readonly endpoint: URL
   readonly model: string
   readonly apiKey?: string
+  readonly api?: "chat" | "responses"
 }
 
 export type NativeOperations = {
@@ -25,10 +31,20 @@ export type NativeOperations = {
     seed: string,
     signal?: AbortSignal,
   ) => Promise<NativeChart>
+  readonly validateUcs?: (
+    project: CurrentDocument["project"],
+    mode: "Single" | "Double",
+    signal?: AbortSignal,
+  ) => Promise<{
+    readonly valid: true
+    readonly mode: "Single" | "Double"
+    readonly byte_length: number
+  }>
 }
 
 export type AgentRunsDependencies = {
   readonly configuration: AgentConfiguration | undefined
+  readonly resolveConfiguration?: (modelId?: string) => Promise<AgentConfiguration>
   readonly store: StudioStore
   readonly native: NativeOperations
   readonly createRuntime?: PartRuntimeFactory
@@ -43,9 +59,9 @@ export class AgentRuns {
     this.#dependencies = dependencies
   }
 
-  start(session: StudioSession, document: CurrentDocument, prompt: string) {
+  start(session: StudioSession, document: CurrentDocument, prompt: string, modelId?: string) {
     const configuration = this.#dependencies.configuration
-    if (configuration === undefined) {
+    if (configuration === undefined && this.#dependencies.resolveConfiguration === undefined) {
       throw new StudioError(
         503,
         "agent_unconfigured",
@@ -61,6 +77,8 @@ export class AgentRuns {
       audio: this.#dependencies.store.audio(),
       prompt,
       configuration,
+      resolveConfiguration: this.#dependencies.resolveConfiguration,
+      modelId,
       native: this.#dependencies.native,
       createRuntime: this.#dependencies.createRuntime ?? createPartRuntime,
       deadlineMs: this.#dependencies.deadlineMs ?? 120_000,
@@ -80,6 +98,23 @@ export class AgentRuns {
       throw new StudioError(404, "run_not_found", "Agent run was not found")
     }
     return record
+  }
+
+  recordDecision(
+    session: StudioSession,
+    runId: string | undefined,
+    decision: NonNullable<AgentRunSnapshot["proposal_decisions"]>[number],
+  ): void {
+    if (runId === undefined) return
+    const snapshot = session.runs.get(runId)
+    if (snapshot === undefined) return
+    const record = this.#records.get(runId)
+    if (record?.session === session) record.recordDecision(decision)
+    else
+      session.runs.set(runId, {
+        ...snapshot,
+        proposal_decisions: [...(snapshot.proposal_decisions ?? []), decision].slice(-16),
+      })
   }
 
   #prune(session: StudioSession): void {

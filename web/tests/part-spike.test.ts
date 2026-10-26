@@ -15,6 +15,57 @@ afterEach(async () => {
 })
 
 describe("createPartRuntime", () => {
+  it("selects the stateless Responses adapter and its output-token field", async () => {
+    // Given
+    let requestBody:
+      | {
+          readonly store?: unknown
+          readonly max_output_tokens?: unknown
+          readonly max_tokens?: unknown
+        }
+      | undefined
+    const server = createServer((request, response) => {
+      const chunks: Uint8Array[] = []
+      request.on("data", (chunk: Uint8Array) => chunks.push(chunk))
+      request.on("end", () => {
+        const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"))
+        if (typeof parsed === "object" && parsed !== null)
+          requestBody = Object.fromEntries(Object.entries(parsed))
+        response.writeHead(400, { "content-type": "application/json" })
+        response.end(JSON.stringify({ error: { message: "fixture rejection" } }))
+      })
+    })
+    servers.add(server)
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const address = server.address()
+    if (address === null || typeof address === "string")
+      throw new TypeError("Missing provider address")
+    const runtime = createPartRuntime({
+      endpoint: new URL(`http://127.0.0.1:${address.port}/v1/responses`),
+      model: "gpt-6.1-sol",
+      api: "responses",
+      signal: new AbortController().signal,
+      project: fixtureProject(),
+      evaluateChart: () => Promise.reject(new TypeError("not expected")),
+      generateVariant: () => Promise.reject(new TypeError("not expected")),
+      proposeChart: () => Promise.reject(new TypeError("not expected")),
+      validateUcs: () => Promise.reject(new TypeError("not expected")),
+      onToolState: () => undefined,
+    })
+    if (!runtime.ok) throw new TypeError(runtime.error.message)
+
+    // When
+    const started = await runtime.value.start("Inspect")
+    if (!started.ok) throw new TypeError(started.error.message)
+    await started.value.done
+    await runtime.value.dispose()
+
+    // Then
+    expect(requestBody?.store).toBe(false)
+    expect(requestBody?.max_output_tokens).toBe(4_096)
+    expect(requestBody?.max_tokens).toBeUndefined()
+  })
+
   it("runs a real model-tool-final loop through the OpenAI-compatible fetch adapter", async () => {
     // Given
     const requestBodies: unknown[] = []
@@ -74,6 +125,7 @@ describe("createPartRuntime", () => {
       evaluateChart: () => Promise.reject(new TypeError("evaluate_chart was not expected")),
       generateVariant: () => Promise.reject(new TypeError("generate_variant was not expected")),
       proposeChart: () => Promise.reject(new TypeError("propose_chart was not expected")),
+      validateUcs: () => Promise.reject(new TypeError("validate_ucs was not expected")),
       onToolState: (toolId, state) => {
         if (toolId === "read_document" && state === "started") toolCalls += 1
       },

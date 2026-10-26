@@ -2,10 +2,7 @@ import {
   type AgentRunSnapshot,
   AgentRunSnapshotSchema,
   type AgentStreamEvent,
-  ChartProposalSchema,
   type CurrentDocument,
-  canonicalizeChart,
-  RevisionSchema,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import type { StudioSession } from "../sessions.ts"
@@ -17,6 +14,7 @@ import type {
   PartRuntimeFactory,
   ProposalInput,
 } from "./part-runtime.ts"
+import { buildAgentProposal } from "./proposal.ts"
 import { type EventPayload, RunEvents } from "./run-events.ts"
 import type { AgentConfiguration, NativeOperations } from "./runs.ts"
 
@@ -27,7 +25,9 @@ type RunDependencies = {
   readonly document: CurrentDocument
   readonly audio: AudioRecord
   readonly prompt: string
-  readonly configuration: AgentConfiguration
+  readonly configuration: AgentConfiguration | undefined
+  readonly resolveConfiguration?: ((modelId?: string) => Promise<AgentConfiguration>) | undefined
+  readonly modelId?: string | undefined
   readonly native: NativeOperations
   readonly createRuntime: PartRuntimeFactory
   readonly deadlineMs: number
@@ -82,6 +82,10 @@ export class RunRecord {
     return this.#completion
   }
 
+  recordDecision(decision: NonNullable<AgentRunSnapshot["proposal_decisions"]>[number]): void {
+    this.#stream.recordDecision(decision)
+  }
+
   async cancel(): Promise<AgentRunSnapshot> {
     if (this.#terminal) return this.snapshot
     this.#cancelRequested = true
@@ -105,8 +109,18 @@ export class RunRecord {
     let outcome: PartOutcome | undefined
     const timer = setTimeout(() => this.#timeout(), this.#dependencies.deadlineMs)
     try {
+      const configuration =
+        this.#dependencies.resolveConfiguration === undefined
+          ? this.#dependencies.configuration
+          : await this.#dependencies.resolveConfiguration(this.#dependencies.modelId)
+      if (configuration === undefined) {
+        this.#fail("agent_unconfigured", "Agent provider is not configured")
+        return
+      }
+      const api = configuration.api ?? "chat"
+      this.#stream.configure(configuration.model, api)
       const created = this.#dependencies.createRuntime({
-        ...this.#dependencies.configuration,
+        ...configuration,
         signal: this.#abort.signal,
         project: this.document.project,
         evaluateChart: (signal) =>
@@ -118,19 +132,27 @@ export class RunRecord {
             seed,
             signal,
           ),
+        validateUcs: async (mode, signal) => {
+          const validate = this.#dependencies.native.validateUcs
+          if (validate === undefined) {
+            throw new StudioError(503, "ucs_unavailable", "Native UCS validation is unavailable")
+          }
+          return validate(this.document.project, mode, signal)
+        },
         proposeChart: (proposal, signal) => this.#propose(proposal, signal),
-        onToolState: (toolId, state) => {
-          if (!this.#terminal) this.#publish({ type: "tool", tool_id: toolId, state })
+        onToolState: (toolId, state, detail) => {
+          if (!this.#terminal) this.#publish({ type: "tool", tool_id: toolId, state, ...detail })
         },
       })
-      if (!created.ok) return this.#fail()
+      if (!created.ok)
+        return this.#fail("agent_configuration", "Agent runtime configuration failed")
       runtime = created.value
       this.#runtime = runtime
       if (this.#terminal) return
       this.#setStatus("running")
       this.#publish({ type: "status", status: "running" })
       const started = await runtime.start(this.snapshot.prompt)
-      if (!started.ok) return this.#fail()
+      if (!started.ok) return this.#fail("agent_provider_request", "Agent provider request failed")
       this.#partRun = started.value
       if (this.#cancelRequested || this.#terminal) {
         await this.#cancelPart("cancelled-before-start")
@@ -139,8 +161,7 @@ export class RunRecord {
       const observed = this.#observe(started.value)
       ;[outcome] = await Promise.all([started.value.done, observed])
     } catch (error) {
-      if (!(error instanceof Error)) this.#fail()
-      if (!this.#terminal) this.#fail()
+      if (!this.#terminal) this.#fail(...safeFailure(error))
     } finally {
       clearTimeout(timer)
       if (runtime !== undefined) await this.#disposeRuntime()
@@ -148,7 +169,7 @@ export class RunRecord {
     if (this.#terminal || outcome === undefined) return
     if (outcome.phase === "completed") this.#complete(outcome.text)
     else if (outcome.phase === "cancelled") this.#finishCancelled()
-    else this.#fail()
+    else this.#fail(safeProviderCode(outcome.code), safeProviderMessage(outcome.code))
   }
 
   async #observe(run: PartRun): Promise<void> {
@@ -166,27 +187,10 @@ export class RunRecord {
     )
     if (owned.length >= MAX_PROPOSALS)
       throw new StudioError(409, "proposal_limit", "Run proposal limit reached")
-    const chart = canonicalizeChart(input.chart)
-    if (
-      chart.ticks_per_beat !== this.document.project.music.ticks_per_beat ||
-      chart.span_ticks !== this.document.project.music.duration_ticks
-    ) {
-      throw new StudioError(
-        400,
-        "proposal_profile",
-        "Proposal differs from the frozen music profile",
-      )
-    }
     await Promise.resolve()
     if (this.#terminal || signal.aborted)
       throw new StudioError(409, "run_cancelled", "Run is no longer active")
-    const proposal = ChartProposalSchema.parse({
-      id: crypto.randomUUID(),
-      base_revision: RevisionSchema.parse(this.document.revision),
-      source: "agent",
-      summary: input.summary,
-      chart,
-    })
+    const proposal = buildAgentProposal(this.document, input, this.snapshot.id)
     this.session.proposals.set(proposal.id, proposal)
     this.#publish({ type: "proposal", proposal })
     return { proposal_id: proposal.id }
@@ -209,13 +213,13 @@ export class RunRecord {
     this.#close()
   }
 
-  #fail(): void {
+  #fail(code = "agent_runtime_failed", message = "Agent run failed"): void {
     if (this.#terminal) return
     this.#terminal = true
     this.#abort.abort("agent-runtime-failed")
     this.#clearActive()
     this.#setStatus("failed")
-    this.#publish({ type: "error", code: "agent_runtime_failed", message: "Agent run failed" })
+    this.#publish({ type: "error", code, message })
     this.#close()
   }
 
@@ -235,8 +239,7 @@ export class RunRecord {
     try {
       await this.#partRun?.cancel(reason)
     } catch (error) {
-      if (!(error instanceof Error)) this.#fail()
-      if (!this.#terminal) this.#fail()
+      if (!this.#terminal) this.#fail(...safeFailure(error))
     }
   }
 
@@ -246,8 +249,7 @@ export class RunRecord {
     try {
       await this.#runtime.dispose()
     } catch (error) {
-      if (!(error instanceof Error)) this.#fail()
-      if (!this.#terminal) this.#fail()
+      if (!this.#terminal) this.#fail(...safeFailure(error))
     }
   }
 
@@ -267,4 +269,25 @@ export class RunRecord {
   #close(): void {
     this.#stream.close()
   }
+}
+
+function safeFailure(error: unknown): [string, string] {
+  if (error instanceof StudioError) return [error.code, error.message]
+  return ["agent_runtime_failed", "Agent run failed"]
+}
+
+function safeProviderMessage(code: string): string {
+  if (/auth|unauthorized|forbidden/i.test(code)) return "Agent provider authentication failed"
+  if (/rate|quota|limit/i.test(code)) return "Agent provider rate limit was reached"
+  if (/model|unsupported/i.test(code)) return "Selected agent model is unavailable or incompatible"
+  if (/timeout|network|transport/i.test(code)) return "Agent provider could not be reached"
+  return "Agent provider request failed"
+}
+
+function safeProviderCode(code: string): string {
+  if (/auth|unauthorized|forbidden/i.test(code)) return "agent_provider_auth"
+  if (/rate|quota|limit/i.test(code)) return "agent_provider_rate_limit"
+  if (/model|unsupported/i.test(code)) return "agent_model_unavailable"
+  if (/timeout|network|transport|http/i.test(code)) return "agent_provider_unavailable"
+  return "agent_provider_request"
 }

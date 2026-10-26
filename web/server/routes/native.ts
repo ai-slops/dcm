@@ -59,15 +59,33 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
       throw new StudioError(409, "proposal_stale", "Proposal was created for another revision")
     }
     const current = currentAtRevision(services, request.base_revision)
-    const project: StudioProjectV1 = { ...current.project, chart: proposal.chart }
+    const project: StudioProjectV1 = {
+      ...current.project,
+      chart: proposal.chart,
+      ...(proposal.music === undefined ? {} : { music: proposal.music }),
+    }
     const saved = await services.store.save(request.base_revision, project)
     session.proposals.delete(proposal.id)
+    services.runs.recordDecision(session, proposal.run_id, {
+      id: proposal.id,
+      status: "applied",
+      revision: saved.revision,
+      summary: proposal.summary,
+    })
     return context.json(saved)
   })
 
   app.delete("/api/v1/proposals/:id", (context) => {
-    const removed = context.get("session").proposals.delete(context.req.param("id"))
-    if (!removed) throw new StudioError(404, "proposal_not_found", "Proposal was not found")
+    const session = context.get("session")
+    const proposal = session.proposals.get(context.req.param("id"))
+    if (proposal === undefined)
+      throw new StudioError(404, "proposal_not_found", "Proposal was not found")
+    session.proposals.delete(proposal.id)
+    services.runs.recordDecision(session, proposal.run_id, {
+      id: proposal.id,
+      status: "rejected",
+      summary: proposal.summary,
+    })
     return context.body(null, 204)
   })
 }
