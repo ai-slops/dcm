@@ -4,7 +4,11 @@ import { resolve } from "node:path"
 
 import { chromium } from "playwright"
 
-import { agentBrowser, observeAgentBrowser } from "./agent-live-support.mjs"
+import {
+  agentBrowser,
+  observeAgentBrowser,
+  verifyDecisionSerialization,
+} from "./agent-live-support.mjs"
 import {
   bootstrap,
   browserConfiguration,
@@ -96,22 +100,19 @@ try {
   })
   const preview = await proposalCard(applied).locator(".proposal-diff").innerText()
   assert.ok(preview.includes(String(applied.music.offset_micros)))
+  await verifyDecisionSerialization(page, reviewId, () =>
+    proposalCard(rejected).getByRole("button", { name: "Reject", exact: true }).click(),
+  )
   const laterId = await startTask(
     "Use read_document once and briefly confirm the saved chart note count. Do not propose or apply any changes.",
   )
   await finishTask(laterId)
   const focusedPrompt = await page.locator(".agent-event--prompt").innerText()
   await page.reload()
-  await proposalCard(rejected).waitFor()
+  await proposalCard(applied).waitFor()
   await proposalCard(applied).scrollIntoViewIfNeeded()
   await page.screenshot({ path: resolve(evidence, "proposals.png") })
 
-  await proposalCard(rejected).getByRole("button", { name: "Reject", exact: true }).click()
-  await page
-    .getByRole("region", { name: "Proposal decision history" })
-    .getByText("Rejected", { exact: true })
-    .first()
-    .waitFor()
   assert.deepEqual((await bootstrap(context, configuration.url)).document, baseline.document)
   owned = await ownedMutation(page, `/api/v1/proposals/${applied.id}/apply`, () =>
     proposalCard(applied).getByRole("button", { name: "Apply changes", exact: true }).click(),
@@ -173,6 +174,7 @@ try {
     stale_http_status: conflict.status(),
     media_clock_delta_seconds: changedSeek - originalSeek,
     owner_history_after_later_run: true,
+    composer_locked_during_owner_refresh: true,
   }
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 900 })

@@ -37,6 +37,42 @@ export async function observeAgentBrowser(page, origin) {
   }
 }
 
+export async function verifyDecisionSerialization(page, ownerId, action) {
+  await page.getByLabel("Agent instruction").fill("Read the saved chart.")
+  assert.equal(await page.getByRole("button", { name: "Run task", exact: true }).isEnabled(), true)
+  const pattern = `**/api/v1/agent/runs/${ownerId}`
+  const paused = Promise.withResolvers()
+  const entered = Promise.withResolvers()
+  const handled = Promise.withResolvers()
+  const handler = async (route) => {
+    entered.resolve()
+    try {
+      await paused.promise
+      await route.continue()
+    } finally {
+      handled.resolve()
+    }
+  }
+  await page.route(pattern, handler)
+  try {
+    await action()
+    await entered.promise
+    assert.equal(
+      await page.getByRole("button", { name: "Run task", exact: true }).isDisabled(),
+      true,
+    )
+    assert.equal(await page.getByLabel("Agent instruction").isDisabled(), true)
+  } finally {
+    paused.resolve()
+    await handled.promise
+    await page.unroute(pattern, handler)
+  }
+  await page.waitForFunction(
+    () => !document.querySelector('[aria-label="Agent instruction"]').disabled,
+  )
+  await page.getByLabel("Agent instruction").fill("")
+}
+
 export function agentBrowser(page, url) {
   return {
     async startTask(prompt) {

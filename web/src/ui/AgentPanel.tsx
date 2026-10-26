@@ -127,7 +127,7 @@ export function AgentPanel(props: AgentPanelProps) {
               currentRevision: props.revision,
               baseRevision: proposal.base_revision,
             })}
-            busy={proposalBusy}
+            busy={controller.busy ?? proposalBusy}
             onApply={() => void changeProposal("apply", proposal)}
             onReject={() => void changeProposal("discard", proposal)}
           />
@@ -144,7 +144,7 @@ export function AgentPanel(props: AgentPanelProps) {
         modelId={modelId}
         dirty={props.dirty}
         running={controller.running}
-        busy={controller.busy}
+        busy={controller.busy ?? proposalBusy}
         onPrompt={setPrompt}
         onModel={setModelId}
         onCancel={() => void controller.cancel()}

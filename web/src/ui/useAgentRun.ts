@@ -30,13 +30,9 @@ type AgentRunController = {
   readonly start: (prompt: string, modelId: string) => Promise<boolean>
 }
 
-async function loadCanonicalRun(runId: RecoverableAgentRun["id"]): Promise<{
-  readonly snapshot: RecoverableAgentRun
-  readonly bootstrap: Bootstrap
-}> {
+async function loadCanonicalRun(runId: RecoverableAgentRun["id"]) {
   const snapshot = await studioApi.agentSnapshot(runId)
-  const bootstrap = await studioApi.bootstrap()
-  return { snapshot, bootstrap }
+  return { snapshot, bootstrap: await studioApi.bootstrap() }
 }
 
 export function useAgentRun(
@@ -61,6 +57,7 @@ export function useAgentRun(
   const abortRef = useRef<AbortController | null>(null)
   const running = run?.status === "queued" || run?.status === "running"
   const runId = run?.id
+  const focusedRunIdRef = useRef(runId)
   const connectionKey = `${runId ?? "idle"}:${reconnectAttempt}`
 
   const hydrateSnapshot = useCallback(
@@ -72,7 +69,8 @@ export function useAgentRun(
           current,
         ),
       )
-      if (runId === undefined || snapshot.id === runId) {
+      if (focusedRunIdRef.current === undefined || snapshot.id === focusedRunIdRef.current) {
+        focusedRunIdRef.current = snapshot.id
         setRun((current) => focusAfterSnapshotRefresh(current, snapshot))
         setActivity(activityFromSnapshot(snapshot))
         lastSequenceRef.current = snapshot.last_sequence
@@ -81,7 +79,7 @@ export function useAgentRun(
         )
       }
     },
-    [onBootstrap, runId],
+    [onBootstrap],
   )
 
   useEffect(() => {
@@ -118,7 +116,12 @@ export function useAgentRun(
           lastSequence: lastSequenceRef.current,
           signal: abort.signal,
         })) {
-          if (!active || event.sequence <= lastSequenceRef.current) continue
+          if (
+            !active ||
+            focusedRunIdRef.current !== runId ||
+            event.sequence <= lastSequenceRef.current
+          )
+            continue
           lastSequenceRef.current = event.sequence
           setActivity((current) => appendAgentEvent(current, event))
           if (event.type === "proposal") onProposal(event.proposal)
@@ -196,6 +199,7 @@ export function useAgentRun(
         ...(modelId === "" ? {} : { model_id: modelId }),
       }
       const next = await studioApi.startAgent(bootstrap.csrf_token, request)
+      focusedRunIdRef.current = next.id
       lastSequenceRef.current = next.last_sequence
       setActivity(initialAgentActivity(next.id, submittedPrompt))
       setRun(next)
