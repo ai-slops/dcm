@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { BootstrapSchema, CurrentDocumentSchema } from "../../shared/index.ts"
@@ -19,15 +19,23 @@ export function saveRecovery(project, audio) {
 }
 
 export function browserConfiguration() {
-  const state = JSON.parse(readFileSync(resolve(repoRoot, ".studio-dev/state.json"), "utf8"))
-  const url = new URL(process.env.STUDIO_BROWSER_URL ?? state.origin)
-  assert.equal(
-    url.username + url.password + url.search,
-    "",
-    "Use a browser URL without credentials or query parameters",
+  const statePath = resolve(
+    process.env.STUDIO_BROWSER_STATE_FILE ?? resolve(repoRoot, ".studio-dev/state.json"),
   )
-  const passwordFile = resolve(repoRoot, ".studio-dev/password")
-  const authenticated = !state.local && url.origin === new URL(state.origin).origin
+  const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : undefined
+  const source = process.env.STUDIO_BROWSER_URL ?? state?.origin
+  if (source === undefined) throw new Error("Start the managed preview or set STUDIO_BROWSER_URL")
+  const url = URL.parse(source)
+  if (url === null || !["http:", "https:"].includes(url.protocol)) {
+    throw new Error("Browser URL must be an absolute HTTP or HTTPS URL")
+  }
+  if (url.username !== "" || url.password !== "" || url.search !== "") {
+    throw new Error("Use a browser URL without credentials or query parameters")
+  }
+  const passwordFile = resolve(dirname(statePath), "password")
+  const stateOrigin =
+    typeof state?.origin === "string" ? URL.parse(state.origin)?.origin : undefined
+  const authenticated = state !== undefined && !state.local && url.origin === stateOrigin
   const credential = authenticated ? readFileSync(passwordFile, "utf8").trim() : ""
   const executablePath =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ??

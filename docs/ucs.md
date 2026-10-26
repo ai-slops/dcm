@@ -112,7 +112,10 @@ just studio-browser-ucs
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` selects an existing browser; the Linux workspace automatically
 uses `/usr/lib/chromium/chrome` when available. Otherwise run `corepack pnpm exec playwright install
 chromium` in `web/` first. The test discovers the URL from `.studio-dev/state.json` and reads the
-private local credential without printing it. `STUDIO_BROWSER_URL` can select a local test URL;
+private local credential without printing it. `STUDIO_BROWSER_STATE_FILE` can select an existing
+managed state file when running checks from a separate review checkout; the private password is
+read beside that state file and is never copied into the checkout. `STUDIO_BROWSER_URL` can select
+a local foreground URL even when managed preview state does not exist;
 credentials are only used for the matching approved state origin. Screenshots and downloads stay
 in ignored `web/artifacts/ucs/`. No authentication headers or source reference charts are published.
 
