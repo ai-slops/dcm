@@ -34,8 +34,8 @@ process running so it can be inspected and retried.
 privately on your workstation, not in shared logs or screenshots. No secret is placed in a URL,
 argument, or printed command output. In public mode, sign-in protects static files, all API reads,
 audio, uploads, edits, native operations, and agent endpoints, including loopback requests.
-Session/CSRF and revision checks still apply. Part is disabled in this mode even if provider
-environment variables exist; preview never needs or borrows the workspace's agent-router credentials.
+Session/CSRF and revision checks still apply. Part defaults to off in public mode; inherited
+provider secrets do not enable it. Explicit workspace DIM opt-in is described below.
 The public server and its native children receive only allowlisted runtime settings, and public
 startup does not load `web/.env`. Set a custom data directory with `STUDIO_DATA` in the launcher's
 environment; local `--local` mode retains normal `.env` and provider behavior.
@@ -199,17 +199,46 @@ generation, evaluation, and export. Windows selects `dist/pump.exe`, Linux selec
 Without provider configuration, the editor remains fully usable and the agent panel truthfully
 shows that no provider is configured. No canned assistant is substituted.
 
-Copy `web/.env.example` to the ignored `web/.env`, configure an OpenAI-compatible tool-calling
-endpoint, and restart the server:
+### Existing DIM workspace connection
+
+Use the operator-provisioned workspace connection rather than creating or copying an account key:
+
+```sh
+STUDIO_AGENT_PROVIDER=dim STUDIO_AGENT_MODEL=gpt-6.1-sol sh scripts/studio-preview.sh restart
+```
+
+This deliberately enables model use behind the existing protected HTTPS Studio. The server reads
+the owner-only `~/.config/dim/llm-router.json` connection file and authenticates catalog discovery.
+`DIM_LLM_ROUTER_CONNECTION_FILE` can select another operator-provisioned private connection file.
+Do not paste its contents into commands, prompts, project files, or logs. The launcher retains only
+the provider selection, model ID, and optional connection-file path across ordinary restarts;
+it never copies the bearer token into its state or loads `web/.env` in public mode.
+
+The Agent panel shows the actual catalog and each route's `chat` or `responses` API. The selected
+model must be in the current catalog; the server refreshes discovery for each run. A catalog entry
+does not guarantee chart-tool suitability, especially for image models. Choose a tool-capable text
+model. Missing credentials/catalog access leaves editing available and displays an actionable
+unavailable state, not a fake response. Disable model use with:
+
+```sh
+STUDIO_AGENT_PROVIDER=off sh scripts/studio-preview.sh restart
+```
+
+### Standalone provider
+
+For the foreground/local workflow, copy `web/.env.example` to ignored `web/.env`, configure a
+tool-capable endpoint, and restart:
 
 ```dotenv
 PART_ENDPOINT=https://api.openai.com/v1/chat/completions
 PART_MODEL=your-tool-capable-model
 PART_API_KEY=your-server-secret
+PART_API=chat
 ```
 
-`PART_ENDPOINT` is the **complete Chat Completions URL**, not just a base URL. The initial adapter
-supports OpenAI-compatible APIs, not an arbitrary provider's unrelated HTTP schema. For a local
+`PART_ENDPOINT` is the **complete API URL**, not just a base URL. `PART_API=chat` (the default)
+selects Chat Completions; `PART_API=responses` selects a complete `/v1/responses` endpoint with
+stateless `store:false` requests. Both use the real pinned Part adapters. For a local
 compatible server, use its complete endpoint, model name, and omit `PART_API_KEY` if it requires no
 authentication. Credentials and endpoints are configured only on the server; never put secrets
 in `VITE_*` variables, project JSON, or prompts. `web/.env` and `.env.local` are ignored by Git.
@@ -221,17 +250,42 @@ of the saved document and has these scoped tools:
 - `read_document`: inspect the frozen chart project.
 - `evaluate_chart`: obtain the native assessment for that snapshot.
 - `generate_variant`: invoke compatible native demo generation.
-- `propose_chart`: create a validated replacement chart for human review.
+- `validate_ucs`: validate native UCS export of the frozen snapshot in Single or Double mode.
+- `propose_chart`: create a validated replacement chart and optional complete timing/music object
+  for human review, preserving audio identity.
 
 There are no shell, arbitrary filesystem, repository, or provider-configuration tools. Agent tools
 never directly change the saved document. **Apply** is an explicit user action, and revision checks
 reject stale proposals. Undo after applying produces a new local draft; save it to restore that
-version on the server. A failed action keeps its prompt/proposal available for recovery.
+version on the server. Reject removes only the proposal, without saving the document. The panel
+shows note/timing change summaries and retains apply/reject decisions for the run. A failed action
+keeps its prompt/proposal available for recovery.
 
 Cancel aborts the local run, provider transport, and associated native work. It prevents later
 proposal writes but does not retroactively discard proposals already created. Remote provider
 billing/cancellation semantics remain the provider's responsibility. SSE reconnect/snapshot
-recovery does not resend the original prompt.
+recovery does not resend the original prompt. Refresh restores the active or latest terminal run,
+bounded tool input/result previews, final text, and safe errors. These are operational events, not
+private chain-of-thought. History is in-memory and browser-session scoped, not durable or recoverable
+after a server restart or loss of the browser session cookie. Saved chart and audio survive.
+
+Runs have a 120-second deadline, at most eight model invocations and sixteen tool dispatches.
+Tool previews are capped at 8 KiB, retained text at 64 KiB, and event replay at 512 records; a replay
+gap falls back to the canonical snapshot. The panel reports tool readiness separately, including
+demo-profile restrictions on native generation.
+
+### Opt-in real-provider browser smoke
+
+With the managed DIM-backed preview running:
+
+```sh
+STUDIO_LIVE_AGENT=1 node web/tests/browser/agent-live.mjs
+```
+
+This spends real model calls, checks native tools and proposal review, briefly applies a chart/timing
+change, and restores the original project/audio with revision protection. Do not edit the shared
+project concurrently. Private recovery copies and redacted receipts/screenshots stay in ignored
+`web/artifacts/`. The ordinary automated tests use wire-level fixtures, not live credentials.
 
 ## State and local trust boundary
 
