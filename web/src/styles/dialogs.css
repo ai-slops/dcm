@@ -64,3 +64,47 @@
   background: var(--surface-sunken);
   white-space: pre-wrap;
 }
+.ucs-dialog__section {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-end: var(--space-4);
+  border-block-end: 1px solid var(--border-subtle);
+}
+.ucs-dialog__section h3,
+.ucs-dialog__section p {
+  margin: 0;
+}
+.ucs-dialog__section h3 {
+  font-size: 14px;
+  line-height: 20px;
+}
+.ucs-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+.ucs-mode legend {
+  padding-inline: var(--space-1);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ucs-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.ucs-mode input {
+  inline-size: var(--space-4);
+  min-block-size: var(--space-4);
+  margin: 0;
+  accent-color: var(--coral-primary);
+}
+.operation-result--error {
+  color: var(--status-error);
+}

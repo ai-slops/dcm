@@ -1,4 +1,4 @@
-import { Settings, Upload, WandSparkles } from "lucide-react"
+import { ArrowLeftRight, Settings, Upload, WandSparkles } from "lucide-react"
 import { useState } from "react"
 
 import type {
@@ -12,6 +12,7 @@ import { ActionDialog } from "./ActionDialog.tsx"
 import { FileActionsDialog } from "./FileActionsDialog.tsx"
 import { NativeActionsDialog } from "./NativeActionsDialog.tsx"
 import { IconButton } from "./primitives.tsx"
+import { UcsActionsDialog } from "./UcsActionsDialog.tsx"
 
 type ActionsProps = {
   readonly bootstrap: Bootstrap
@@ -23,7 +24,7 @@ type ActionsProps = {
   readonly onStatus: (status: string) => void
 }
 
-type DialogName = "files" | "native" | "settings"
+type DialogName = "files" | "native" | "settings" | "ucs"
 
 export function StudioActions(props: ActionsProps) {
   const [open, setOpen] = useState<DialogName | null>(null)
@@ -39,6 +40,11 @@ export function StudioActions(props: ActionsProps) {
         label="Generate and export"
         icon={<WandSparkles size={15} />}
         onClick={() => setOpen("native")}
+      />
+      <IconButton
+        label="UCS transfer"
+        icon={<ArrowLeftRight size={15} />}
+        onClick={() => setOpen("ucs")}
       />
       <IconButton
         label="Settings"
@@ -65,6 +71,16 @@ export function StudioActions(props: ActionsProps) {
         revision={props.revision}
         onClose={close}
         onProposal={props.onProposal}
+      />
+      <UcsActionsDialog
+        csrfToken={props.bootstrap.csrf_token}
+        dirty={props.dirty}
+        open={open === "ucs"}
+        project={props.project}
+        revision={props.revision}
+        onClose={close}
+        onDocument={props.onDocument}
+        onStatus={props.onStatus}
       />
       <ActionDialog open={open === "settings"} busy={false} title="Agent settings" onClose={close}>
         <div className="action-dialog__body">
