@@ -5,6 +5,8 @@ import { StudioError } from "./errors.ts"
 
 export const JSON_LIMIT = 8 * 1024 * 1024
 export const AUDIO_LIMIT = 32 * 1024 * 1024
+export const UCS_LIMIT = 16 * 1024 * 1024
+export const MULTIPART_LIMIT = AUDIO_LIMIT + UCS_LIMIT + 1024 * 1024
 
 export async function parseJson<T>(context: Context, schema: z.ZodType<T>): Promise<T> {
   const length = Number(context.req.header("content-length") ?? 0)
@@ -14,7 +16,7 @@ export async function parseJson<T>(context: Context, schema: z.ZodType<T>): Prom
 
 export async function parseMultipart(context: Context): Promise<FormData> {
   const length = Number(context.req.header("content-length") ?? 0)
-  if (length > AUDIO_LIMIT + 1024 * 1024) {
+  if (length > MULTIPART_LIMIT) {
     throw new StudioError(413, "body_too_large", "Multipart body exceeds its limit")
   }
   return context.req.raw.formData()

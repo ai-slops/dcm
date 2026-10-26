@@ -72,7 +72,7 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
   })
 }
 
-function currentAtRevision(services: Services, revision: number) {
+export function currentAtRevision(services: Services, revision: number) {
   const document = services.store.document()
   if (document.revision !== revision) {
     throw new StudioError(409, "revision_conflict", "Document revision is stale", document.revision)

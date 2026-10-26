@@ -12,11 +12,12 @@ import { AgentRuns } from "./agent/runs.ts"
 import type { StudioConfig } from "./config.ts"
 import { loadDemo } from "./demo.ts"
 import { StudioError } from "./errors.ts"
-import { AUDIO_LIMIT, JSON_LIMIT } from "./http.ts"
+import { JSON_LIMIT, MULTIPART_LIMIT } from "./http.ts"
 import { NativeService } from "./native/service.ts"
 import { registerAgentRoutes } from "./routes/agent.ts"
 import { registerDocumentRoutes } from "./routes/document.ts"
 import { registerNativeRoutes } from "./routes/native.ts"
+import { registerUcsRoutes } from "./routes/ucs.ts"
 import { SessionStore } from "./sessions.ts"
 import { StudioStore } from "./store.ts"
 import type { Services, StudioApp, StudioEnv } from "./types.ts"
@@ -78,7 +79,7 @@ export async function createStudioApp(
   app.use(
     "/api/v1/*",
     bodyLimit({
-      maxSize: AUDIO_LIMIT + 1024 * 1024,
+      maxSize: MULTIPART_LIMIT,
       onError: (context) =>
         context.json(
           { error: { code: "body_too_large", message: "Request body exceeds its limit" } },
@@ -128,6 +129,7 @@ export async function createStudioApp(
   })
   registerDocumentRoutes(app, services)
   registerNativeRoutes(app, services)
+  registerUcsRoutes(app, services)
   registerAgentRoutes(app, services)
 
   app.use("/assets/*", compress({ encoding: "gzip" }))
