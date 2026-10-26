@@ -115,6 +115,7 @@ export class AgentRuns {
     if (runId === undefined) return
     const snapshot = session.runs.get(runId)
     if (snapshot === undefined) return
+    session.runs.delete(runId)
     const record = this.#records.get(runId)
     if (record?.session === session) record.recordDecision(decision)
     else
@@ -125,7 +126,10 @@ export class AgentRuns {
   }
 
   #prune(session: StudioSession): void {
-    pruneMap(session.runs, MAX_SESSION_RUNS, (id) => id !== session.activeRunId)
+    const owners = new Set<string | undefined>(
+      [...session.proposals.values()].map((proposal) => proposal.run_id),
+    )
+    pruneMap(session.runs, MAX_SESSION_RUNS, (id) => id !== session.activeRunId && !owners.has(id))
     pruneMap(this.#records, MAX_RETAINED_RUNS, (_id, record) => record.terminal)
   }
 }

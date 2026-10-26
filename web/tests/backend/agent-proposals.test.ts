@@ -92,3 +92,25 @@ it("recovers a session snapshot after other sessions evict its live runtime reco
   expect(fixture.runs.snapshot(fixture.session, first.id).status).toBe("completed")
   expect(() => fixture.runs.snapshot(new SessionStore().create(), first.id)).toThrow()
 })
+
+it("pins pending proposal owners while later same-session runs fill history", async () => {
+  const fixture = await harness()
+  const first = await fixture.run()
+  const proposal = [...fixture.session.proposals.values()][0]
+  if (proposal === undefined) throw new TypeError("Proposal missing")
+  for (let index = 0; index < 40; index += 1) await fixture.run()
+  expect(fixture.session.runs.size).toBe(32)
+  expect(fixture.runs.snapshot(fixture.session, first.id).status).toBe("completed")
+  fixture.session.proposals.delete(proposal.id)
+  fixture.runs.recordDecision(fixture.session, first.id, {
+    id: proposal.id,
+    status: "rejected",
+    summary: proposal.summary,
+  })
+  expect(fixture.runs.snapshot(fixture.session, first.id).proposal_decisions).toContainEqual({
+    id: proposal.id,
+    status: "rejected",
+    summary: proposal.summary,
+  })
+  expect([...fixture.session.runs.keys()].at(-1)).toBe(first.id)
+})
