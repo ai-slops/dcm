@@ -20,7 +20,7 @@ export class NativeUcsService {
     this.#pump = nativeExecutable(repoRoot)
   }
 
-  export(project: StudioProjectV1, mode: UcsMode): Promise<Uint8Array> {
+  export(project: StudioProjectV1, mode: UcsMode, signal?: AbortSignal): Promise<Uint8Array> {
     return withUcsWorkspace(async (root) => {
       const chart = resolve(root, "chart.json")
       const music = resolve(root, "music.json")
@@ -29,19 +29,23 @@ export class NativeUcsService {
         writeFile(chart, JSON.stringify(project.chart)),
         writeFile(music, JSON.stringify(project.music)),
       ])
-      await this.#pool.run(this.#pump, [
-        "chart",
-        "export-ucs",
-        chart,
-        "--music",
-        music,
-        "--mode",
-        mode,
-        "--out",
-        output,
-        "--format",
-        "json",
-      ])
+      await this.#pool.run(
+        this.#pump,
+        [
+          "chart",
+          "export-ucs",
+          chart,
+          "--music",
+          music,
+          "--mode",
+          mode,
+          "--out",
+          output,
+          "--format",
+          "json",
+        ],
+        signal,
+      )
       return readFile(output)
     })
   }
