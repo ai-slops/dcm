@@ -364,12 +364,16 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 ### AgentRail
 
 - **Structure:** provider/status header, cancel control while running, scrollable event stream, proposal rows, starter actions when empty, and anchored composer.
+- **Runtime disclosure:** `AgentRuntimeStatus` names the actual Part runtime version, provider source, configured model, API family, catalog size, and per-tool availability. Catalog API labels describe provider capability only and must not imply every listed model supports chart tools.
+- **Observable execution:** `ToolCallCard` renders ordered, bounded input/result previews from canonical snapshots and stream events. It never exposes chain-of-thought or native provider payloads. `RunResult` is visually separate from tool execution and appears only for retained or streamed runtime text.
+- **Composer:** `AgentComposer` requires an explicit catalog model when the bootstrap has no configured model, offers the configured model as the safe default, and includes factual starter tasks. Reconnect resumes the saved run and never silently resubmits.
 - **Variants:** unconfigured, ready, running, streaming, cancelled, proposal available, error, and offline/unavailable.
 - **Spacing:** header/body/composer use `--space-4`; event groups use `--space-3`.
 - **States:** never fabricate assistant replies. Show only real prompts, tool events, provider messages, errors, and proposals received from runtime data.
 - **Accessibility:** provider and running state are textual; streamed updates use a throttled polite live region; Cancel is keyboard reachable and does not clear prior events.
 - **Motion:** streaming indicator may pulse opacity. Drawer uses the inspected beui.dev mechanism: scrim, Escape, focus trap/return, interruptible transform, opacity-only reduced-motion fallback.
 - **Layout:** desktop fixed rail with stream as sole scroll owner; tablet drawer; mobile full tab.
+- **Discoverability:** the document toolbar includes an `Agent` action that focuses the existing desktop rail or selects the existing tablet Agent tab. Below 768px, the always-visible Agent tab replaces this redundant shortcut so the remaining toolbar actions stay within the viewport. It does not create a second chat or overlay.
 
 ### Modal
 
