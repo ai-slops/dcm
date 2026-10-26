@@ -106,6 +106,8 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
         ChartCommand::ExportEditedSsc(args) => {
             output(&crate::newchart_edited_export::export(args)?, format)
         }
+        ChartCommand::ImportUcs(args) => output(&crate::ucs_commands::import(args)?, format),
+        ChartCommand::ExportUcs(args) => output(&crate::ucs_commands::export(args)?, format),
     }
 }
 

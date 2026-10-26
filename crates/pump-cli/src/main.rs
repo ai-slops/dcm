@@ -63,6 +63,9 @@ mod ssc_format;
 mod ssc_limit_tests;
 #[cfg(test)]
 mod ssc_tests;
+mod ucs_commands;
+#[cfg(test)]
+mod ucs_tests;
 
 use std::process::ExitCode;
 

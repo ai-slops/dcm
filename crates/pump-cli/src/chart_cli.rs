@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 
 #[derive(Debug, Args)]
 pub struct ChartArgs {
@@ -23,6 +23,8 @@ pub enum ChartCommand {
     Evaluate(ChartEvaluateArgs),
     ExportSsc(ChartExportSscArgs),
     ExportEditedSsc(ChartExportEditedSscArgs),
+    ImportUcs(ChartImportUcsArgs),
+    ExportUcs(ChartExportUcsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -156,4 +158,37 @@ pub struct ChartExportEditedSscArgs {
     pub title: String,
     #[arg(long)]
     pub artist: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartImportUcsArgs {
+    pub file: PathBuf,
+    #[arg(long)]
+    pub audio: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum UcsModeArg {
+    Single,
+    Double,
+}
+
+impl From<UcsModeArg> for pump_ucs::UcsMode {
+    fn from(value: UcsModeArg) -> Self {
+        match value {
+            UcsModeArg::Single => Self::Single,
+            UcsModeArg::Double => Self::Double,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct ChartExportUcsArgs {
+    pub chart: PathBuf,
+    #[arg(long)]
+    pub music: PathBuf,
+    #[arg(long, value_enum, ignore_case = true, default_value_t = UcsModeArg::Double)]
+    pub mode: UcsModeArg,
+    #[arg(long)]
+    pub out: PathBuf,
 }
