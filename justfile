@@ -72,6 +72,10 @@ studio-check:
 studio-test:
     sh scripts/studio.sh test
 
+# Exercise the live UCS round trip in Chromium; restores the original saved project/audio.
+studio-browser-ucs:
+    sh scripts/studio.sh browser-ucs
+
 # Serve the built editor and agent runtime on localhost:4173.
 studio:
     sh scripts/studio.sh start

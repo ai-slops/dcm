@@ -18,6 +18,7 @@
     "lint": "biome check .",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "test": "vitest run",
+    "test:browser:ucs": "node tests/browser/ucs-roundtrip.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.1.2",
     "esbuild": "0.28.2",
+    "playwright": "1.64.1",
     "react-doctor": "0.9.18",
     "react-grab": "0.2.0",
     "react-scan": "0.5.7",

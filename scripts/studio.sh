@@ -8,7 +8,7 @@ if ! command -v corepack >/dev/null 2>&1; then
   exit 1
 fi
 if [ "$#" -gt 1 ]; then
-  printf '%s\n' 'Usage: sh scripts/studio.sh [install|build|check|test|start|dev|dev-server]' >&2
+  printf '%s\n' 'Usage: sh scripts/studio.sh [install|build|check|test|browser-ucs|start|dev|dev-server]' >&2
   exit 2
 fi
 
@@ -17,8 +17,9 @@ case "${1:-start}" in
   build) exec corepack pnpm run build ;;
   check) corepack pnpm run typecheck; exec corepack pnpm run lint ;;
   test) exec corepack pnpm run test ;;
+  browser-ucs) exec corepack pnpm run test:browser:ucs ;;
   start) exec corepack pnpm run start ;;
   dev) exec corepack pnpm run dev ;;
   dev-server) exec corepack pnpm run dev:server ;;
-  *) printf '%s\n' 'Usage: sh scripts/studio.sh [install|build|check|test|start|dev|dev-server]' >&2; exit 2 ;;
+  *) printf '%s\n' 'Usage: sh scripts/studio.sh [install|build|check|test|browser-ucs|start|dev|dev-server]' >&2; exit 2 ;;
 esac
