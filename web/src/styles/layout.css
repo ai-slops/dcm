@@ -3,6 +3,7 @@
   inline-size: 100%;
   overflow: hidden;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--toolbar-height) minmax(0, 1fr) var(--transport-height);
   background: var(--surface-canvas);
 }

@@ -12,16 +12,24 @@
   }
   .preview .panel__body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-1) var(--space-4);
+    padding-block: var(--space-2);
   }
   .preview .playfields {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    inline-size: 100%;
     max-inline-size: 360px;
     max-block-size: 132px;
   }
   .preview .playfield {
     max-block-size: 132px;
+  }
+  .preview :is(.status-copy, .preview__time, .preview__summary, .timeline__context) {
+    grid-column: 2;
+    margin: 0;
   }
 }
 @media (max-width: 1199px) {
@@ -154,91 +162,5 @@
   }
   .tool-chip {
     min-inline-size: var(--control-touch);
-  }
-}
-@media (max-width: 767px) {
-  .document-toolbar {
-    padding-inline: var(--space-2);
-  }
-  .brand strong,
-  .brand__mark,
-  .document-toolbar > .badge,
-  .document-title {
-    display: none;
-  }
-  .toolbar-actions {
-    inline-size: 100%;
-    margin-inline-start: 0;
-    justify-content: space-between;
-    gap: var(--space-1);
-  }
-  .save-button {
-    inline-size: var(--control-touch);
-    padding: 0;
-  }
-  .save-button span {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .timeline__controls {
-    min-inline-size: 100%;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-content: center;
-  }
-  .timeline__controls label {
-    min-inline-size: 0;
-  }
-  .timeline__controls input,
-  .timeline__controls select {
-    min-inline-size: 0;
-    inline-size: 100%;
-  }
-  .transport__compact {
-    display: none;
-  }
-  .inspector.mobile-editor {
-    display: block;
-    max-block-size: 220px;
-    padding: var(--space-2);
-  }
-  .studio-body:has(.center-studio.mobile-editor) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 220px minmax(0, 1fr);
-  }
-  .center-studio.mobile-editor,
-  .center-studio.mobile-preview {
-    display: grid;
-  }
-  .center-studio.mobile-preview .timeline {
-    display: none;
-  }
-  .center-studio.mobile-preview .preview {
-    display: block;
-    margin: var(--space-4);
-  }
-  .center-studio.mobile-agent {
-    display: none;
-  }
-  .agent-rail.mobile-agent {
-    display: block;
-    padding: var(--space-2);
-  }
-  .transport {
-    padding-inline: var(--space-2);
-    gap: var(--space-2);
-  }
-  .showcase {
-    padding: var(--space-4);
-  }
-  .showcase__header {
-    align-items: start;
-    flex-direction: column;
-  }
-  .showcase__grid {
-    grid-template-columns: 1fr;
   }
 }

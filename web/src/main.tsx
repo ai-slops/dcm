@@ -4,7 +4,9 @@ import "./styles/components.css"
 import "./styles/dialogs.css"
 import "./styles/layout.css"
 import "./styles/editor.css"
+import "./styles/playfield.css"
 import "./styles/responsive.css"
+import "./styles/mobile.css"
 
 const showcase = import.meta.env.DEV && new URLSearchParams(window.location.search).has("showcase")
 const bootstrapLoad = showcase ? null : startBootstrap()

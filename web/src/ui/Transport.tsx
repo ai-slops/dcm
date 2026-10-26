@@ -1,12 +1,9 @@
 import { AlertTriangle, Check, LoaderCircle, Pause, Play, Square } from "lucide-react"
 
 import type { StudioProjectV1 } from "../../shared/index.ts"
+import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { Badge, IconButton } from "./primitives.tsx"
-import {
-  type AudioPlaybackController,
-  showsPlaybackClock,
-  usePlaybackSnapshot,
-} from "./useAudioPlayback.ts"
+import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
 type TransportProps = {
   readonly project: StudioProjectV1

@@ -4,35 +4,11 @@ import type { NativeMusic, StudioProjectV1 } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { chartTickAtAudioMicros } from "../domain/playback.ts"
 import { tickToAudioMicros } from "../domain/timing.ts"
-
-export type PlaybackStatus =
-  | "no-audio"
-  | "loading"
-  | "ready"
-  | "playing"
-  | "paused"
-  | "ended"
-  | "error"
-
-export type PlaybackSnapshot = {
-  readonly status: PlaybackStatus
-  readonly audioMicros: number
-  readonly chartTick: number | null
-  readonly error: string | null
-  readonly loop: boolean
-  readonly rate: number
-  readonly volume: number
-}
-
-const initialSnapshot: PlaybackSnapshot = {
-  status: "no-audio",
-  audioMicros: 0,
-  chartTick: null,
-  error: null,
-  loop: false,
-  rate: 1,
-  volume: 1,
-}
+import {
+  boundedAudioSeconds,
+  initialPlaybackSnapshot,
+  type PlaybackSnapshot,
+} from "./audio-playback-state.ts"
 
 export class AudioPlaybackController {
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -43,7 +19,7 @@ export class AudioPlaybackController {
   readonly getSnapshot = (): PlaybackSnapshot => this.snapshot
 
   private readonly listeners = new Set<() => void>()
-  private snapshot = initialSnapshot
+  private snapshot = initialPlaybackSnapshot
   private audio: HTMLAudioElement | null = null
   private objectUrl: string | null = null
   private frame = 0
@@ -157,8 +133,8 @@ export class AudioPlaybackController {
     if (audio === null) return
     audio.pause()
     const audioMicros = Math.max(0, tickToAudioMicros(this.music, 0))
-    audio.currentTime = audioMicros / 1_000_000
-    this.publishClock(audioMicros, "ready")
+    audio.currentTime = boundedAudioSeconds(audio, audioMicros)
+    this.publishClock(audio.currentTime * 1_000_000, "ready")
   }
 
   seek(tick: number): void {
@@ -181,8 +157,8 @@ export class AudioPlaybackController {
     if (audio === null) return
     const boundedTick = Math.min(Math.max(tick, 0), this.spanTicks)
     const audioMicros = Math.max(0, tickToAudioMicros(this.music, boundedTick))
-    audio.currentTime = audioMicros / 1_000_000
-    this.publishClock(audioMicros, audio.paused ? "paused" : "playing")
+    audio.currentTime = boundedAudioSeconds(audio, audioMicros)
+    this.publishClock(audio.currentTime * 1_000_000, audio.paused ? "paused" : "playing")
   }
 
   setLoop(loop: boolean): void {
@@ -255,8 +231,4 @@ export function useAudioPlayback(project: StudioProjectV1): AudioPlaybackControl
 
 export function usePlaybackSnapshot(controller: AudioPlaybackController): PlaybackSnapshot {
   return useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
-}
-
-export function showsPlaybackClock(status: PlaybackStatus): boolean {
-  return status === "playing" || status === "paused"
 }

@@ -10,11 +10,11 @@ import { studioApi } from "../api/client.ts"
 import type { PanelIndex } from "../domain/editor.ts"
 import { editPanelAtTick, findPanelDemand, updatePanelDemand } from "../domain/editor.ts"
 import { AgentPanel } from "./AgentPanel.tsx"
+import { CenterStudio } from "./CenterStudio.tsx"
 import { DocumentToolbar } from "./DocumentToolbar.tsx"
 import { Inspector } from "./Inspector.tsx"
 import { type MobileTab, MobileTabs } from "./MobileTabs.tsx"
-import { Preview, Timeline } from "./StudioPanels.tsx"
-import { reconcileAppliedDocument } from "./studio-state.ts"
+import { editorStateForReplacement, reconcileAppliedDocument } from "./studio-state.ts"
 import type { EditorTool } from "./studio-types.ts"
 import { Transport } from "./Transport.tsx"
 import { useAudioPlayback } from "./useAudioPlayback.ts"
@@ -33,9 +33,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   const [tick, setTick] = useState(0)
   const [lane, setLane] = useState<PanelIndex>(0)
   const [holdTicks, setHoldTicks] = useState(project.chart.ticks_per_beat)
-  const [quantize, setQuantize] = useState(() =>
-    Math.max(1, Math.floor(project.chart.ticks_per_beat / 4)),
-  )
+  const [quantize, setQuantize] = useState(1)
   const [tab, setTab] = useState<MobileTab>("editor")
   const [proposals, setProposals] = useState<readonly ChartProposal[]>(bootstrap.proposals ?? [])
   const [status, setStatus] = useState("Ready")
@@ -74,9 +72,16 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   }
 
   function acceptDocument(document: CurrentDocument) {
+    const editorState = editorStateForReplacement(document.project)
+    playback.stop()
     setProject(document.project)
     setPersistedProject(document.project)
     setRevision(document.revision)
+    setTick(editorState.tick)
+    setLane(editorState.lane)
+    setHoldTicks(editorState.holdTicks)
+    setQuantize(editorState.quantize)
+    setValidationError("")
     setPast([])
     setFuture([])
   }
@@ -106,6 +111,11 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : "The note edit is invalid")
     }
+  }
+
+  function selectCell(nextTick: number, nextLane: PanelIndex) {
+    setTick(nextTick)
+    setLane(nextLane)
   }
 
   function updateSelection(nextTick: number, nextLane: PanelIndex, nextHoldTicks: number) {
@@ -205,32 +215,19 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
             replaceProject={replaceProject}
           />
         </aside>
-        <section
-          className={`center-studio mobile-${tab}`}
-          id={tab === "preview" ? "preview-panel" : "editor-panel"}
-          role="tabpanel"
-          aria-labelledby={`${tab === "preview" ? "preview" : "editor"}-tab`}
-        >
-          <Timeline
-            chart={project.chart}
-            playback={playback}
-            selectedTick={tick}
-            selectedLane={lane}
-            quantize={quantize}
-            onQuantize={setQuantize}
-            onCell={editCell}
-            onSelect={(nextTick, nextLane) => {
-              setTick(nextTick)
-              setLane(nextLane)
-            }}
-          />
-          <Preview
-            chart={project.chart}
-            music={project.music}
-            selectedTick={tick}
-            playback={playback}
-          />
-        </section>
+        <CenterStudio
+          tab={tab}
+          chart={project.chart}
+          music={project.music}
+          ucsMode={project.ucs_mode ?? "Double"}
+          playback={playback}
+          selectedTick={tick}
+          selectedLane={lane}
+          quantize={quantize}
+          onQuantize={setQuantize}
+          onCell={editCell}
+          onSelect={selectCell}
+        />
         <aside
           className={`agent-rail mobile-${tab}`}
           id="agent-panel"
