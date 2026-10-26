@@ -6,6 +6,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serverArguments, serverEnvironment } from "./studio-preview-env.mjs";
+import { providerSettings, sameProviderSettings, withProviderSettings } from "./studio-provider-settings.mjs";
 
 const root = resolve(process.env.STUDIO_PREVIEW_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
 const stateDir = resolve(process.env.STUDIO_PREVIEW_STATE_DIR ?? join(root, ".studio-dev"));
@@ -121,7 +122,7 @@ function launch(instance, publicOrigin, local) {
     detached: true,
     stdio: ["ignore", output, output],
     env: {
-      ...serverEnvironment(process.env, local),
+      ...serverEnvironment(providerEnvironment, local),
       STUDIO_PORT: String(port),
       STUDIO_REPO_ROOT: root,
       STUDIO_INSTANCE_ID: instance,
@@ -133,7 +134,7 @@ function launch(instance, publicOrigin, local) {
   child.unref();
   const procStart = processStart(child.pid);
   if (!procStart) throw new Error("could not record Studio process identity");
-  const state = { pid: child.pid, procStart, instance, port, local, origin: local ? localOrigin : publicOrigin };
+  const state = { pid: child.pid, procStart, instance, port, local, origin: local ? localOrigin : publicOrigin, provider_settings: providerSettings(providerEnvironment) };
   saveState(state);
   return state;
 }
@@ -195,7 +196,7 @@ function validatePublic(origin) {
 
 async function start(local) {
   const existing = readState();
-  if (isOwned(existing) && await health(existing.instance) && existing.local === local) {
+  if (isOwned(existing) && await health(existing.instance) && existing.local === local && sameProviderSettings(existing, providerEnvironment)) {
     if (local || existing.approval === "approved") {
       if (!local) validatePublic(existing.origin);
       process.stdout.write(`${existing.origin}\n`);
@@ -252,6 +253,7 @@ function acquireLock() {
 }
 
 const options = parseArguments();
+const providerEnvironment = withProviderSettings(process.env, readState());
 if (options.command === "help") { usage(); process.exit(0); }
 if (options.command === "status") process.exit(await status());
 acquireLock();

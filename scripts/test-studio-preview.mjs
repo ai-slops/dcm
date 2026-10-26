@@ -76,7 +76,7 @@ createServer((request, response) => {
   if (request.url === "/health") {
     const child = JSON.parse(spawnSync(process.execPath, ["-e", "process.stdout.write(JSON.stringify(" + JSON.stringify(keys) + ".map(name => Boolean(process.env[name]))))"], {encoding:"utf8"}).stdout);
     response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ service: "pump-studio", ready: true, instance, environment:keys.map(name => Boolean(process.env[name])), child }));
+    response.end(JSON.stringify({ service: "pump-studio", ready: true, instance, environment:keys.map(name => Boolean(process.env[name])), child, provider: process.env.STUDIO_AGENT_PROVIDER ?? "off", model: process.env.STUDIO_AGENT_MODEL, connection: process.env.DIM_LLM_ROUTER_CONNECTION_FILE }));
     return;
   }
   if (publicMode && request.headers.authorization !== "Basic fixture") {
@@ -133,6 +133,27 @@ printf '%s\n' 'HTTP/2 401' 'www-authenticate: Basic realm="pump-studio"' ''
   run(["start"]);
   assert.equal(JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8")).pid, publicState.pid);
   assert.match(run(["status"]).stdout, /https:\/\/workspace--studio\.example\//);
+  const providerSettings = {
+    STUDIO_AGENT_PROVIDER: "dim",
+    STUDIO_AGENT_MODEL: "fixture-model",
+    DIM_LLM_ROUTER_CONNECTION_FILE: join(work, "private-router.json"),
+  };
+  run(["restart"], 0, providerSettings);
+  const providerState = JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8"));
+  assert.deepEqual(providerState.provider_settings, providerSettings);
+  assert.doesNotMatch(JSON.stringify(providerState), /test-only-part-sentinel|test-only-upstream-sentinel/);
+  run(["start"]);
+  assert.equal(JSON.parse(readFileSync(join(stateDir, "state.json"), "utf8")).pid, providerState.pid);
+  run(["restart"]);
+  const retainedHealth = await (await fetch(`${localOrigin}health`)).json();
+  assert.equal(retainedHealth.provider, "dim");
+  assert.equal(retainedHealth.model, "fixture-model");
+  assert.equal(retainedHealth.connection, providerSettings.DIM_LLM_ROUTER_CONNECTION_FILE);
+  assert.deepEqual(retainedHealth.environment, [false, false, false]);
+  run(["start"], 0, { STUDIO_AGENT_MODEL: "other-model" });
+  assert.equal((await (await fetch(`${localOrigin}health`)).json()).model, "other-model");
+  run(["start"], 0, { STUDIO_AGENT_PROVIDER: "off" });
+  assert.equal((await (await fetch(`${localOrigin}health`)).json()).provider, "off");
   const restarted = run(["restart", "--local"]);
   assert.equal(restarted.stdout.trim(), localOrigin);
   run(["stop"]);
