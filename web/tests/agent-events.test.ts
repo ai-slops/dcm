@@ -12,7 +12,7 @@ describe("agent activity", () => {
     const activity = initialAgentActivity("run-1", prompt)
 
     // Then
-    expect(activity[0]?.text).toBe(`You: ${prompt}`)
+    expect(activity[0]).toMatchObject({ kind: "prompt", text: `You: ${prompt}` })
   })
 
   it("replaces streamed deltas with completed text instead of duplicating it", () => {
