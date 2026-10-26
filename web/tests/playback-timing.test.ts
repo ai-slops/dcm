@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { NativeChart, NativeMusic } from "../shared/index.ts"
 import {
+  activePanelMaskAtAudioIntervals,
   activePanelMaskAtAudioMicros,
   activePanelMaskAtSelectedTick,
+  buildNoteAudioIntervals,
   chartTickAtAudioMicros,
 } from "../src/domain/playback.ts"
 
@@ -16,6 +18,25 @@ const music: NativeMusic = {
 }
 
 describe("playback clock boundaries", () => {
+  it("reuses precomputed note intervals for repeated playback samples", () => {
+    // Given taps and holds converted to audio intervals once
+    const chart: NativeChart = {
+      ticks_per_beat: 4,
+      span_ticks: 16,
+      notes: [
+        { tick: 0, panel_mask: 1, hold_ticks: 4 },
+        { tick: 4, panel_mask: 2, hold_ticks: 0 },
+      ],
+    }
+    const intervals = buildNoteAudioIntervals(chart, music)
+
+    // When the RAF clock samples those cached intervals
+    const mask = activePanelMaskAtAudioIntervals(intervals, 600_001)
+
+    // Then mask semantics remain identical without reconverting timing
+    expect(mask).toBe(2)
+  })
+
   it("keeps the playhead absent before a positive chart offset", () => {
     // Given a chart whose first tick starts 100 ms into the audio
     // When the audio clock is one microsecond before that offset
