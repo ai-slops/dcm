@@ -3,6 +3,9 @@ import { z } from "zod"
 import { EvalContractSchema } from "./evaluation-contract.ts"
 import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
 
+export const UcsModeSchema = z.enum(["Single", "Double"])
+export type UcsMode = z.infer<typeof UcsModeSchema>
+
 const SscMetadataSchema = z
   .string()
   .min(1)
@@ -33,6 +36,7 @@ export const StudioProjectV1Schema = z
     chart: NativeChartSchema,
     evaluation_contract: EvalContractSchema,
     audio_asset: AudioAssetSchema,
+    ucs_mode: UcsModeSchema.optional(),
   })
   .superRefine((project, context) => {
     if (project.chart.ticks_per_beat !== project.music.ticks_per_beat) {

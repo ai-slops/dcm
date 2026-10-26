@@ -12,6 +12,7 @@ import type {
   GenerationRequest,
   PutDocumentRequest,
   StudioProjectV1,
+  UcsExportRequest,
 } from "../../shared/index.ts"
 import {
   AgentRunSnapshotSchema,
@@ -52,17 +53,29 @@ async function request<T>(operation: Promise<Response>, schema: z.ZodType<T>): P
   try {
     return await parseJson(await operation, schema)
   } catch (error) {
-    if (!(error instanceof HTTPError)) throw error
-    const parsed = ApiErrorSchema.safeParse(error.data)
-    if (!parsed.success) throw error
-    throw new StudioApiError({
-      code: parsed.data.error.code,
-      message: parsed.data.error.message,
-      status: error.response.status,
-      ...(parsed.data.error.current_revision === undefined
-        ? {}
-        : { currentRevision: parsed.data.error.current_revision }),
-    })
+    return rethrowApiError(error)
+  }
+}
+
+function rethrowApiError(error: unknown): never {
+  if (!(error instanceof HTTPError)) throw error
+  const parsed = ApiErrorSchema.safeParse(error.data)
+  if (!parsed.success) throw error
+  throw new StudioApiError({
+    code: parsed.data.error.code,
+    message: parsed.data.error.message,
+    status: error.response.status,
+    ...(parsed.data.error.current_revision === undefined
+      ? {}
+      : { currentRevision: parsed.data.error.current_revision }),
+  })
+}
+
+async function requestBlob(operation: Promise<Response>): Promise<Blob> {
+  try {
+    return await (await operation).blob()
+  } catch (error) {
+    return rethrowApiError(error)
   }
 }
 
@@ -155,6 +168,24 @@ export const studioApi = {
   },
   exportZip(csrfToken: string, body: BaseRevisionRequest): Promise<Blob> {
     return http.post(ApiRoutes.exports, { headers: mutationHeaders(csrfToken), json: body }).blob()
+  },
+  exportUcs(csrfToken: string, body: UcsExportRequest): Promise<Blob> {
+    return requestBlob(
+      http.post(ApiRoutes.ucsExport, { headers: mutationHeaders(csrfToken), json: body }),
+    )
+  },
+  importUcs(
+    csrfToken: string,
+    input: { readonly baseRevision: number; readonly chart: File; readonly audio?: File },
+  ): Promise<CurrentDocument> {
+    const body = new FormData()
+    body.set("base_revision", String(input.baseRevision))
+    body.set("chart", input.chart)
+    if (input.audio !== undefined) body.set("audio", input.audio)
+    return request(
+      http.post(ApiRoutes.ucsImport, { headers: mutationHeaders(csrfToken), body }),
+      CurrentDocumentSchema,
+    )
   },
 }
 

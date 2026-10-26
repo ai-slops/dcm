@@ -6,6 +6,8 @@ export const ApiRoutes = {
   evaluations: "/api/v1/evaluations",
   generations: "/api/v1/generations",
   exports: "/api/v1/exports",
+  ucsImport: "/api/v1/ucs/import",
+  ucsExport: "/api/v1/ucs/export",
   proposals: "/api/v1/proposals",
   agentRuns: "/api/v1/agent/runs",
 } as const
