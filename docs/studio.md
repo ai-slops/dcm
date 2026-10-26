@@ -261,6 +261,12 @@ version on the server. Reject removes only the proposal, without saving the docu
 shows note/timing change summaries and retains apply/reject decisions for the run. A failed action
 keeps its prompt/proposal available for recovery.
 
+The model's prose summary is non-authoritative. The review card identifies its base revision and
+owning run and shows the canonical before/after changes, including exact note masks/hold lengths,
+offsets, tempo, grid, duration, and reference accents. Long exact values scroll without dropping
+changes. At most four pending proposals belong to one run, and at most sixteen belong to the
+browser session across all revisions. Review or reject pending proposals before creating more.
+
 Cancel aborts the local run, provider transport, and associated native work. It prevents later
 proposal writes but does not retroactively discard proposals already created. Remote provider
 billing/cancellation semantics remain the provider's responsibility. SSE reconnect/snapshot
@@ -273,6 +279,10 @@ Runs have a 120-second deadline, at most eight model invocations and sixteen too
 Tool previews are capped at 8 KiB, retained text at 64 KiB, and event replay at 512 records; a replay
 gap falls back to the canonical snapshot. The panel reports tool readiness separately, including
 demo-profile restrictions on native generation.
+Text limits are UTF-8 byte limits on both snapshots and wire/replay events; individual deltas are
+capped at 8 KiB, and truncation is disclosed. Retained snapshots remain readable if their live
+runtime record is evicted; proposal decisions retain their originating run even when another run
+is currently displayed.
 
 ### Opt-in real-provider browser smoke
 

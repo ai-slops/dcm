@@ -127,6 +127,9 @@ error, and apply/reject decisions. Tool events expose call ID, state, bounded in
 and safe error; they never expose private reasoning or provider transport payloads.
 Proposals may include a complete replacement `music` object and a note/timing change summary.
 They cannot replace audio identity and apply chart/music atomically under the revision guard.
+Generated proposals carry a server-authored `before: { chart, music }` snapshot for exact canonical
+review independent of the model's summary. Pending proposals are capped at four per agent run and
+sixteen per browser session across revisions, including native generation.
 
 ## State and concurrency
 
@@ -141,6 +144,9 @@ They cannot replace audio identity and apply chart/music atomically under the re
   same session recovers them; server restart or a new browser session does not. Retention is 32 runs/session,
   256 runtime records globally, 512 events/run, 64 KiB text and 8 KiB per tool preview. Runtime limits
   include a 120-second deadline, eight model invocations and sixteen tool dispatches.
+- Text caps are UTF-8 bytes; delta events are bounded to 8 KiB and completed text to 64 KiB before
+  replay retention/SSE transmission. `truncated` events and `text_truncated` snapshots disclose loss.
+  Snapshot GET is backed by retained session snapshots independently of live runtime eviction.
 
 ## Part 0.1.0 integration evidence
 
