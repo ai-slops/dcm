@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { RevisionSchema, StudioProjectV1Schema } from "../shared/index.ts"
-import { reconcileAppliedDocument } from "../src/ui/studio-state.ts"
+import { editorStateForReplacement, reconcileAppliedDocument } from "../src/ui/studio-state.ts"
 
 function project(title: string) {
   return StudioProjectV1Schema.parse({
@@ -92,5 +92,23 @@ describe("reconcileAppliedDocument", () => {
       historyProject: null,
       revision: 2,
     })
+  })
+})
+
+describe("replacement editor state", () => {
+  it("resets a short imported chart to one valid tick and the new hold grid", () => {
+    // Given an imported project whose timing grid differs from the prior editor state
+    const imported = project("Imported")
+    const replacement = {
+      ...imported,
+      music: { ...imported.music, ticks_per_beat: 8 },
+      chart: { ...imported.chart, ticks_per_beat: 8, span_ticks: 12 },
+    }
+
+    // When replacement editor state is derived from the imported document
+    const state = editorStateForReplacement(replacement)
+
+    // Then every cursor/window value starts in range with one-tick quantization
+    expect(state).toEqual({ tick: 0, lane: 0, holdTicks: 8, quantize: 1, windowStart: 0 })
   })
 })
