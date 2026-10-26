@@ -88,13 +88,20 @@ export function StudioActions(props: ActionsProps) {
       <ActionDialog open={open === "settings"} busy={false} title="Agent settings" onClose={close}>
         <div className="action-dialog__body">
           <p>
-            This server uses an OpenAI-compatible endpoint. Credentials stay on the server and are
-            never entered in this browser.
+            Agent access is opt-in and configured only on the server. A DIM workspace can use its
+            operator-provisioned scoped router; standalone servers can use either Chat Completions
+            or Responses. Credentials and private connection files are never entered in this
+            browser.
           </p>
           <pre className="settings-code">
-            PART_ENDPOINT=https://api.openai.com/v1/chat/completions{"\n"}
-            PART_MODEL=gpt-5.1{"\n"}PART_API_KEY=your-server-secret
+            DIM: STUDIO_AGENT_PROVIDER + STUDIO_AGENT_MODEL{"\n"}
+            Standalone: PART_ENDPOINT + PART_MODEL + PART_API{"\n"}
+            Optional server credential: PART_API_KEY
           </pre>
+          <p className="status-copy">
+            Set values in the server launcher or private environment, then restart the server. See
+            the Studio provider setup guide for exact Chat and Responses endpoint requirements.
+          </p>
           <p className="status-copy">
             Current: {props.bootstrap.agent.provider ?? "Not configured"} /{" "}
             {props.bootstrap.agent.model ?? "No model"}
