@@ -193,3 +193,21 @@ The native release build, Rust checks, independent Python parser, CLI scenarios,
 passed without invoking Docker. Windows executable naming and Git Bash path behavior have
 command-double/unit coverage, but no physical Windows MSVC build was available in this workspace.
 Run `just build && just test` on the target Windows machine for that final platform-specific gate.
+
+## Native DIM source CI
+
+`.dim/ci/runner.yml` runs `bash scripts/ci/source.bash` in the fresh candidate
+checkout. The explicit `git-ci` policy in `.dim/repos.yml` requires its successful
+`source` result before protected promotion; an operator must apply that reviewed
+policy to an existing DIM repository. Editing the manifest alone does not install it.
+
+The script reuses the pinned Studio prerequisites and existing Rust/web checks.
+It builds real native Studio artifacts, runs Rust formatting/Clippy/workspace tests,
+web strict types/lint/tests, and the production web build. Tools and Cargo output
+use a disposable temporary directory; it does not use Studio credentials, saved
+charts/audio, running servers, or warmed workspace artifacts. It needs network
+access to the pinned tool and package sources, plus a C compiler/curl/xz; on the
+ordinary Debian/Ubuntu root job it installs missing system prerequisites with apt.
+Run it only in a disposable source checkout: building replaces that checkout's
+`dist` and `web/dist`. The existing authenticated external UCS browser evidence
+remains separate from this source job; this job does not mutate a live Studio.
