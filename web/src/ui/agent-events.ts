@@ -2,7 +2,10 @@ export {
   type AgentActivity,
   activityFromSnapshot,
   appendAgentEvent,
+  focusAfterSnapshotRefresh,
   initialModelId,
+  mergeRecentAgentRuns,
+  proposalDecisionHistory,
   recoverAgentRun,
 } from "./agent-run-state.ts"
 

@@ -41,9 +41,11 @@ function ResultIcon({ tone }: { readonly tone: RunResultState["tone"] }) {
 export function RunResult({
   text,
   status,
+  truncated,
 }: {
   readonly text: string
   readonly status: AgentRunSnapshot["status"]
+  readonly truncated: boolean
 }) {
   const state = resultState(status)
   const statusColor = `var(--status-${state.tone})`
@@ -57,6 +59,11 @@ export function RunResult({
         <strong>{state.label}</strong>
       </header>
       <p>{text}</p>
+      {truncated && (
+        <p className="run-result__truncation">
+          Retained text is truncated. Earlier runtime text is no longer present in this snapshot.
+        </p>
+      )}
     </article>
   )
 }

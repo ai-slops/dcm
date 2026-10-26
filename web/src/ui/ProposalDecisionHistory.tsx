@@ -1,14 +1,12 @@
 import { CheckCircle2, XCircle } from "lucide-react"
 
-import type { AgentRunSnapshot } from "../../shared/index.ts"
+import type { ProposalDecisionHistoryItem } from "./agent-run-state.ts"
 import { Badge } from "./primitives.tsx"
-
-type ProposalDecision = NonNullable<AgentRunSnapshot["proposal_decisions"]>[number]
 
 export function ProposalDecisionHistory({
   decisions,
 }: {
-  readonly decisions: readonly ProposalDecision[]
+  readonly decisions: readonly ProposalDecisionHistoryItem[]
 }) {
   if (decisions.length === 0) return null
 
@@ -34,6 +32,7 @@ export function ProposalDecisionHistory({
             </Badge>
           </div>
           <p className="mono">
+            Run {decision.runId} · BASE R{decision.baseRevision} ·{" "}
             {decision.status === "applied" && decision.revision !== undefined
               ? `Applied at revision R${decision.revision}`
               : "Rejected"}

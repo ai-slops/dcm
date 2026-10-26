@@ -4,7 +4,9 @@ import { AgentRunSnapshotSchema, AgentStreamEventSchema } from "../shared/index.
 import {
   activityFromSnapshot,
   appendAgentEvent,
+  focusAfterSnapshotRefresh,
   initialModelId,
+  proposalDecisionHistory,
   recoverAgentRun,
 } from "../src/ui/agent-run-state.ts"
 
@@ -81,6 +83,27 @@ describe("agent run recovery", () => {
     expect(activity[2]).toMatchObject({ kind: "tool", call: { id: "call-2" } })
   })
 
+  it("marks retained assistant text when the canonical snapshot was truncated", () => {
+    // Given
+    const snapshot = AgentRunSnapshotSchema.parse({
+      id: "run-truncated",
+      base_revision: 7,
+      status: "completed",
+      prompt: "Inspect all timing",
+      last_sequence: 12,
+      text: "Retained tail",
+      text_truncated: true,
+    })
+
+    // When
+    const activity = activityFromSnapshot(snapshot)
+
+    // Then
+    expect(activity).toContainEqual(
+      expect.objectContaining({ kind: "assistant", text: "Retained tail", truncated: true }),
+    )
+  })
+
   it("updates an existing tool call in place when its completion arrives", () => {
     // Given
     const initial = appendAgentEvent(
@@ -116,6 +139,63 @@ describe("agent run recovery", () => {
       kind: "tool",
       call: { id: "call-1", state: "completed", output_preview: "Accepted" },
     })
+  })
+
+  it("keeps a different active run focused when an owner snapshot refreshes", () => {
+    // Given
+    const active = AgentRunSnapshotSchema.parse({
+      id: "run-active",
+      base_revision: 8,
+      status: "running",
+      prompt: "Active task",
+      last_sequence: 3,
+    })
+    const owner = AgentRunSnapshotSchema.parse({
+      id: "run-owner",
+      base_revision: 7,
+      status: "completed",
+      prompt: "Older proposal task",
+      last_sequence: 9,
+    })
+
+    // When
+    const focused = focusAfterSnapshotRefresh(active, owner)
+
+    // Then
+    expect(focused.id).toBe("run-active")
+  })
+
+  it("aggregates bounded decisions from recent owner snapshots", () => {
+    // Given
+    const runs = [
+      AgentRunSnapshotSchema.parse({
+        id: "run-new",
+        base_revision: 5,
+        status: "completed",
+        prompt: "New",
+        last_sequence: 4,
+        proposal_decisions: [
+          { id: "proposal-new", status: "applied", revision: 6, summary: "New decision" },
+        ],
+      }),
+      AgentRunSnapshotSchema.parse({
+        id: "run-old",
+        base_revision: 2,
+        status: "completed",
+        prompt: "Old",
+        last_sequence: 3,
+        proposal_decisions: [{ id: "proposal-old", status: "rejected", summary: "Old decision" }],
+      }),
+    ]
+
+    // When
+    const decisions = proposalDecisionHistory(runs)
+
+    // Then
+    expect(decisions).toEqual([
+      expect.objectContaining({ runId: "run-new", id: "proposal-new" }),
+      expect.objectContaining({ runId: "run-old", id: "proposal-old" }),
+    ])
   })
 })
 

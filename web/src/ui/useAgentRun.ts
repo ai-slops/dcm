@@ -7,20 +7,24 @@ import {
   type AgentActivity,
   activityFromSnapshot,
   appendAgentEvent,
+  focusAfterSnapshotRefresh,
   initialAgentActivity,
+  mergeRecentAgentRuns,
+  proposalDecisionHistory,
   recoverAgentRun,
 } from "./agent-events.ts"
-import type { RecoverableAgentRun } from "./agent-run-state.ts"
+import type { ProposalDecisionHistoryItem, RecoverableAgentRun } from "./agent-run-state.ts"
 
 type AgentRunController = {
   readonly actionError: string
   readonly activity: readonly AgentActivity[]
   readonly busy: string | null
   readonly disconnected: boolean
+  readonly decisions: readonly ProposalDecisionHistoryItem[]
   readonly run: RecoverableAgentRun | null
   readonly running: boolean
   readonly cancel: () => Promise<void>
-  readonly refreshSnapshot: () => Promise<void>
+  readonly refreshSnapshot: (runId?: RecoverableAgentRun["id"]) => Promise<void>
   readonly reconnect: () => void
   readonly setActionError: (message: string) => void
   readonly start: (prompt: string, modelId: string) => Promise<boolean>
@@ -39,6 +43,7 @@ export function useAgentRun(
   bootstrap: Bootstrap,
   revision: Revision,
   onProposal: (proposal: ChartProposal) => void,
+  onBootstrap: (bootstrap: Bootstrap) => void,
 ): AgentRunController {
   const initialRun = recoverAgentRun(bootstrap)
   const [run, setRun] = useState<RecoverableAgentRun | null>(initialRun)
@@ -49,6 +54,9 @@ export function useAgentRun(
   const [busy, setBusy] = useState<string | null>(null)
   const [disconnected, setDisconnected] = useState(false)
   const [reconnectAttempt, setReconnectAttempt] = useState(0)
+  const [recentRuns, setRecentRuns] = useState<readonly RecoverableAgentRun[]>(() => {
+    return mergeRecentAgentRuns([bootstrap.active_run, ...(bootstrap.recent_runs ?? [])])
+  })
   const lastSequenceRef = useRef(initialRun?.last_sequence ?? 0)
   const abortRef = useRef<AbortController | null>(null)
   const running = run?.status === "queued" || run?.status === "running"
@@ -57,16 +65,30 @@ export function useAgentRun(
 
   const hydrateSnapshot = useCallback(
     (snapshot: RecoverableAgentRun, refreshed: Bootstrap, streamDisconnected: boolean) => {
-      for (const proposal of refreshed.proposals ?? []) onProposal(proposal)
-      setRun(snapshot)
-      setActivity(activityFromSnapshot(snapshot))
-      lastSequenceRef.current = snapshot.last_sequence
-      setDisconnected(
-        streamDisconnected && (snapshot.status === "queued" || snapshot.status === "running"),
+      onBootstrap(refreshed)
+      setRecentRuns((current) =>
+        mergeRecentAgentRuns(
+          [snapshot, refreshed.active_run, ...(refreshed.recent_runs ?? [])],
+          current,
+        ),
       )
+      if (runId === undefined || snapshot.id === runId) {
+        setRun((current) => focusAfterSnapshotRefresh(current, snapshot))
+        setActivity(activityFromSnapshot(snapshot))
+        lastSequenceRef.current = snapshot.last_sequence
+        setDisconnected(
+          streamDisconnected && (snapshot.status === "queued" || snapshot.status === "running"),
+        )
+      }
     },
-    [onProposal],
+    [onBootstrap, runId],
   )
+
+  useEffect(() => {
+    setRecentRuns((current) =>
+      mergeRecentAgentRuns([bootstrap.active_run, ...(bootstrap.recent_runs ?? [])], current),
+    )
+  }, [bootstrap.active_run, bootstrap.recent_runs])
 
   useEffect(() => {
     if (!running || runId === undefined) return
@@ -146,10 +168,16 @@ export function useAgentRun(
     }
   }, [bootstrap.csrf_token, connectionKey, hydrateSnapshot, onProposal, runId, running])
 
-  async function refreshSnapshot(): Promise<void> {
-    if (runId === undefined) return
+  async function refreshSnapshot(
+    ownerRunId: RecoverableAgentRun["id"] | undefined = runId,
+  ): Promise<void> {
     try {
-      const restored = await loadCanonicalRun(runId)
+      if (ownerRunId === undefined) {
+        const refreshed = await studioApi.bootstrap()
+        onBootstrap(refreshed)
+        return
+      }
+      const restored = await loadCanonicalRun(ownerRunId)
       hydrateSnapshot(restored.snapshot, restored.bootstrap, false)
     } catch (error) {
       setActionError(`Agent history refresh failed. ${errorMessage(error)}`)
@@ -171,6 +199,7 @@ export function useAgentRun(
       lastSequenceRef.current = next.last_sequence
       setActivity(initialAgentActivity(next.id, submittedPrompt))
       setRun(next)
+      setRecentRuns((current) => mergeRecentAgentRuns([next], current))
       setDisconnected(false)
       return true
     } catch (error) {
@@ -188,8 +217,21 @@ export function useAgentRun(
     try {
       const cancelled = await studioApi.cancelAgent(bootstrap.csrf_token, run.id)
       setRun(cancelled)
+      setRecentRuns((current) => mergeRecentAgentRuns([cancelled], current))
       abortRef.current?.abort()
       setDisconnected(false)
+      try {
+        const refreshed = await studioApi.bootstrap()
+        setRecentRuns((current) =>
+          mergeRecentAgentRuns(
+            [cancelled, refreshed.active_run, ...(refreshed.recent_runs ?? [])],
+            current,
+          ),
+        )
+        onBootstrap(refreshed)
+      } catch (error) {
+        setActionError(`Run cancelled, but runtime status refresh failed. ${errorMessage(error)}`)
+      }
     } catch (error) {
       setActionError(`Cancel failed. ${errorMessage(error)}`)
     } finally {
@@ -203,6 +245,7 @@ export function useAgentRun(
     busy,
     cancel,
     disconnected,
+    decisions: proposalDecisionHistory(recentRuns),
     refreshSnapshot,
     reconnect: () => {
       setDisconnected(false)

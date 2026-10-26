@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import type { AgentRunSnapshot, Bootstrap, ChartProposal, Revision } from "../../shared/index.ts"
 import { canApplyProposal } from "../domain/editor.ts"
@@ -21,6 +21,7 @@ type AgentPanelProps = {
   readonly revision: Revision
   readonly proposals: readonly ChartProposal[]
   readonly onProposal: (proposal: ChartProposal) => void
+  readonly onBootstrap: (bootstrap: Bootstrap) => void
   readonly apply: (proposal: ChartProposal) => Promise<void>
   readonly discard: (proposal: ChartProposal) => Promise<void>
 }
@@ -38,7 +39,7 @@ function ActivityItem({
     case "event":
       return <p className="agent-event agent-event--event">{item.text}</p>
     case "assistant":
-      return <RunResult text={item.text} status={status ?? "running"} />
+      return <RunResult text={item.text} status={status ?? "running"} truncated={item.truncated} />
     case "tool":
       return <ToolCallCard call={item.call} />
   }
@@ -47,9 +48,21 @@ function ActivityItem({
 export function AgentPanel(props: AgentPanelProps) {
   const [prompt, setPrompt] = useState("")
   const [modelId, setModelId] = useState(() => initialModelId(props.bootstrap.agent))
-  const controller = useAgentRun(props.bootstrap, props.revision, props.onProposal)
+  const controller = useAgentRun(
+    props.bootstrap,
+    props.revision,
+    props.onProposal,
+    props.onBootstrap,
+  )
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
   const interactionBusy = controller.busy !== null || proposalBusy !== null
+
+  useEffect(() => {
+    setModelId((current) => {
+      if (props.bootstrap.agent.models?.some((model) => model.id === current)) return current
+      return initialModelId(props.bootstrap.agent)
+    })
+  }, [props.bootstrap.agent])
 
   async function changeProposal(action: "apply" | "discard", proposal: ChartProposal) {
     if (interactionBusy) return
@@ -57,7 +70,7 @@ export function AgentPanel(props: AgentPanelProps) {
     controller.setActionError("")
     try {
       await (action === "apply" ? props.apply(proposal) : props.discard(proposal))
-      await controller.refreshSnapshot()
+      await controller.refreshSnapshot(proposal.run_id)
     } catch (error) {
       controller.setActionError(
         `${action === "apply" ? "Apply" : "Reject"} failed. ${errorMessage(error)}`,
@@ -83,7 +96,7 @@ export function AgentPanel(props: AgentPanelProps) {
         {controller.activity.map((item) => (
           <ActivityItem item={item} status={controller.run?.status ?? null} key={item.key} />
         ))}
-        <ProposalDecisionHistory decisions={controller.run?.proposal_decisions ?? []} />
+        <ProposalDecisionHistory decisions={controller.decisions} />
         {controller.disconnected && (
           <div className="agent-recovery">
             <p>

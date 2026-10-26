@@ -21,6 +21,7 @@ import { Transport } from "./Transport.tsx"
 import { useAudioPlayback } from "./useAudioPlayback.ts"
 import { useBeforeUnload } from "./useBeforeUnload.ts"
 import { useProposalOwner } from "./useProposalOwner.ts"
+import { useRefreshedBootstrap } from "./useRefreshedBootstrap.ts"
 
 export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   const [project, setProjectState] = useState<StudioProjectV1>(bootstrap.document.project)
@@ -180,11 +181,12 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   }
 
   const proposalOwner = useProposalOwner(bootstrap.proposals ?? [], applyProposal, discardProposal)
+  const refreshed = useRefreshedBootstrap(bootstrap, revision, proposalOwner.addProposal)
 
   return (
     <main className="studio-shell">
       <DocumentToolbar
-        bootstrap={bootstrap}
+        bootstrap={refreshed.bootstrap}
         project={project}
         revision={revision}
         dirty={dirty}
@@ -238,11 +240,12 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           tabIndex={-1}
         >
           <AgentPanel
-            bootstrap={bootstrap}
+            bootstrap={refreshed.bootstrap}
             dirty={dirty}
             revision={revision}
             proposals={proposalOwner.proposals}
             onProposal={proposalOwner.addProposal}
+            onBootstrap={refreshed.accept}
             apply={proposalOwner.apply}
             discard={proposalOwner.discard}
           />

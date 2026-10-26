@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { AgentRunSnapshotSchema } from "../shared/index.ts"
+import { proposalDecisionHistory } from "../src/ui/agent-run-state.ts"
 import { ProposalDecisionHistory } from "../src/ui/ProposalDecisionHistory.tsx"
 import { RunResult } from "../src/ui/RunResult.tsx"
 
@@ -10,7 +11,7 @@ describe("agent run result", () => {
   it("labels streamed text as partial output while the run is active", () => {
     // Given / When
     const markup = renderToStaticMarkup(
-      createElement(RunResult, { text: "Checking timing...", status: "running" }),
+      createElement(RunResult, { text: "Checking timing...", status: "running", truncated: false }),
     )
 
     // Then
@@ -21,7 +22,11 @@ describe("agent run result", () => {
   it("labels retained output as failed when the canonical run failed", () => {
     // Given / When
     const markup = renderToStaticMarkup(
-      createElement(RunResult, { text: "I could not finish the change.", status: "failed" }),
+      createElement(RunResult, {
+        text: "I could not finish the change.",
+        status: "failed",
+        truncated: false,
+      }),
     )
 
     // Then
@@ -32,11 +37,21 @@ describe("agent run result", () => {
   it("uses completed semantics only for completed runs", () => {
     // Given / When
     const markup = renderToStaticMarkup(
-      createElement(RunResult, { text: "Timing checked.", status: "completed" }),
+      createElement(RunResult, { text: "Timing checked.", status: "completed", truncated: false }),
     )
 
     // Then
     expect(markup).toContain("Run result")
+  })
+
+  it("discloses when retained run text was truncated", () => {
+    // Given / When
+    const markup = renderToStaticMarkup(
+      createElement(RunResult, { text: "Retained tail", status: "completed", truncated: true }),
+    )
+
+    // Then
+    expect(markup).toContain("Retained text is truncated")
   })
 })
 
@@ -57,7 +72,7 @@ describe("proposal decision history", () => {
 
     // When
     const markup = renderToStaticMarkup(
-      createElement(ProposalDecisionHistory, { decisions: snapshot.proposal_decisions ?? [] }),
+      createElement(ProposalDecisionHistory, { decisions: proposalDecisionHistory([snapshot]) }),
     )
 
     // Then

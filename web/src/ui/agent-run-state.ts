@@ -1,10 +1,18 @@
 import type { AgentRunSnapshot, AgentStreamEvent, Bootstrap } from "../../shared/index.ts"
+import { MAX_AGENT_TEXT_BYTES, truncateUtf8 } from "../../shared/text.ts"
 
 export type AgentToolCall = NonNullable<AgentRunSnapshot["tool_calls"]>[number]
 
 export type RecoverableAgentRun = AgentRunSnapshot
 
 export type RecoverableBootstrap = Pick<Bootstrap, "active_run" | "recent_runs">
+
+export type ProposalDecisionHistoryItem = NonNullable<
+  AgentRunSnapshot["proposal_decisions"]
+>[number] & {
+  readonly runId: AgentRunSnapshot["id"]
+  readonly baseRevision: AgentRunSnapshot["base_revision"]
+}
 
 type ToolStreamEvent = Extract<AgentStreamEvent, { readonly type: "tool" }>
 
@@ -21,6 +29,7 @@ export type AgentActivity =
       readonly key: string
       readonly kind: "assistant"
       readonly text: string
+      readonly truncated: boolean
       readonly sequence?: number | undefined
     }
   | {
@@ -46,6 +55,44 @@ export function recoverAgentRun(bootstrap: RecoverableBootstrap): RecoverableAge
   return bootstrap.recent_runs?.[0] ?? null
 }
 
+export function focusAfterSnapshotRefresh(
+  focused: RecoverableAgentRun | null,
+  refreshed: RecoverableAgentRun,
+): RecoverableAgentRun {
+  return focused === null || focused.id === refreshed.id ? refreshed : focused
+}
+
+export function mergeRecentAgentRuns(
+  ...groups: readonly (readonly (RecoverableAgentRun | null | undefined)[])[]
+): readonly RecoverableAgentRun[] {
+  const runs: RecoverableAgentRun[] = []
+  const seen = new Set<string>()
+  for (const candidate of groups.flat()) {
+    if (candidate == null || seen.has(candidate.id)) continue
+    seen.add(candidate.id)
+    runs.push(candidate)
+    if (runs.length === 32) return runs
+  }
+  return runs
+}
+
+export function proposalDecisionHistory(
+  runs: readonly RecoverableAgentRun[],
+): readonly ProposalDecisionHistoryItem[] {
+  const decisions: ProposalDecisionHistoryItem[] = []
+  const seen = new Set<string>()
+  for (const run of runs) {
+    for (const decision of run.proposal_decisions ?? []) {
+      const key = `${run.id}:${decision.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      decisions.push({ ...decision, runId: run.id, baseRevision: run.base_revision })
+      if (decisions.length === 32) return decisions
+    }
+  }
+  return decisions
+}
+
 export function activityFromSnapshot(snapshot: RecoverableAgentRun): readonly AgentActivity[] {
   const activity: AgentActivity[] = [
     { key: `prompt-${snapshot.id}`, kind: "prompt", text: `You: ${snapshot.prompt}` },
@@ -58,6 +105,7 @@ export function activityFromSnapshot(snapshot: RecoverableAgentRun): readonly Ag
       key: `assistant-${snapshot.id}`,
       kind: "assistant",
       text: snapshot.text,
+      truncated: snapshot.text_truncated === true,
       sequence: snapshot.last_sequence,
     })
   }
@@ -123,8 +171,19 @@ export function appendAgentEvent(
     const key = `assistant-${event.run_id}`
     const existing = activity.find((item) => item.kind === "assistant" && item.key === key)
     const existingText = existing?.kind === "assistant" ? existing.text : ""
-    const text = event.type === "completed" ? event.text : `${existingText}${event.text}`
-    const item: AgentActivity = { key, kind: "assistant", text, sequence: event.sequence }
+    const existingTruncated = existing?.kind === "assistant" && existing.truncated
+    const original = event.type === "completed" ? event.text : `${existingText}${event.text}`
+    const text = truncateUtf8(original, MAX_AGENT_TEXT_BYTES)
+    const item: AgentActivity = {
+      key,
+      kind: "assistant",
+      text,
+      truncated:
+        event.type === "completed"
+          ? event.truncated === true
+          : existingTruncated || event.truncated === true || text !== original,
+      sequence: event.sequence,
+    }
     return [...activity.filter((current) => current.key !== key), item]
   }
   return [

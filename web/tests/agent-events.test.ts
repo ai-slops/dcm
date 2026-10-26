@@ -31,8 +31,33 @@ describe("agent activity", () => {
 
     // Then
     expect(activity.filter((item) => item.kind === "assistant")).toEqual([
-      { key: "assistant-run-1", kind: "assistant", text: "Changed the chart.", sequence: 3 },
+      {
+        key: "assistant-run-1",
+        kind: "assistant",
+        text: "Changed the chart.",
+        truncated: false,
+        sequence: 3,
+      },
     ])
+  })
+
+  it("bounds aggregated UTF-8 deltas and marks the partial retained text", () => {
+    let activity = initialAgentActivity("bounded", "Inspect")
+    for (let sequence = 1; sequence <= 20; sequence += 1)
+      activity = appendAgentEvent(
+        activity,
+        AgentStreamEventSchema.parse({
+          type: "delta",
+          run_id: "bounded",
+          sequence,
+          text: "😀".repeat(2_000),
+        }),
+      )
+    const result = activity.find((item) => item.kind === "assistant")
+    expect(result?.kind === "assistant" && Buffer.byteLength(result.text)).toBeLessThanOrEqual(
+      65_536,
+    )
+    expect(result).toMatchObject({ truncated: true })
   })
 
   it("ignores an event sequence already represented in activity", () => {
