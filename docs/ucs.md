@@ -14,6 +14,9 @@ audio file or the current project's audio. Save local edits before importing or 
 replaces the chart/timing only on explicit confirmation and commits chart/audio together with a
 revision check. Existing title, artist, and evaluation contract are retained. An incompatible
 contract is rejected, not silently rewritten. The mode is retained as an explicit export preference.
+Changing that preference is an ordinary draft edit: close the dialog, Save, then reopen it to
+download. The chosen mode survives reload. Editing quantization snaps future placements down to
+the chosen grid; display always retains every native row and existing note.
 
 The same editor, audio element, tempo functions, transport, playhead, and physical-pad preview render
 both DCM and imported UCS notes. Playback uses the actual audio clock; speed, pause, seek, offset,
@@ -68,6 +71,8 @@ would exceed the existing native `u128` fraction capacity. Such a chart remains 
 editable, exportable, and browser-previewable. Exact native assessment can separately report
 `timing_capacity_exceeded`; no approximate assessment or certificate is substituted. As in the
 existing Studio, browser playback is a floating-point projection of the exact stored timing model.
+That shared projection caches cumulative tempo boundaries once per immutable music revision and
+uses binary search for note and clock queries. Editing notes does not rescan the full tempo map.
 
 ## Native CLI and local reference checks
 

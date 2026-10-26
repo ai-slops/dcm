@@ -207,7 +207,7 @@ Only these regions scroll vertically: Inspector body, Agent stream, and any moda
 - The ruler is pinned to the start edge of the grid. Measure labels and exact tick/beat values use mono type.
 - Lane headers remain visible while the beat grid scrolls. Left five lanes use coral identifiers; right five use cyan identifiers. Lane headers also include `L` or `R`, so color is not the only cue.
 - The Studio always visualizes the native ten-lane DCM chart. When the persisted UCS preference is Single, show the compact factual context `DCM 10 lanes · UCS Single uses left pad`; do not hide the right pad or imply Single changes the native chart model.
-- Notes snap to the selected quantization. Tap is a compact head. Hold is a head, duration body, and tail. The body uses `--hold-fill`; head and tail preserve pad identity.
+- New placements snap down to the selected edit grid; existing notes and every native display row remain unchanged. A snapped placement onto an occupied target is rejected rather than replacing another note. Tap is a compact head. Hold is a head, duration body, and tail. The body uses `--hold-fill`; head and tail preserve pad identity.
 - The grid exposes a visible keyboard cursor, pointer hover target, selected cells/range, current playhead, and evaluation overlays as separate layers.
 - The preview pane contains the physical two-pad diamond layout, current contacts, upcoming contacts, and exact current beat. It does not imitate a game skin or claim in-engine fidelity.
 
@@ -325,7 +325,7 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 - **Structure:** semantic gridcell with lane, tick, note type, selection, and evaluation state; visual layers for subdivision, note, selection, and cursor.
 - **Variants:** empty, tap, hold head/body/tail, selected, playhead intersection, accepted evidence, rejected witness, and conflict.
-- **Spacing:** geometry derives from grid zoom and quantization, not arbitrary per-cell padding.
+- **Spacing:** display rows use native ticks and the row-height token. Editing quantization never thins existing data or removes off-grid heads/tails from view.
 - **States:** hover target, keyboard cursor, selected, dragging/painting, invalid preview, committed, and read-only during evaluation snapshot.
 - **Accessibility:** grid has row/column counts and labels. Focused cell announces pad side, panel, beat/tick, note type, and duration. Provide a structured note-list alternative for screen-reader editing and review.
 - **Motion:** note commit uses a brief opacity/scale confirmation; playhead uses transform only; reduced motion removes scale and smooth following.
@@ -535,6 +535,8 @@ No Critical or Major accessibility issue may be added to this table as ordinary 
 
 - **Timeline chrome:** controls and timing context wrap within the owning pane, outside the independently scrolling chart canvas. Lane headers stick within that canvas. The app shell uses a bounded zero-minimum column so toolbar/transport actions never force content beyond the viewport.
 - **Preview context:** both editor and physical-pad preview reuse the same media-clock timing readout. Read-only pad boxes stay at least `--space-6` wide at supported viewports; added mode/context copy must not shrink their labels. Checkboxes retain a compact glyph within a `--control-touch` label target.
+
+- **UCS preference persistence:** radio changes update `project.ucs_mode` as ordinary draft metadata. Close the transfer dialog and Save before downloading; reload must retain the chosen mode. Export itself never silently mutates project metadata.
 
 ### Functional state matrix
 

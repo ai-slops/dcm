@@ -22,6 +22,7 @@ describe("UCS transfer dialog", () => {
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
+        onMode: () => undefined,
       }),
     )
 
@@ -45,6 +46,7 @@ describe("UCS transfer dialog", () => {
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
+        onMode: () => undefined,
       }),
     )
 

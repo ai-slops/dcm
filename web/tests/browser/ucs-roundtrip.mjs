@@ -9,6 +9,7 @@ import { chromium } from "playwright"
 import { loadDemo } from "../../server/demo.ts"
 import { StudioProjectV1Schema } from "../../shared/index.ts"
 import { verifyVisibleChrome } from "./ucs-layout.mjs"
+import { saveExportMode } from "./ucs-mode-preference.mjs"
 import { verifyAudioClock } from "./ucs-playback.mjs"
 import {
   bootstrap,
@@ -20,6 +21,7 @@ import {
   importUcsThroughUi,
   ownedMutation,
   repoRoot,
+  SINGLE_UCS_FIXTURE,
   saveRecovery,
 } from "./ucs-support.mjs"
 
@@ -68,6 +70,7 @@ try {
       notes: [
         { tick: 0, panel_mask: 544, hold_ticks: 0 },
         { tick: 0, panel_mask: 1, hold_ticks: 4 },
+        { tick: 3, panel_mask: 16, hold_ticks: 2 },
         { tick: 8, panel_mask: 2, hold_ticks: 12 },
         { tick: 16, panel_mask: 4, hold_ticks: 4 },
         { tick: 24, panel_mask: 8, hold_ticks: 4 },
@@ -146,8 +149,11 @@ try {
   await verifyVisibleChrome(page)
   await page.screenshot({ path: resolve(evidenceRoot, "desktop.png") })
 
+  owned = await saveExportMode(page, "Single")
+  await page.reload()
+  assert.equal((await bootstrap(context, configuration.url)).document.project.ucs_mode, "Single")
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
-  await page.getByRole("radio", { name: "Single", exact: true }).check()
+  assert.equal(await page.getByRole("radio", { name: "Single", exact: true }).isChecked(), true)
   await page.getByRole("button", { name: "Download UCS", exact: true }).click()
   await page
     .getByRole("alert")
@@ -165,32 +171,13 @@ try {
   await page.screenshot({ path: resolve(evidenceRoot, "ucs-error.png") })
   await page.getByRole("button", { name: "Close", exact: true }).click()
   const single = resolve(evidenceRoot, "single.ucs")
-  writeFileSync(
-    single,
-    [
-      ":Format=1",
-      ":Mode=Single",
-      ":BPM=120",
-      ":Delay=125",
-      ":Beat=4",
-      ":Split=4",
-      "M.X..",
-      "H....",
-      "H....",
-      "H....",
-      ":BPM=150",
-      ":Delay=0",
-      ":Beat=4",
-      ":Split=4",
-      "H....",
-      "H....",
-      "W...X",
-      ".....",
-    ].join("\r\n"),
-  )
+  writeFileSync(single, SINGLE_UCS_FIXTURE)
   owned = await importUcsThroughUi(page, single)
   assert.equal(owned.project.ucs_mode, "Single")
   assert.ok(owned.project.chart.notes.every((note) => (note.panel_mask & ~31) === 0))
+  const singleExport = resolve(evidenceRoot, "single-export.ucs")
+  await downloadUcs(page, singleExport, "Single")
+  assert.ok(readFileSync(singleExport, "ascii").startsWith(":Format=1\r\n:Mode=Single\r\n"))
   await page.getByText("Audio ready", { exact: true }).waitFor()
   await page.getByLabel("Chart position", { exact: true }).fill("5")
   assert.ok(Math.abs((await page.evaluate(() => window.__studioAudio.currentTime)) - 0.725) < 0.001)

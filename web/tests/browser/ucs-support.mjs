@@ -8,6 +8,26 @@ import { BootstrapSchema, CurrentDocumentSchema } from "../../shared/index.ts"
 
 export const repoRoot = fileURLToPath(new URL("../../..", import.meta.url))
 export const evidenceRoot = resolve(repoRoot, "web/artifacts/ucs")
+export const SINGLE_UCS_FIXTURE = [
+  ":Format=1",
+  ":Mode=Single",
+  ":BPM=120",
+  ":Delay=125",
+  ":Beat=4",
+  ":Split=4",
+  "M.X..",
+  "H....",
+  "H....",
+  "H....",
+  ":BPM=150",
+  ":Delay=0",
+  ":Beat=4",
+  ":Split=4",
+  "H....",
+  "H....",
+  "W...X",
+  ".....",
+].join("\r\n")
 mkdirSync(evidenceRoot, { recursive: true, mode: 0o700 })
 
 export function saveRecovery(project, audio) {
@@ -110,9 +130,9 @@ export async function importUcsThroughUi(page, path) {
   )
 }
 
-export async function downloadUcs(page, path) {
+export async function downloadUcs(page, path, mode = "Double") {
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
-  await page.getByRole("radio", { name: "Double", exact: true }).check()
+  await page.getByRole("radio", { name: mode, exact: true }).check()
   const pending = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download UCS", exact: true }).click()
   const download = await pending

@@ -167,12 +167,14 @@ Import accepts optional replacement audio. Omitting it keeps current project aud
 claim that an arbitrary song matches that audio. Import commits chart/timing and audio atomically,
 with revision protection. It preserves title, artist, and the current evaluation contract, rejecting
 incompatible contract bounds rather than changing them silently. Mode is a persisted export preference.
+Changing mode creates a draft edit: close the dialog, Save, and reopen it before downloading.
 
 The same grid, physical pads, and media transport visualize imported UCS. **Follow audio** pages
 the bounded timeline from the real audio clock without moving the editing cursor. Selecting or
 paging the editor disables follow until you enable it again. Beat, active BPM, song time, and signed
-offset provide timing context; the default one-tick grid exposes every native row. The audio clock
-is clamped to real media duration, even if a chart is longer than the selected audio.
+offset provide timing context. Display remains at native one-tick resolution even with coarse edit
+snapping, so existing off-grid taps and hold endpoints never disappear. The audio clock is clamped
+to real media duration, even if a chart is longer than the selected audio.
 
 See [UCS format profile, exactness limits, native commands, references, and tests](ucs.md).
 

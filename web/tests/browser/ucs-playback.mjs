@@ -1,6 +1,19 @@
 import assert from "node:assert/strict"
 
 export async function verifyAudioClock(page) {
+  for (const quantize of [2, 4, 8]) {
+    await page.getByLabel(/^Quantize/).selectOption(String(quantize))
+    for (const label of [
+      "R UR, tick 6, tap",
+      "L DR, tick 3, hold-head",
+      "L DR, tick 4, hold-body",
+      "L DR, tick 5, hold-tail",
+    ]) {
+      await page.getByRole("button", { name: label, exact: true }).waitFor()
+    }
+    assert.equal(await page.locator(".timeline__cell").count(), 480)
+  }
+  await page.getByLabel(/^Quantize/).selectOption("1")
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.getByTestId("preview-time").filter({ hasText: "PRE-ROLL" }).waitFor()
   await page.waitForFunction(

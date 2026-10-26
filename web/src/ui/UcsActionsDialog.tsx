@@ -1,5 +1,5 @@
 import { Download, Upload } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import type { CurrentDocument, Revision, StudioProjectV1, UcsMode } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
@@ -16,14 +16,13 @@ type UcsActionsProps = {
   readonly onClose: () => void
   readonly onDocument: (document: CurrentDocument) => void
   readonly onStatus: (status: string) => void
+  readonly onMode: (mode: UcsMode) => void
 }
 
 export function UcsActionsDialog(props: UcsActionsProps) {
   const [busy, setBusy] = useState<"import" | "export" | null>(null)
-  const [mode, setMode] = useState<UcsMode>(props.project.ucs_mode ?? "Double")
+  const mode = props.project.ucs_mode ?? "Double"
   const [error, setError] = useState("")
-
-  useEffect(() => setMode(props.project.ucs_mode ?? "Double"), [props.project.ucs_mode])
 
   async function importUcs(chart: File, audio?: File): Promise<void> {
     setBusy("import")
@@ -153,7 +152,7 @@ export function UcsActionsDialog(props: UcsActionsProps) {
                   value={value}
                   checked={mode === value}
                   disabled={busy !== null}
-                  onChange={() => setMode(value)}
+                  onChange={() => props.onMode(value)}
                 />
                 {value}
               </label>

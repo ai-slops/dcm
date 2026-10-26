@@ -65,6 +65,7 @@ export function DocumentToolbar(props: DocumentToolbarProps) {
           {saveLabel}
         </Button>
         <StudioActions
+          onMode={(mode) => props.setProject({ ...props.project, ucs_mode: mode })}
           bootstrap={props.bootstrap}
           project={props.project}
           revision={props.revision}

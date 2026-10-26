@@ -7,6 +7,7 @@ import type {
   CurrentDocument,
   Revision,
   StudioProjectV1,
+  UcsMode,
 } from "../../shared/index.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { FileActionsDialog } from "./FileActionsDialog.tsx"
@@ -22,6 +23,7 @@ type ActionsProps = {
   readonly onDocument: (document: CurrentDocument) => void
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
+  readonly onMode: (mode: UcsMode) => void
 }
 
 type DialogName = "files" | "native" | "settings" | "ucs"
@@ -73,6 +75,7 @@ export function StudioActions(props: ActionsProps) {
         onProposal={props.onProposal}
       />
       <UcsActionsDialog
+        onMode={props.onMode}
         csrfToken={props.bootstrap.csrf_token}
         dirty={props.dirty}
         open={open === "ucs"}
