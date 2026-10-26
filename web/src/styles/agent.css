@@ -1,0 +1,224 @@
+.agent-runtime {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.agent-runtime__headline,
+.tool-call header,
+.run-result header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.agent-runtime__headline > div {
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.agent-runtime__headline span,
+.agent-runtime__message,
+.agent-model-field small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+.agent-runtime__facts,
+.proposal__changes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+.agent-runtime__facts div,
+.proposal__changes div {
+  min-inline-size: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+.agent-runtime__facts dt,
+.proposal__changes dt {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.agent-runtime__facts dd,
+.proposal__changes dd {
+  min-inline-size: 0;
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-family:
+    "IBM Plex Mono", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace,
+    monospace;
+  font-size: 11px;
+}
+.agent-runtime__facts dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.agent-runtime__message {
+  margin: 0;
+}
+.agent-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.agent-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.agent-tool span {
+  color: var(--text-muted);
+}
+.agent-tool--unavailable,
+.agent-tool--profile_mismatch {
+  color: var(--status-warning);
+}
+.tool-call,
+.run-result,
+.agent-recovery {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+.tool-call--failed {
+  border-color: var(--status-error);
+}
+.tool-call details {
+  min-inline-size: 0;
+}
+.tool-call summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.tool-call pre {
+  max-block-size: calc(var(--space-10) * 3);
+  overflow: auto;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-family:
+    "IBM Plex Mono", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace,
+    monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tool-call__error,
+.proposal__warning,
+.agent-recovery p,
+.run-result p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+}
+.tool-call__error,
+.proposal__warning {
+  color: var(--status-error);
+}
+.proposal__warning {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+}
+.run-result {
+  border-inline-start: 2px solid var(--status-success);
+}
+.run-result header {
+  justify-content: start;
+  color: var(--status-success);
+}
+.run-result p {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.agent-recovery {
+  border-color: var(--status-warning);
+  color: var(--text-secondary);
+}
+.proposal__head > div {
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.proposal__eyebrow {
+  color: var(--status-warning);
+  font-size: 11px;
+}
+.proposal__changes {
+  margin-block: var(--space-3);
+}
+.agent-starters {
+  display: flex;
+  gap: var(--space-1);
+  overflow-inline: auto;
+  padding-block-end: var(--space-1);
+  scroll-snap-type: inline proximity;
+}
+.agent-starters button {
+  flex: 0 0 auto;
+  max-inline-size: 28ch;
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: start;
+  scroll-snap-align: start;
+}
+.agent-model-field {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+.agent-model-field select {
+  inline-size: 100%;
+  min-block-size: var(--control-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  padding-inline: var(--space-2);
+}
+.agent-action-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+@media (max-width: 1199px) {
+  .agent-model-field select {
+    min-block-size: var(--control-touch);
+  }
+}
+@media (max-width: 767px) {
+  .open-agent-button {
+    display: none;
+  }
+  .agent-runtime__facts,
+  .proposal__changes {
+    grid-template-columns: 1fr;
+  }
+}

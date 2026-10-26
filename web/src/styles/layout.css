@@ -93,7 +93,7 @@
 }
 .agent-panel .panel__body {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   padding: 0;
 }
 .agent-stream {
