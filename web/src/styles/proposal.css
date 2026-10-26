@@ -1,0 +1,71 @@
+.proposal__scope {
+  margin-block: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.proposal__summary {
+  display: grid;
+  gap: var(--space-1);
+  margin-block: var(--space-3);
+  padding: var(--space-2);
+  border-inline-start: 2px solid var(--border-strong);
+  background: var(--surface-sunken);
+}
+.proposal__summary span,
+.proposal-diff h4,
+.proposal-diff h5,
+.proposal-diff__field > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.proposal__summary p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.proposal-diff {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+}
+.proposal-diff__scroll {
+  max-block-size: calc(var(--space-10) * 8);
+  overflow: auto;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+.proposal-diff__scroll section,
+.proposal-diff__field {
+  display: grid;
+  gap: var(--space-1);
+}
+.proposal-diff h4,
+.proposal-diff h5 {
+  margin: 0;
+}
+.proposal-diff__field {
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--border-subtle);
+}
+.proposal-diff__values {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family:
+    "IBM Plex Mono", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace,
+    monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.proposal-diff__unavailable,
+.run-result .run-result__truncation {
+  padding: var(--space-2);
+  border: 1px solid var(--status-warning);
+  border-radius: var(--radius-sm);
+  color: var(--status-warning);
+  background: var(--surface-sunken);
+}

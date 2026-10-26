@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, X } from "lucide-react"
 
 import type { ChartProposal } from "../../shared/index.ts"
+import { ProposalDiff } from "./ProposalDiff.tsx"
 import { Badge, Button } from "./primitives.tsx"
 
 export function ProposalCard({
@@ -16,44 +17,25 @@ export function ProposalCard({
   readonly onApply: () => void
   readonly onReject: () => void
 }) {
-  const changes = proposal.changes
+  const source = proposal.source === "agent" ? "Agent" : "Native generation"
+  const runScope = proposal.run_id === undefined ? "no agent run" : `run ${proposal.run_id}`
   return (
     <article className="proposal">
       <div className="proposal__head">
         <div>
           <span className="proposal__eyebrow">Human review required</span>
-          <strong>{proposal.summary}</strong>
+          <strong>Proposed document change</strong>
         </div>
         <Badge tone={eligible ? "warning" : "stale"}>{eligible ? "Uncertified" : "Stale"}</Badge>
       </div>
-      {changes === undefined ? (
-        <p className="mono">
-          BASE R{proposal.base_revision} · {proposal.chart.notes.length} NOTES
-        </p>
-      ) : (
-        <dl className="proposal__changes">
-          <div>
-            <dt>Notes</dt>
-            <dd>
-              +{changes.notes_added ?? 0} / -{changes.notes_removed ?? 0}
-            </dd>
-          </div>
-          <div>
-            <dt>Timing</dt>
-            <dd>{changes.timing_changed === true ? "Changed" : "Unchanged"}</dd>
-          </div>
-          <div>
-            <dt>Ticks</dt>
-            <dd>
-              {changes.tick_start ?? "-"}–{changes.tick_end ?? "-"}
-            </dd>
-          </div>
-          <div>
-            <dt>Lanes</dt>
-            <dd>{changes.lanes?.join(", ") ?? "-"}</dd>
-          </div>
-        </dl>
-      )}
+      <p className="mono proposal__scope">
+        BASE R{proposal.base_revision} · {source} · {runScope}
+      </p>
+      <div className="proposal__summary">
+        <span>Model summary · non-authoritative</span>
+        <p>{proposal.summary}</p>
+      </div>
+      <ProposalDiff proposal={proposal} />
       {!eligible && (
         <p className="proposal__warning">
           <AlertTriangle size={13} /> This proposal targets an earlier saved revision. Save and run

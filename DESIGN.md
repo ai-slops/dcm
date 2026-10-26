@@ -353,7 +353,8 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### ProposalRow
 
-- **Structure:** proposal title, explicit scope, factual diff summary, affected tick/lane range, source/tool state, stale indicator if applicable, preview toggle, Apply, and Discard.
+- **Structure:** human-review label, non-authoritative model summary, `BASE R` revision, source, owning run scope, canonical exact-change preview, stale indicator if applicable, Apply, and Discard.
+- **Canonical diff:** when `before` is present, compare it directly with the validated proposal `chart`/`music`. Show every added and removed note demand with `tick`, `panel_mask`, and `hold_ticks`; show every changed chart grid/span and music duration/grid/offset/tempo/reference-accent/audio-hash field with inspectable before and after values. Long values use a bounded scrolling mono region, never ellipsis or silent item limits. If `before` is absent, state that exact review is unavailable instead of treating the model summary or aggregate `changes` counts as authoritative.
 - **Variants:** pending, previewing, applying, applied, discarded, stale, and failed.
 - **Spacing:** `--space-3` internal; `--space-2` action gap.
 - **States:** stale disables Apply and offers `Regenerate`; failed keeps proposal text and recovery. Applied and discarded are immutable history rows.
@@ -366,6 +367,8 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 - **Structure:** provider/status header, cancel control while running, scrollable event stream, proposal rows, starter actions when empty, and anchored composer.
 - **Runtime disclosure:** `AgentRuntimeStatus` names the actual Part runtime version, provider source, configured model, API family, catalog size, and per-tool availability. Catalog API labels describe provider capability only and must not imply every listed model supports chart tools.
 - **Observable execution:** `ToolCallCard` renders ordered, bounded input/result previews from canonical snapshots and stream events. It never exposes chain-of-thought or native provider payloads. `RunResult` is visually separate from tool execution and appears only for retained or streamed runtime text.
+- **Retained history:** proposal decisions are aggregated from the bounded recent canonical run snapshots and label their owning run. Refreshing a proposal decision targets that proposal's `run_id`; it must not replace or stop a different active run. A canonical `text_truncated` flag produces an explicit retained-text truncation notice.
+- **Fresh readiness:** provider/model/catalog/tool disclosure refreshes after saved revision changes and terminal run transitions, not for token deltas.
 - **Composer:** `AgentComposer` requires an explicit catalog model when the bootstrap has no configured model, offers the configured model as the safe default, and includes factual starter tasks. Reconnect resumes the saved run and never silently resubmits.
 - **Variants:** unconfigured, ready, running, streaming, cancelled, proposal available, error, and offline/unavailable.
 - **Spacing:** header/body/composer use `--space-4`; event groups use `--space-3`.

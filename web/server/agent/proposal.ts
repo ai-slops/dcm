@@ -43,6 +43,7 @@ export function buildAgentProposal(
     run_id: runId,
     summary: input.summary,
     chart,
+    before: { chart: document.project.chart, music: document.project.music },
     ...(input.music === undefined ? {} : { music: project.music }),
     changes: summarizeChanges(document, project),
   })

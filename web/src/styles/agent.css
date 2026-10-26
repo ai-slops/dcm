@@ -209,14 +209,14 @@
   border-block-start: 1px solid var(--border-subtle);
 }
 @media (max-width: 1199px) {
+  .open-agent-button {
+    display: none;
+  }
   .agent-model-field select {
     min-block-size: var(--control-touch);
   }
 }
 @media (max-width: 767px) {
-  .open-agent-button {
-    display: none;
-  }
   .agent-runtime__facts,
   .proposal__changes {
     grid-template-columns: 1fr;
