@@ -206,6 +206,7 @@ Only these regions scroll vertically: Inspector body, Agent stream, and any moda
 - Time flows top to bottom. Ten lanes run left to right in project order: left `DL UL C UR DR`, then right `DL UL C UR DR`.
 - The ruler is pinned to the start edge of the grid. Measure labels and exact tick/beat values use mono type.
 - Lane headers remain visible while the beat grid scrolls. Left five lanes use coral identifiers; right five use cyan identifiers. Lane headers also include `L` or `R`, so color is not the only cue.
+- The Studio always visualizes the native ten-lane DCM chart. When the persisted UCS preference is Single, show the compact factual context `DCM 10 lanes · UCS Single uses left pad`; do not hide the right pad or imply Single changes the native chart model.
 - Notes snap to the selected quantization. Tap is a compact head. Hold is a head, duration body, and tail. The body uses `--hold-fill`; head and tail preserve pad identity.
 - The grid exposes a visible keyboard cursor, pointer hover target, selected cells/range, current playhead, and evaluation overlays as separate layers.
 - The preview pane contains the physical two-pad diamond layout, current contacts, upcoming contacts, and exact current beat. It does not imitate a game skin or claim in-engine fidelity.
@@ -529,6 +530,11 @@ No Critical or Major accessibility issue may be added to this table as ordinary 
 - **JSON import:** preview validated title, note count, duration, tempo events, and warnings before replacing. Invalid data shows field/path-specific errors. No partial silent import.
 - **JSON export:** export current chart and metadata with real dirty/save context. Filename derives from actual title with safe fallback.
 - **SSC ZIP download:** label exactly `Download SSC ZIP`. Explain that export targets StepMania/OutFox, uses pump-double lane order, and is not in-engine validation. Missing audio/native CLI/runtime has a specific blocking reason.
+- **UCS import:** use a dedicated `UCS transfer` dialog. Require one `.ucs` file and allow optional WAV/OGG/MP3 audio. If audio is omitted, state `Current project audio will be kept.` Import is available only for a persisted draft and accepts the returned native document as the complete chart/timing replacement.
+- **UCS export:** require an explicit `Single` or `Double` selection, initially `project.ucs_mode ?? Double`. Disable export while the visible draft is dirty because the native endpoint serializes the saved revision, show `Save your changes before exporting UCS.`, and never silently omit visible edits. Single maps to the left five native panels; right-pad notes produce a clear native error. Download only the returned UCS blob with a title-derived `.ucs` filename; never package or download project audio.
+
+- **Timeline chrome:** controls and timing context wrap within the owning pane, outside the independently scrolling chart canvas. Lane headers stick within that canvas. The app shell uses a bounded zero-minimum column so toolbar/transport actions never force content beyond the viewport.
+- **Preview context:** both editor and physical-pad preview reuse the same media-clock timing readout. Read-only pad boxes stay at least `--space-6` wide at supported viewports; added mode/context copy must not shrink their labels. Checkboxes retain a compact glyph within a `--control-touch` label target.
 
 ### Functional state matrix
 
