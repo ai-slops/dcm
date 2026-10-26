@@ -1,10 +1,18 @@
-import { Bot, RefreshCw, Square } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { useState } from "react"
 
-import type { Bootstrap, ChartProposal, Revision } from "../../shared/index.ts"
+import type { AgentRunSnapshot, Bootstrap, ChartProposal, Revision } from "../../shared/index.ts"
 import { canApplyProposal } from "../domain/editor.ts"
+import { AgentComposer } from "./AgentComposer.tsx"
+import { AgentRuntimeStatus } from "./AgentRuntimeStatus.tsx"
 import { errorMessage } from "./action-utils.ts"
-import { Badge, Button, Panel } from "./primitives.tsx"
+import type { AgentActivity } from "./agent-run-state.ts"
+import { initialModelId } from "./agent-run-state.ts"
+import { ProposalCard } from "./ProposalCard.tsx"
+import { ProposalDecisionHistory } from "./ProposalDecisionHistory.tsx"
+import { Button, Panel } from "./primitives.tsx"
+import { RunResult } from "./RunResult.tsx"
+import { ToolCallCard } from "./ToolCallCard.tsx"
 import { useAgentRun } from "./useAgentRun.ts"
 
 type AgentPanelProps = {
@@ -17,8 +25,28 @@ type AgentPanelProps = {
   readonly discard: (proposal: ChartProposal) => Promise<void>
 }
 
+function ActivityItem({
+  item,
+  status,
+}: {
+  readonly item: AgentActivity
+  readonly status: AgentRunSnapshot["status"] | null
+}) {
+  switch (item.kind) {
+    case "prompt":
+      return <p className="agent-event agent-event--prompt">{item.text}</p>
+    case "event":
+      return <p className="agent-event agent-event--event">{item.text}</p>
+    case "assistant":
+      return <RunResult text={item.text} status={status ?? "running"} />
+    case "tool":
+      return <ToolCallCard call={item.call} />
+  }
+}
+
 export function AgentPanel(props: AgentPanelProps) {
   const [prompt, setPrompt] = useState("")
+  const [modelId, setModelId] = useState(() => initialModelId(props.bootstrap.agent))
   const controller = useAgentRun(props.bootstrap, props.revision, props.onProposal)
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
   const interactionBusy = controller.busy !== null || proposalBusy !== null
@@ -29,9 +57,10 @@ export function AgentPanel(props: AgentPanelProps) {
     controller.setActionError("")
     try {
       await (action === "apply" ? props.apply(proposal) : props.discard(proposal))
+      await controller.refreshSnapshot()
     } catch (error) {
       controller.setActionError(
-        `${action === "apply" ? "Apply" : "Discard"} failed. ${errorMessage(error)}`,
+        `${action === "apply" ? "Apply" : "Reject"} failed. ${errorMessage(error)}`,
       )
     } finally {
       setProposalBusy(null)
@@ -39,125 +68,73 @@ export function AgentPanel(props: AgentPanelProps) {
   }
 
   return (
-    <Panel
-      title="Agent"
-      action={
-        <Badge tone={props.bootstrap.agent.configured ? "success" : "warning"}>
-          {props.bootstrap.agent.configured ? props.bootstrap.agent.provider : "Not configured"}
-        </Badge>
-      }
-      className="agent-panel"
-    >
+    <Panel title="Agent" className="agent-panel">
       <div className="agent-stream" aria-live="polite">
+        <AgentRuntimeStatus agent={props.bootstrap.agent} tools={props.bootstrap.tools} />
         {controller.run !== null && (
-          <p className="mono agent-run-status">Run {controller.run.status}</p>
+          <p className="mono agent-run-status">
+            Run {controller.run.status}
+            {controller.run.model === undefined ? "" : ` · ${controller.run.model}`}
+            {controller.run.api === undefined || controller.run.api === null
+              ? ""
+              : ` · ${controller.run.api}`}
+          </p>
         )}
         {controller.activity.map((item) => (
-          <p className={`agent-event agent-event--${item.kind}`} key={item.key}>
-            {item.text}
-          </p>
+          <ActivityItem item={item} status={controller.run?.status ?? null} key={item.key} />
         ))}
+        <ProposalDecisionHistory decisions={controller.run?.proposal_decisions ?? []} />
         {controller.disconnected && (
-          <Button
-            icon={<RefreshCw size={13} />}
-            disabled={controller.busy !== null}
-            onClick={controller.reconnect}
-          >
-            Reconnect
-          </Button>
-        )}
-        {props.proposals.map((proposal) => {
-          const eligible = canApplyProposal({
-            dirty: props.dirty,
-            currentRevision: props.revision,
-            baseRevision: proposal.base_revision,
-          })
-          return (
-            <article className="proposal" key={proposal.id}>
-              <div className="proposal__head">
-                <strong>{proposal.summary}</strong>
-                <Badge tone={eligible ? "info" : "stale"}>
-                  {eligible ? proposal.source : "Stale"}
-                </Badge>
-              </div>
-              <p className="mono">
-                BASE R{proposal.base_revision} · {proposal.chart.notes.length} NOTES
-              </p>
-              <div className="cluster">
-                <Button
-                  variant="primary"
-                  disabled={!eligible || interactionBusy}
-                  onClick={() => void changeProposal("apply", proposal)}
-                >
-                  {proposalBusy === `apply-${proposal.id}` ? "Applying" : "Apply"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={interactionBusy}
-                  onClick={() => void changeProposal("discard", proposal)}
-                >
-                  {proposalBusy === `discard-${proposal.id}` ? "Discarding" : "Discard"}
-                </Button>
-              </div>
-            </article>
-          )
-        })}
-        {props.proposals.length === 0 && controller.activity.length === 0 && (
-          <div className="agent-empty">
-            <Bot size={24} />
-            <p>No agent activity yet. Configure a provider or ask for a scoped chart change.</p>
+          <div className="agent-recovery">
+            <p>
+              Connection lost. The saved run snapshot is retained; reconnecting will not submit it
+              again.
+            </p>
+            <Button
+              icon={<RefreshCw size={13} />}
+              disabled={controller.busy !== null}
+              onClick={controller.reconnect}
+            >
+              Reconnect stream
+            </Button>
           </div>
         )}
+        {props.proposals.map((proposal) => (
+          <ProposalCard
+            key={proposal.id}
+            proposal={proposal}
+            eligible={canApplyProposal({
+              dirty: props.dirty,
+              currentRevision: props.revision,
+              baseRevision: proposal.base_revision,
+            })}
+            busy={proposalBusy}
+            onApply={() => void changeProposal("apply", proposal)}
+            onReject={() => void changeProposal("discard", proposal)}
+          />
+        ))}
       </div>
-      <div className="composer">
-        {controller.actionError !== "" && (
-          <p className="field-error" role="alert">
-            {controller.actionError}
-          </p>
-        )}
-        <textarea
-          aria-label="Agent instruction"
-          value={prompt}
-          disabled={
-            !props.bootstrap.agent.configured || controller.running || controller.busy !== null
-          }
-          placeholder={
-            props.bootstrap.agent.configured
-              ? "Describe a scoped chart change"
-              : "Configure on the server to enable agent runs"
-          }
-          onChange={(event) => setPrompt(event.target.value)}
-        />
-        {props.dirty && (
-          <span className="status-copy">Save the draft before starting an agent run.</span>
-        )}
-        {controller.running ? (
-          <Button
-            variant="danger"
-            icon={<Square size={13} />}
-            disabled={controller.busy !== null}
-            onClick={() => void controller.cancel()}
-          >
-            {controller.busy === "cancel" ? "Cancelling" : "Cancel"}
-          </Button>
-        ) : (
-          <Button
-            disabled={
-              !props.bootstrap.agent.configured ||
-              props.dirty ||
-              prompt.trim() === "" ||
-              controller.busy !== null
-            }
-            onClick={() =>
-              void controller.start(prompt).then((started) => {
-                if (started) setPrompt("")
-              })
-            }
-          >
-            {controller.busy === "start" ? "Sending" : "Send"}
-          </Button>
-        )}
-      </div>
+      {controller.actionError !== "" && (
+        <p className="field-error agent-action-error" role="alert">
+          {controller.actionError}
+        </p>
+      )}
+      <AgentComposer
+        agent={props.bootstrap.agent}
+        prompt={prompt}
+        modelId={modelId}
+        dirty={props.dirty}
+        running={controller.running}
+        busy={controller.busy}
+        onPrompt={setPrompt}
+        onModel={setModelId}
+        onCancel={() => void controller.cancel()}
+        onStart={() =>
+          void controller.start(prompt, modelId).then((started) => {
+            if (started) setPrompt("")
+          })
+        }
+      />
     </Panel>
   )
 }

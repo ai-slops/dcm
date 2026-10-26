@@ -1,21 +1,38 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import type { AgentRunSnapshot, Bootstrap, ChartProposal, Revision } from "../../shared/index.ts"
+import type { Bootstrap, ChartProposal, Revision } from "../../shared/index.ts"
 import { streamAgentEvents, studioApi } from "../api/client.ts"
 import { errorMessage } from "./action-utils.ts"
-import { type AgentActivity, appendAgentEvent, initialAgentActivity } from "./agent-events.ts"
+import {
+  type AgentActivity,
+  activityFromSnapshot,
+  appendAgentEvent,
+  initialAgentActivity,
+  recoverAgentRun,
+} from "./agent-events.ts"
+import type { RecoverableAgentRun } from "./agent-run-state.ts"
 
 type AgentRunController = {
   readonly actionError: string
   readonly activity: readonly AgentActivity[]
   readonly busy: string | null
   readonly disconnected: boolean
-  readonly run: AgentRunSnapshot | null
+  readonly run: RecoverableAgentRun | null
   readonly running: boolean
   readonly cancel: () => Promise<void>
+  readonly refreshSnapshot: () => Promise<void>
   readonly reconnect: () => void
   readonly setActionError: (message: string) => void
-  readonly start: (prompt: string) => Promise<boolean>
+  readonly start: (prompt: string, modelId: string) => Promise<boolean>
+}
+
+async function loadCanonicalRun(runId: RecoverableAgentRun["id"]): Promise<{
+  readonly snapshot: RecoverableAgentRun
+  readonly bootstrap: Bootstrap
+}> {
+  const snapshot = await studioApi.agentSnapshot(runId)
+  const bootstrap = await studioApi.bootstrap()
+  return { snapshot, bootstrap }
 }
 
 export function useAgentRun(
@@ -23,10 +40,10 @@ export function useAgentRun(
   revision: Revision,
   onProposal: (proposal: ChartProposal) => void,
 ): AgentRunController {
-  const initialRun = bootstrap.active_run ?? null
-  const [run, setRun] = useState<AgentRunSnapshot | null>(initialRun)
+  const initialRun = recoverAgentRun(bootstrap)
+  const [run, setRun] = useState<RecoverableAgentRun | null>(initialRun)
   const [activity, setActivity] = useState<readonly AgentActivity[]>(() =>
-    initialRun === null ? [] : initialAgentActivity(initialRun.id, initialRun.prompt),
+    initialRun === null ? [] : activityFromSnapshot(initialRun),
   )
   const [actionError, setActionError] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
@@ -38,6 +55,19 @@ export function useAgentRun(
   const runId = run?.id
   const connectionKey = `${runId ?? "idle"}:${reconnectAttempt}`
 
+  const hydrateSnapshot = useCallback(
+    (snapshot: RecoverableAgentRun, refreshed: Bootstrap, streamDisconnected: boolean) => {
+      for (const proposal of refreshed.proposals ?? []) onProposal(proposal)
+      setRun(snapshot)
+      setActivity(activityFromSnapshot(snapshot))
+      lastSequenceRef.current = snapshot.last_sequence
+      setDisconnected(
+        streamDisconnected && (snapshot.status === "queued" || snapshot.status === "running"),
+      )
+    },
+    [onProposal],
+  )
+
   useEffect(() => {
     if (!running || runId === undefined) return
     const abort = new AbortController()
@@ -47,12 +77,9 @@ export function useAgentRun(
     async function restoreSnapshot(): Promise<void> {
       if (runId === undefined || !active) return
       try {
-        const snapshot = await studioApi.agentSnapshot(runId)
-        const refreshed = await studioApi.bootstrap()
+        const restored = await loadCanonicalRun(runId)
         if (!active) return
-        for (const proposal of refreshed.proposals ?? []) onProposal(proposal)
-        setRun(snapshot)
-        setDisconnected(snapshot.status === "queued" || snapshot.status === "running")
+        hydrateSnapshot(restored.snapshot, restored.bootstrap, true)
       } catch (error) {
         if (!active) return
         setDisconnected(true)
@@ -81,9 +108,8 @@ export function useAgentRun(
             event.type === "error" ||
             (event.type === "status" && event.status === "cancelled")
           ) {
-            const refreshed = await studioApi.bootstrap()
+            await restoreSnapshot()
             if (!active) return
-            for (const proposal of refreshed.proposals ?? []) onProposal(proposal)
           }
           if (event.type === "completed" || event.type === "error") {
             setRun((current) =>
@@ -118,18 +144,30 @@ export function useAgentRun(
       active = false
       abort.abort()
     }
-  }, [bootstrap.csrf_token, connectionKey, onProposal, runId, running])
+  }, [bootstrap.csrf_token, connectionKey, hydrateSnapshot, onProposal, runId, running])
 
-  async function start(prompt: string): Promise<boolean> {
+  async function refreshSnapshot(): Promise<void> {
+    if (runId === undefined) return
+    try {
+      const restored = await loadCanonicalRun(runId)
+      hydrateSnapshot(restored.snapshot, restored.bootstrap, false)
+    } catch (error) {
+      setActionError(`Agent history refresh failed. ${errorMessage(error)}`)
+    }
+  }
+
+  async function start(prompt: string, modelId: string): Promise<boolean> {
     if (busy !== null) return false
     const submittedPrompt = prompt.trim()
     setBusy("start")
     setActionError("")
     try {
-      const next = await studioApi.startAgent(bootstrap.csrf_token, {
+      const request = {
         base_revision: revision,
         prompt: submittedPrompt,
-      })
+        ...(modelId === "" ? {} : { model_id: modelId }),
+      }
+      const next = await studioApi.startAgent(bootstrap.csrf_token, request)
       lastSequenceRef.current = next.last_sequence
       setActivity(initialAgentActivity(next.id, submittedPrompt))
       setRun(next)
@@ -165,6 +203,7 @@ export function useAgentRun(
     busy,
     cancel,
     disconnected,
+    refreshSnapshot,
     reconnect: () => {
       setDisconnected(false)
       setActionError("")
