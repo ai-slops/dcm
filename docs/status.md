@@ -37,6 +37,10 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
   saves, audio-clock preview, and portable project/audio import.
 - Native finite-model evaluation, review-only deterministic generation, and edited SSC ZIP export
   that explicitly carries no verified-bundle certification.
+- Native Format 1 UCS import/export preserves actual taps, chords, holds, exact section timing,
+  and signed offsets for the documented Single/Double profile. The same audio-clock visualizer
+  uses a bounded, synchronized timeline. UCS transfers remain uncertified drafts, with no video
+  OCR, video-to-chart extraction, or imported observation pipeline; see `ucs.md`.
 - Real `@slop-lab/part` 0.1.0 runtime with server-only OpenAI-compatible provider configuration,
   scoped chart tools, cancellation, SSE recovery, and explicit proposal approval.
 - Independent Node 24.22+ web commands, documented in `studio.md`; existing CLI and v1 gateway
