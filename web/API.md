@@ -29,6 +29,8 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
   `{ service: "pump-studio", ready: true, instance }`, where `instance` is the launcher-owned
   `STUDIO_INSTANCE_ID` or `"foreground"`. This is process readiness, not native certification.
   It exposes no project, audio, model, credential, or filesystem data.
+- UCS parsing/rendering is native (`pump-ucs` through the CLI). The server accepts only uploaded
+  bytes and fixed temporary filenames, never caller-selected executable, destination, or server paths.
 
 ## Shared exports
 
@@ -56,12 +58,15 @@ contain `//`, matching native SSC metadata limits.
 ```text
 { schema_version: 1, title, artist, music: NativeMusic, chart: NativeChart,
   evaluation_contract: EvalContract,
-  audio_asset: { format: "wav" | "ogg" | "mp3", byte_length } }
+  audio_asset: { format: "wav" | "ogg" | "mp3", byte_length },
+  ucs_mode?: "Single" | "Double" }
 ```
 
 The immutable audio identity is `music.audio_sha256`; `audio_asset` records transport metadata.
 An ordinary document save cannot change either audio identity or metadata. Audio/import endpoints
 own those changes and verify SHA-256 from uploaded bytes.
+`ucs_mode` is an export preference, not a second native layout or source certificate. Older projects
+default to Double; Single uses native left-pad bits 0–4 and rejects right-pad bits at export.
 
 ## HTTP API
 
@@ -69,6 +74,9 @@ All JSON responses use `application/json`. Contract failures use
 `{ error: { code, message, current_revision? } }`. A stale `base_revision` is `409` and includes the
 current revision. Validation is `400`; missing session/CSRF is `403`; native unavailable is `503`.
 Public Basic-auth failures are plain-text `401` challenges rather than JSON contract errors.
+Known bounded native UCS failures are `422 ucs_rejected` with a useful format/line message;
+non-UCS native stderr stays private. Exact native rational overflow is separately reported as
+`422 timing_capacity_exceeded`, not a fabricated rejection assessment or a changed timing map.
 
 | Method and path | Request | Success |
 | --- | --- | --- |
@@ -81,6 +89,8 @@ Public Basic-auth failures are plain-text `401` challenges rather than JSON cont
 | `POST /api/v1/evaluations` | `BaseRevisionRequest` | `{ summary, raw_native }` validated by `EvaluationResponseSchema` |
 | `POST /api/v1/generations` | `GenerationRequest` with lowercase 64-hex seed | `ChartProposal` with source `native_generate` |
 | `POST /api/v1/exports` | `BaseRevisionRequest` | `application/zip` SSC export |
+| `POST /api/v1/ucs/export` | `{ base_revision, mode: "Single" \| "Double" }` | actual UCS bytes, `text/plain; charset=utf-8`, attachment filename and `x-pump-certification: none` |
+| `POST /api/v1/ucs/import` | multipart `base_revision`, one `chart` UCS file, optional `audio` file | `CurrentDocument` with native parsed chart/music and persisted `ucs_mode` |
 | `POST /api/v1/proposals/:id/apply` | `BaseRevisionRequest` | `CurrentDocument` |
 | `DELETE /api/v1/proposals/:id` | no body | `204` |
 | `POST /api/v1/agent/runs` | `AgentRunRequest` | `202 AgentRunSnapshot` |
@@ -91,6 +101,15 @@ Public Basic-auth failures are plain-text `401` challenges rather than JSON cont
 `EvaluationResponse.summary` is `{ label: "finite_model", accepted, uncalibrated,
 rejection_count }`; `raw_native` retains the complete typed native assessment. It is not an official
 rating or safety guarantee.
+
+UCS import retains current title, artist, and evaluation contract. If the parsed duration cannot
+retain that contract, it fails with `422 ucs_project_incompatible` without saving anything. Audio
+is either supplied in the same request or explicitly reused from the current revision; native
+import binds its SHA-256 and the store checks it again before atomic commit. UCS itself does not
+contain audio, titles, reference accents, evaluation contracts, or certification. Imports start
+with empty reference accents and remain uncertified drafts. See [the supported profile](../docs/ucs.md).
+UCS files are capped at 16 MiB and audio at 32 MiB; the bounded multipart envelope allows both plus
+1 MiB of overhead. Unknown/duplicate multipart fields are rejected.
 
 Agent SSE events are a finite discriminated union with common `{ run_id, sequence }` fields:
 `status`, `delta`, `tool`, `proposal`, `error`, and `completed`. Sequence starts at zero and strictly

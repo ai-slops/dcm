@@ -156,6 +156,26 @@ in the same cell. Titles/artists are printable ASCII within the current exporter
 charts produce an error instead of silent rounding. See [StepMania setup](stepmania.md) to play
 the resulting songs in a real engine.
 
+## UCS transfer and visualization
+
+Use **UCS transfer** in the toolbar to download the saved chart as real Format 1 UCS or import a
+UCS file. Choose **Single** (left five lanes) or **Double** (all ten) explicitly. Single export rejects
+right-pad notes rather than dropping them. Save or undo local edits first; exports never silently
+omit visible unsaved notes.
+
+Import accepts optional replacement audio. Omitting it keeps current project audio; this is not a
+claim that an arbitrary song matches that audio. Import commits chart/timing and audio atomically,
+with revision protection. It preserves title, artist, and the current evaluation contract, rejecting
+incompatible contract bounds rather than changing them silently. Mode is a persisted export preference.
+
+The same grid, physical pads, and media transport visualize imported UCS. **Follow audio** pages
+the bounded timeline from the real audio clock without moving the editing cursor. Selecting or
+paging the editor disables follow until you enable it again. Beat, active BPM, song time, and signed
+offset provide timing context; the default one-tick grid exposes every native row. The audio clock
+is clamped to real media duration, even if a chart is longer than the selected audio.
+
+See [UCS format profile, exactness limits, native commands, references, and tests](ucs.md).
+
 ## Native assessment and generation
 
 Assessment runs the existing Rust finite execution/intent/difficulty model. Accepted/rejected is

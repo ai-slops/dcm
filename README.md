@@ -39,7 +39,9 @@ The build emits:
 ## Web chart studio and Part agent
 
 The optional web studio provides ten-panel tap/hold editing, tempo-aware audio preview, undo/redo,
-saved project/audio import, finite-model evaluation, SSC ZIP export, and reviewable agent proposals.
+saved project/audio import, finite-model evaluation, native UCS import/export, SSC ZIP export, and
+reviewable agent proposals. UCS transfers preserve DCM's actual taps, chords, holds, and exact
+piecewise timing, and reuse the same audio-clock visualizer. See [UCS support and limits](docs/ucs.md).
 The agent uses the real `@slop-lab/part` runtime; provider credentials remain on the local server.
 
 In a Linux DIM workspace, the shortest path is:
