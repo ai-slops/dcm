@@ -4,7 +4,7 @@ import { resolve } from "node:path"
 
 import { chromium } from "playwright"
 
-import { agentBrowser } from "./agent-live-support.mjs"
+import { agentBrowser, observeAgentBrowser } from "./agent-live-support.mjs"
 import {
   bootstrap,
   browserConfiguration,
@@ -26,32 +26,7 @@ const browser = await chromium.launch(configuration.launch)
 const context = await browser.newContext(configuration.context)
 const page = await context.newPage()
 const { startTask, finishTask, proposalCard } = agentBrowser(page, configuration.url)
-const errors = []
-const consoleErrors = []
-const foreignRequests = []
-let submissions = 0
-page.on("pageerror", (error) => errors.push(error.message))
-page.on("console", (message) => {
-  if (message.type() === "error") consoleErrors.push(message.text())
-})
-page.on("request", (request) => {
-  const url = new URL(request.url())
-  if (
-    ["http:", "https:"].includes(url.protocol) &&
-    url.origin !== new URL(configuration.url).origin
-  )
-    foreignRequests.push(url.origin)
-  if (url.pathname === "/api/v1/agent/runs" && request.method() === "POST") submissions += 1
-})
-await page.addInitScript(() => {
-  window.Audio = new Proxy(window.Audio, {
-    construct(Target, args) {
-      const audio = new Target(...args)
-      window.__studioAudio = audio
-      return audio
-    },
-  })
-})
+const observed = await observeAgentBrowser(page, configuration.url)
 let baseline
 let audio
 let owned
@@ -83,7 +58,7 @@ try {
     assert.ok(
       inspection.run.tool_calls.some((call) => call.tool_id === tool && call.state === "completed"),
     )
-  assert.equal(submissions, 1, "Refresh must not resubmit the model task")
+  assert.equal(observed.submissions, 1, "Refresh must not resubmit the model task")
   receipt.inspection = {
     status: inspection.run.status,
     model: inspection.run.model,
@@ -115,6 +90,17 @@ try {
   const stale = proposalAt(3000)
   assert.ok(rejected && applied && stale)
   assert.deepEqual(applied.chart.notes, baseline.document.project.chart.notes.slice(0, -1))
+  assert.deepEqual(applied.before, {
+    chart: baseline.document.project.chart,
+    music: baseline.document.project.music,
+  })
+  const preview = await proposalCard(applied).locator(".proposal-diff").innerText()
+  assert.ok(preview.includes(String(applied.music.offset_micros)))
+  const laterId = await startTask(
+    "Use read_document once and briefly confirm the saved chart note count. Do not propose or apply any changes.",
+  )
+  await finishTask(laterId)
+  const focusedPrompt = await page.locator(".agent-event--prompt").innerText()
   await page.reload()
   await proposalCard(rejected).waitFor()
   await proposalCard(applied).scrollIntoViewIfNeeded()
@@ -132,6 +118,13 @@ try {
   )
   assert.deepEqual(owned.project.chart, applied.chart)
   assert.deepEqual(owned.project.music, applied.music)
+  await page
+    .locator(".agent-tool")
+    .filter({ hasText: "generate_variant" })
+    .getByText("unavailable", { exact: true })
+    .waitFor()
+  assert.ok((await page.locator(".agent-run-status").innerText()).includes("Run completed"))
+  assert.equal(await page.locator(".agent-event--prompt").innerText(), focusedPrompt)
   assert.equal(
     await page.getByLabel("Audio offset", { exact: true }).inputValue(),
     String(applied.music.offset_micros),
@@ -179,6 +172,7 @@ try {
     rejected: 2,
     stale_http_status: conflict.status(),
     media_clock_delta_seconds: changedSeek - originalSeek,
+    owner_history_after_later_run: true,
   }
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 900 })
@@ -210,10 +204,15 @@ try {
   assert.equal(cancelled.status, "cancelled")
   assert.deepEqual((await bootstrap(context, configuration.url)).document, owned)
   receipt.cancellation = { status: cancelled.status, recovered_after_refresh: true }
+  await page.locator(".agent-run-status").scrollIntoViewIfNeeded()
   await page.screenshot({ path: resolve(evidence, "cancelled.png") })
-  assert.deepEqual(errors, [])
-  assert.deepEqual(consoleErrors, [])
-  assert.deepEqual(foreignRequests, [], "The browser must never contact the private model router")
+  assert.deepEqual(observed.errors, [])
+  assert.deepEqual(observed.consoleErrors, [])
+  assert.deepEqual(
+    observed.foreignRequests,
+    [],
+    "The browser must never contact the private model router",
+  )
   writeFileSync(resolve(evidence, "live-evidence.json"), JSON.stringify(receipt, null, 2), {
     mode: 0o600,
   })

@@ -3,6 +3,40 @@ import assert from "node:assert/strict"
 import { AgentRunSnapshotSchema } from "../../shared/index.ts"
 import { bootstrap } from "./ucs-support.mjs"
 
+export async function observeAgentBrowser(page, origin) {
+  const errors = []
+  const consoleErrors = []
+  const foreignRequests = []
+  let submissions = 0
+  page.on("pageerror", (error) => errors.push(error.message))
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text())
+  })
+  page.on("request", (request) => {
+    const url = new URL(request.url())
+    if (["http:", "https:"].includes(url.protocol) && url.origin !== new URL(origin).origin)
+      foreignRequests.push(url.origin)
+    if (url.pathname === "/api/v1/agent/runs" && request.method() === "POST") submissions += 1
+  })
+  await page.addInitScript(() => {
+    window.Audio = new Proxy(window.Audio, {
+      construct(Target, args) {
+        const audio = new Target(...args)
+        window.__studioAudio = audio
+        return audio
+      },
+    })
+  })
+  return {
+    errors,
+    consoleErrors,
+    foreignRequests,
+    get submissions() {
+      return submissions
+    },
+  }
+}
+
 export function agentBrowser(page, url) {
   return {
     async startTask(prompt) {
