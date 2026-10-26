@@ -11,9 +11,13 @@ const EnvironmentSchema = z
     STUDIO_PUBLIC_ORIGIN: z.url().optional(),
     STUDIO_PASSWORD_FILE: z.string().min(1).optional(),
     STUDIO_INSTANCE_ID: z.string().optional(),
+    STUDIO_AGENT_PROVIDER: z.enum(["off", "dim", "standalone"]).optional(),
+    STUDIO_AGENT_MODEL: z.string().min(1).max(200).optional(),
+    DIM_LLM_ROUTER_CONNECTION_FILE: z.string().min(1).optional(),
     PART_ENDPOINT: z.url().optional(),
     PART_MODEL: z.string().min(1).optional(),
     PART_API_KEY: z.string().min(1).optional(),
+    PART_API: z.enum(["chat", "responses"]).optional(),
   })
   .passthrough()
 
@@ -26,10 +30,14 @@ export type StudioConfig = {
   readonly allowedOrigins: ReadonlySet<string>
   readonly publicAccess?: { readonly origin: string; readonly password: string }
   readonly instanceId: string
+  readonly agentProvider: "off" | "dim" | "standalone"
+  readonly agentModel?: string
+  readonly dimConnectionFile?: string
   readonly part?: {
     readonly endpoint: URL
     readonly model: string
     readonly apiKey?: string
+    readonly api?: "chat" | "responses"
   }
 }
 
@@ -63,12 +71,22 @@ export function loadConfig(environment: NodeJS.ProcessEnv): StudioConfig {
     }
     publicAccess = { origin: publicOrigin.origin, password: credential.slice("studio:".length) }
   }
+  const agentProvider =
+    parsed.STUDIO_AGENT_PROVIDER ??
+    (publicAccess === undefined && endpoint !== undefined && model !== undefined
+      ? "standalone"
+      : "off")
   return {
     dataRoot: resolve(parsed.STUDIO_DATA ?? resolve(repoRoot, ".pump-studio")),
     repoRoot,
     clientRoot: resolve(repoRoot, "web/dist/client"),
     port,
     instanceId: parsed.STUDIO_INSTANCE_ID ?? "foreground",
+    agentProvider,
+    ...(parsed.STUDIO_AGENT_MODEL === undefined ? {} : { agentModel: parsed.STUDIO_AGENT_MODEL }),
+    ...(parsed.DIM_LLM_ROUTER_CONNECTION_FILE === undefined
+      ? {}
+      : { dimConnectionFile: parsed.DIM_LLM_ROUTER_CONNECTION_FILE }),
     ...(publicAccess === undefined ? {} : { publicAccess }),
     allowedHosts: new Set([
       `127.0.0.1:${port}`,
@@ -84,11 +102,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv): StudioConfig {
       "http://localhost:5173",
       ...(publicOrigin === undefined ? [] : [publicOrigin.origin]),
     ]),
-    ...(publicAccess === undefined && endpoint !== undefined && model !== undefined
+    ...(agentProvider === "standalone" && endpoint !== undefined && model !== undefined
       ? {
           part: {
             endpoint: new URL(endpoint),
             model,
+            api: parsed.PART_API ?? "chat",
             ...(parsed.PART_API_KEY === undefined ? {} : { apiKey: parsed.PART_API_KEY }),
           },
         }
