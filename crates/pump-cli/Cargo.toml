@@ -12,6 +12,7 @@ ed25519-dalek.workspace = true
 getrandom.workspace = true
 hex.workspace = true
 pump-chart = { path = "../pump-chart" }
+pump-ucs = { path = "../pump-ucs" }
 pump-bridge = { path = "../pump-bridge" }
 pump-eval = { path = "../pump-eval" }
 pump-core = { path = "../pump-core" }

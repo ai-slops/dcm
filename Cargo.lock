@@ -902,6 +902,7 @@ dependencies = [
  "pump-chart",
  "pump-core",
  "pump-eval",
+ "pump-ucs",
  "serde",
  "serde_json",
  "sha2",
@@ -1025,6 +1026,15 @@ name = "pump-style-calm-component"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.53.1",
+]
+
+[[package]]
+name = "pump-ucs"
+version = "0.1.0"
+dependencies = [
+ "pump-chart",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
