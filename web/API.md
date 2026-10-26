@@ -6,8 +6,9 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
 ## Runtime and trust boundary
 
 - Run `web` with Node.js `>=24.22.0` and pnpm `10.17.1`.
-- The browser never sends a provider endpoint, model name, API key, native executable path, or
-  filesystem path. The server reads provider/native configuration from trusted startup settings.
+- The browser never sends a provider endpoint, API key, native executable path, or filesystem path.
+  It may select a catalog model ID; the server resolves its endpoint/API from trusted configuration
+  and rejects IDs absent from the current catalog.
 - Browser requests are same-origin. The server creates an HTTP-only session cookie and returns a
   `csrf_token` from bootstrap. Every state-changing request and the agent event stream sends that
   value as `x-csrf-token`. The event stream uses `fetch`/ky, not `EventSource`, so it can set the
@@ -22,9 +23,10 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
   containing `studio:<password>`. HTTP Basic sign-in protects every static/API/audio request,
   including loopback requests. Missing or invalid sign-in returns `401` with `WWW-Authenticate`,
   before session bootstrap. Cookies are Secure in public mode, including behind the HTTP proxy.
-- Public mode disables Part even if provider settings exist. The preview launcher also uses an
-  allowlisted runtime environment and does not load `web/.env`, so provider/router credentials
-  are not inherited by the public server or its native children. Local mode retains `.env` setup.
+- Public mode defaults to Part off. Explicit `STUDIO_AGENT_PROVIDER=dim` uses the private workspace
+  connection file, not inherited account keys. The preview launcher forwards only allowlisted safe
+  settings and does not load `web/.env`. Provider tokens/endpoints never appear in public status;
+  native subprocesses do not receive provider credentials. Local mode retains standalone setup.
 - `GET /health` is the only unauthenticated route. It returns
   `{ service: "pump-studio", ready: true, instance }`, where `instance` is the launcher-owned
   `STUDIO_INSTANCE_ID` or `"foreground"`. This is process readiness, not native certification.
@@ -41,10 +43,11 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
 - `evaluation-contract.ts`: the complete native `EvalContract` and nested schemas.
 - `assessment.ts`: the complete native `NativeAssessment`, `EvaluationResponse`, and schemas.
 - `project.ts`: `AudioAsset`, `StudioProjectV1`, and schemas.
+- `provider.ts`: safe catalog model/API and provider status schemas; catalog extensions are stripped.
 - `api.ts`: `Revision`, `CurrentDocument`, `ChartProposal`, `Bootstrap`, `ApiError`, agent run/event
   types, request types, all corresponding schemas, and `ApiRoutes`.
 
-All object schemas reject unknown keys. Every JSON integer must be a safe integer. Integers are
+Document mutation and event object schemas reject unknown keys. Every JSON integer must be a safe integer. Integers are
 nonnegative except `music.offset_micros`, which is signed. Studio bounds are 1,000,000 duration
 ticks, 10,000 chart notes, and 4,096 tempo segments. Fractions are positive-denominator reduced
 pairs. SHA-256 is exactly 32 integer bytes. Music tempo starts at tick zero and is strictly ordered;
@@ -112,10 +115,18 @@ UCS files are capped at 16 MiB and audio at 32 MiB; the bounded multipart envelo
 1 MiB of overhead. Unknown/duplicate multipart fields are rejected.
 
 Agent SSE events are a finite discriminated union with common `{ run_id, sequence }` fields:
-`status`, `delta`, `tool`, `proposal`, `error`, and `completed`. Sequence starts at zero and strictly
+`status`, `delta`, `tool`, `proposal`, `error`, `completed`, and recovery `snapshot`. Sequence starts at zero and strictly
 increases per run. Reconnect resumes after `Last-Event-ID`; if retained events are unavailable, the
 snapshot endpoint is authoritative. A run snapshots `base_revision`; agent output can only create a
 proposal. It never mutates the document. A proposal applies only when its base revision is current.
+
+`AgentRunRequest` accepts `{ base_revision, prompt, model_id? }`. Bootstrap includes safe provider
+status/model catalog, tool readiness, active run, latest terminal runs, and pending session proposals.
+Canonical run snapshots retain bounded text, ordered tool-call previews, model/API, safe terminal
+error, and apply/reject decisions. Tool events expose call ID, state, bounded input/output preview,
+and safe error; they never expose private reasoning or provider transport payloads.
+Proposals may include a complete replacement `music` object and a note/timing change summary.
+They cannot replace audio identity and apply chart/music atomically under the revision guard.
 
 ## State and concurrency
 
@@ -126,6 +137,10 @@ proposal. It never mutates the document. A proposal applies only when its base r
   the draft is dirty; stale proposals are never applied.
 - Native generation is limited to the server demo bundle and only when current music exactly matches
   the bundle profile. A mismatch returns `409 profile_mismatch`; it does not reset or replace music.
+- Runs/proposals/decisions are session-owned in-memory state, not durable files. Refresh within the
+  same session recovers them; server restart or a new browser session does not. Retention is 32 runs/session,
+  256 runtime records globally, 512 events/run, 64 KiB text and 8 KiB per tool preview. Runtime limits
+  include a 120-second deadline, eight model invocations and sixteen tool dispatches.
 
 ## Part 0.1.0 integration evidence
 
@@ -140,6 +155,10 @@ Both Part packages are exact-pinned at `0.1.0`; release source is commit
 - `createOpenAICompatibleAdapter` is imported from
   `@slop-lab/part-plugins/providers/openai-compatible/index.js`. The adapter implements text and
   runtime function tools through Chat Completions JSON/SSE, not Responses, media, or hosted tools.
+- `createOpenAIResponsesAdapter` comes from the matching `providers/openai-responses/index.js`
+  subpath. It supports stateless Responses text/runtime tools and native reasoning replay. A local
+  wrapper discards only DIM's out-of-band `response.metadata` SSE extension; Part still validates
+  response lifecycle, output identity, tool calls, and completion. Requests use `store:false`.
 - `createFetchTransport({ allowedOrigins })`, `noAuth`, and `bearerAuth` come from
   `@slop-lab/part/model/index.js`. Fetch rejects non-HTTP(S), unlisted origins, redirects, unsupported
   auth bindings, and missing endpoints.
@@ -147,8 +166,8 @@ Both Part packages are exact-pinned at `0.1.0`; release source is commit
   tool. The basic driver executes tool calls and supplies assistant call plus tool result to the next
   model turn.
 
-`server/agent/part-runtime.ts` installs four scoped tools: `read_document`, `evaluate_chart`,
-`generate_variant`, and `propose_chart`. They read the frozen run snapshot, invoke bounded native
+`server/agent/part-runtime.ts` installs five scoped tools: `read_document`, `evaluate_chart`,
+`generate_variant`, `validate_ucs`, and `propose_chart`. They read the frozen run snapshot, invoke bounded native
 operations, or create review-only proposals; they never expose shell or arbitrary file access.
 The initial fixture test exercises a real HTTP read-document round trip. The full API tests also
 exercise changed-chart proposals, explicit application, cancellation, failure cleanup, and SSE
