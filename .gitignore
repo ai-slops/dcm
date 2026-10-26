@@ -9,6 +9,7 @@
 /web/dist/
 /.pump-studio/
 /.studio-dev/
+/.local/
 /web/.env
 /web/.env.local
 /.playwright-mcp/
