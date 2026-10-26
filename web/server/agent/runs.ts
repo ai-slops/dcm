@@ -100,6 +100,13 @@ export class AgentRuns {
     return record
   }
 
+  snapshot(session: StudioSession, id: string): AgentRunSnapshot {
+    const snapshot = session.runs.get(id)
+    if (snapshot === undefined)
+      throw new StudioError(404, "run_not_found", "Agent run was not found")
+    return snapshot
+  }
+
   recordDecision(
     session: StudioSession,
     runId: string | undefined,

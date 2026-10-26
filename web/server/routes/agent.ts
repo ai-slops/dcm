@@ -32,7 +32,7 @@ export function registerAgentRoutes(app: StudioApp, services: Services): void {
   })
 
   app.get("/api/v1/agent/runs/:id", (context) => {
-    return context.json(services.runs.get(context.get("session"), context.req.param("id")).snapshot)
+    return context.json(services.runs.snapshot(context.get("session"), context.req.param("id")))
   })
 
   app.delete("/api/v1/agent/runs/:id", async (context) => {

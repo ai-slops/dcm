@@ -67,6 +67,13 @@ it.each([false, true])(
             summary: proposal.summary,
           },
         ])
+      const recovered = await studio.app.request(
+        "http://127.0.0.1:4173/api/v1/agent/runs/evicted-run",
+        {
+          headers: { cookie: response.headers.get("set-cookie")?.split(";", 1)[0] ?? "" },
+        },
+      )
+      expect(recovered.status).toBe(retainSnapshot ? 200 : 404)
     } finally {
       await rm(root, { recursive: true, force: true })
     }
