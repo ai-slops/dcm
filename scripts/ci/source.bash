@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+# The compiler starts in /workspace/main but mounts this script at /run/dim/job/script.
+# Keep that reviewed repository working directory; $0 is not its source path.
+if [ ! -f Cargo.toml ] || [ ! -f scripts/studio-prerequisites.sh ]; then
+  printf '%s\n' 'Run source CI from the candidate repository root.' >&2
+  exit 1
+fi
 
 stage=prerequisites
 trap 'printf "DCM source CI failed during %s (line %s)\n" "$stage" "$LINENO" >&2' ERR
