@@ -22,6 +22,7 @@ type AgentPanelProps = {
   readonly proposals: readonly ChartProposal[]
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onBootstrap: (bootstrap: Bootstrap) => void
+  readonly runtimeError?: string
   readonly apply: (proposal: ChartProposal) => Promise<void>
   readonly discard: (proposal: ChartProposal) => Promise<void>
 }
@@ -56,6 +57,11 @@ export function AgentPanel(props: AgentPanelProps) {
   )
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
   const interactionBusy = controller.busy !== null || proposalBusy !== null
+  const actionError =
+    controller.actionError ||
+    (props.runtimeError
+      ? `${props.runtimeError}. Displayed readiness may be stale; reload to retry.`
+      : "")
 
   useEffect(() => {
     setModelId((current) => {
@@ -127,9 +133,9 @@ export function AgentPanel(props: AgentPanelProps) {
           />
         ))}
       </div>
-      {controller.actionError !== "" && (
+      {actionError !== "" && (
         <p className="field-error agent-action-error" role="alert">
-          {controller.actionError}
+          {actionError}
         </p>
       )}
       <AgentComposer

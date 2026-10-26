@@ -246,6 +246,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
             proposals={proposalOwner.proposals}
             onProposal={proposalOwner.addProposal}
             onBootstrap={refreshed.accept}
+            runtimeError={refreshed.refreshError}
             apply={proposalOwner.apply}
             discard={proposalOwner.discard}
           />

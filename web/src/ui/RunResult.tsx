@@ -61,7 +61,7 @@ export function RunResult({
       <p>{text}</p>
       {truncated && (
         <p className="run-result__truncation">
-          Retained text is truncated. Earlier runtime text is no longer present in this snapshot.
+          Retained text is truncated. Only the beginning is retained; later text was omitted.
         </p>
       )}
     </article>

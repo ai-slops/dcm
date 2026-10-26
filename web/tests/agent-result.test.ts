@@ -47,7 +47,7 @@ describe("agent run result", () => {
   it("discloses when retained run text was truncated", () => {
     // Given / When
     const markup = renderToStaticMarkup(
-      createElement(RunResult, { text: "Retained tail", status: "completed", truncated: true }),
+      createElement(RunResult, { text: "Retained prefix", status: "completed", truncated: true }),
     )
 
     // Then
