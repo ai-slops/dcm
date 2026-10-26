@@ -10,6 +10,25 @@ import {
 } from "../../shared/index.ts"
 
 describe("agent event streaming", () => {
+  it("bounds retained UTF-8 text on wire events as well as snapshots", () => {
+    const stream = new RunEvents(
+      AgentRunSnapshotSchema.parse({
+        id: "bounded",
+        base_revision: 0,
+        status: "running",
+        prompt: "Inspect",
+        last_sequence: 0,
+      }),
+      () => undefined,
+    )
+    expect(() => stream.publish({ type: "delta", text: "😀".repeat(10_000) })).not.toThrow()
+    expect(Buffer.byteLength(JSON.stringify(stream.events))).toBeLessThan(9_000)
+    stream.publish({ type: "completed", text: "😀".repeat(50_000) })
+    expect(Buffer.byteLength(stream.snapshot.text ?? "")).toBeLessThanOrEqual(65_536)
+    expect(stream.snapshot.text_truncated).toBe(true)
+    expect(stream.events.at(-1)).toMatchObject({ type: "completed", truncated: true })
+  })
+
   it("retains safe terminal errors in the canonical snapshot", () => {
     const stream = new RunEvents(
       AgentRunSnapshotSchema.parse({

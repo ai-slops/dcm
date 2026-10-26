@@ -10,6 +10,7 @@ import type {
   NativeMusic,
   StudioProjectV1,
 } from "../../shared/index.ts"
+import { truncateUtf8 } from "../../shared/text.ts"
 import { StudioError } from "../errors.ts"
 import {
   ChartSchema,
@@ -258,5 +259,5 @@ function preview(value: unknown): { readonly text: string; readonly truncated: b
   const text = JSON.stringify(value)
   const bytes = Buffer.from(text, "utf8")
   if (bytes.byteLength <= 8_192) return { text, truncated: false }
-  return { text: bytes.subarray(0, 8_192).toString("utf8"), truncated: true }
+  return { text: truncateUtf8(text, 8_192), truncated: true }
 }

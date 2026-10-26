@@ -4,6 +4,7 @@ import {
   type AgentStreamEvent,
   AgentStreamEventSchema,
 } from "../../shared/index.ts"
+import { MAX_AGENT_DELTA_BYTES, MAX_AGENT_TEXT_BYTES, truncateUtf8 } from "../../shared/text.ts"
 
 const MAX_EVENTS = 512
 
@@ -52,8 +53,18 @@ export class RunEvents {
 
   publish(payload: EventPayload): void {
     const sequence = this.events.length === 0 ? 0 : (this.events.at(-1)?.sequence ?? 0) + 1
+    const text =
+      "text" in payload
+        ? truncateUtf8(
+            payload.text,
+            payload.type === "delta" ? MAX_AGENT_DELTA_BYTES : MAX_AGENT_TEXT_BYTES,
+          )
+        : undefined
     const event = AgentStreamEventSchema.parse({
       ...payload,
+      ...(text === undefined
+        ? {}
+        : { text, truncated: text !== ("text" in payload ? payload.text : "") }),
       run_id: this.#snapshot.id,
       sequence,
     })
@@ -87,9 +98,17 @@ function applyEvent(snapshot: AgentRunSnapshot, event: AgentStreamEvent): AgentR
     case "snapshot":
       return event.snapshot
     case "delta":
-      return { ...base, text: `${snapshot.text ?? ""}${event.text}`.slice(0, 65_536) }
+      return {
+        ...base,
+        text: truncateUtf8(`${snapshot.text ?? ""}${event.text}`, MAX_AGENT_TEXT_BYTES),
+        text_truncated:
+          snapshot.text_truncated === true ||
+          event.truncated === true ||
+          new TextEncoder().encode(`${snapshot.text ?? ""}${event.text}`).byteLength >
+            MAX_AGENT_TEXT_BYTES,
+      }
     case "completed":
-      return { ...base, text: event.text.slice(0, 65_536) }
+      return { ...base, text: event.text, text_truncated: event.truncated === true }
     case "tool": {
       const calls = [...(snapshot.tool_calls ?? [])]
       const id = event.call_id ?? `${event.tool_id}-${event.sequence}`

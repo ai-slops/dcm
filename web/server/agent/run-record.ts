@@ -3,6 +3,7 @@ import {
   AgentRunSnapshotSchema,
   type AgentStreamEvent,
   type CurrentDocument,
+  MAX_SESSION_PROPOSALS,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import type { StudioSession } from "../sessions.ts"
@@ -15,6 +16,7 @@ import type {
   ProposalInput,
 } from "./part-runtime.ts"
 import { buildAgentProposal } from "./proposal.ts"
+import { safeFailure, safeProviderCode, safeProviderMessage } from "./run-errors.ts"
 import { type EventPayload, RunEvents } from "./run-events.ts"
 import type { AgentConfiguration, NativeOperations } from "./runs.ts"
 
@@ -181,15 +183,16 @@ export class RunRecord {
   async #propose(input: ProposalInput, signal: AbortSignal) {
     if (this.#terminal || signal.aborted)
       throw new StudioError(409, "run_cancelled", "Run is no longer active")
-    const owned = [...this.session.proposals.values()].filter(
-      (proposal) =>
-        proposal.source === "agent" && proposal.base_revision === this.document.revision,
-    )
-    if (owned.length >= MAX_PROPOSALS)
-      throw new StudioError(409, "proposal_limit", "Run proposal limit reached")
     await Promise.resolve()
     if (this.#terminal || signal.aborted)
       throw new StudioError(409, "run_cancelled", "Run is no longer active")
+    const owned = [...this.session.proposals.values()].filter(
+      (proposal) => proposal.source === "agent" && proposal.run_id === this.snapshot.id,
+    )
+    if (owned.length >= MAX_PROPOSALS)
+      throw new StudioError(409, "proposal_limit", "Run proposal limit reached")
+    if (this.session.proposals.size >= MAX_SESSION_PROPOSALS)
+      throw new StudioError(409, "proposal_limit", "Review pending proposals before creating more")
     const proposal = buildAgentProposal(this.document, input, this.snapshot.id)
     this.session.proposals.set(proposal.id, proposal)
     this.#publish({ type: "proposal", proposal })
@@ -269,25 +272,4 @@ export class RunRecord {
   #close(): void {
     this.#stream.close()
   }
-}
-
-function safeFailure(error: unknown): [string, string] {
-  if (error instanceof StudioError) return [error.code, error.message]
-  return ["agent_runtime_failed", "Agent run failed"]
-}
-
-function safeProviderMessage(code: string): string {
-  if (/auth|unauthorized|forbidden/i.test(code)) return "Agent provider authentication failed"
-  if (/rate|quota|limit/i.test(code)) return "Agent provider rate limit was reached"
-  if (/model|unsupported/i.test(code)) return "Selected agent model is unavailable or incompatible"
-  if (/timeout|network|transport/i.test(code)) return "Agent provider could not be reached"
-  return "Agent provider request failed"
-}
-
-function safeProviderCode(code: string): string {
-  if (/auth|unauthorized|forbidden/i.test(code)) return "agent_provider_auth"
-  if (/rate|quota|limit/i.test(code)) return "agent_provider_rate_limit"
-  if (/model|unsupported/i.test(code)) return "agent_model_unavailable"
-  if (/timeout|network|transport|http/i.test(code)) return "agent_provider_unavailable"
-  return "agent_provider_request"
 }

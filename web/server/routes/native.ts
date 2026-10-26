@@ -2,6 +2,7 @@ import {
   BaseRevisionRequestSchema,
   ChartProposalSchema,
   GenerationRequestSchema,
+  MAX_SESSION_PROPOSALS,
   type StudioProjectV1,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
@@ -25,12 +26,19 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
       request.seed,
     )
     const session = context.get("session")
+    if (session.proposals.size >= MAX_SESSION_PROPOSALS)
+      throw new StudioError(
+        409,
+        "proposal_limit",
+        "Review pending proposals before generating more",
+      )
     const proposal = ChartProposalSchema.parse({
       id: services.sessions.proposalId(),
       base_revision: document.revision,
       source: "native_generate",
       summary: `Native candidate for seed ${request.seed.slice(0, 8)}`,
       chart,
+      before: { chart: document.project.chart, music: document.project.music },
     })
     session.proposals.set(proposal.id, proposal)
     return context.json(proposal)

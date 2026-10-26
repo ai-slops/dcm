@@ -4,6 +4,7 @@ import type { EvaluationResponseSchema } from "./assessment.ts"
 import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
 import { StudioProjectV1Schema } from "./project.ts"
 import { AgentProviderStatusSchema, ProviderApiSchema } from "./provider.ts"
+import { MAX_AGENT_DELTA_BYTES, MAX_AGENT_TEXT_BYTES } from "./text.ts"
 
 export { ApiRoutes } from "./routes.ts"
 
@@ -11,6 +12,14 @@ export const RevisionSchema = NonNegativeIntegerSchema.brand("Revision")
 export const SessionIdSchema = z.string().min(1).brand("SessionId")
 export const ProposalIdSchema = z.string().min(1).brand("ProposalId")
 export const AgentRunIdSchema = z.string().min(1).brand("AgentRunId")
+export const MAX_SESSION_PROPOSALS = 16
+
+const AgentTextSchema = z
+  .string()
+  .refine((value) => new TextEncoder().encode(value).byteLength <= MAX_AGENT_TEXT_BYTES)
+const AgentDeltaSchema = z
+  .string()
+  .refine((value) => new TextEncoder().encode(value).byteLength <= MAX_AGENT_DELTA_BYTES)
 
 export const CurrentDocumentSchema = z
   .strictObject({ revision: RevisionSchema, project: StudioProjectV1Schema })
@@ -25,6 +34,10 @@ export const ChartProposalSchema = z
     summary: z.string().min(1).max(1_024),
     chart: NativeChartSchema,
     music: NativeMusicSchema.optional(),
+    before: z
+      .strictObject({ chart: NativeChartSchema, music: NativeMusicSchema })
+      .readonly()
+      .optional(),
     changes: z
       .strictObject({
         notes_added: NonNegativeIntegerSchema,
@@ -72,7 +85,8 @@ export const AgentRunSnapshotSchema = z
     status: z.enum(["queued", "running", "completed", "cancelled", "failed"]),
     prompt: z.string().min(1).max(16_384),
     last_sequence: NonNegativeIntegerSchema,
-    text: z.string().max(65_536).optional(),
+    text: AgentTextSchema.optional(),
+    text_truncated: z.boolean().optional(),
     model: z.string().min(1).max(200).optional(),
     api: ProviderApiSchema.optional(),
     error: AgentToolErrorSchema.optional(),
@@ -102,7 +116,7 @@ export const BootstrapSchema = z
       .max(16)
       .readonly()
       .optional(),
-    proposals: z.array(ChartProposalSchema).readonly().optional(),
+    proposals: z.array(ChartProposalSchema).max(MAX_SESSION_PROPOSALS).readonly().optional(),
     active_run: AgentRunSnapshotSchema.nullable().optional(),
     recent_runs: z.array(AgentRunSnapshotSchema).max(32).readonly().optional(),
   })
@@ -163,7 +177,14 @@ export const AgentStreamEventSchema = z.discriminatedUnion("type", [
       status: z.enum(["queued", "running", "cancelled"]),
     })
     .readonly(),
-  z.strictObject({ ...AgentEventBase, type: z.literal("delta"), text: z.string() }).readonly(),
+  z
+    .strictObject({
+      ...AgentEventBase,
+      type: z.literal("delta"),
+      text: AgentDeltaSchema,
+      truncated: z.boolean().optional(),
+    })
+    .readonly(),
   z
     .strictObject({
       ...AgentEventBase,
@@ -188,7 +209,14 @@ export const AgentStreamEventSchema = z.discriminatedUnion("type", [
       message: z.string().min(1),
     })
     .readonly(),
-  z.strictObject({ ...AgentEventBase, type: z.literal("completed"), text: z.string() }).readonly(),
+  z
+    .strictObject({
+      ...AgentEventBase,
+      type: z.literal("completed"),
+      text: AgentTextSchema,
+      truncated: z.boolean().optional(),
+    })
+    .readonly(),
 ])
 
 export type Revision = z.infer<typeof RevisionSchema>
