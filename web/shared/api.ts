@@ -1,8 +1,9 @@
 import { z } from "zod"
 
 import type { EvaluationResponseSchema } from "./assessment.ts"
-import { NativeChartSchema, NonNegativeIntegerSchema } from "./native.ts"
+import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
 import { StudioProjectV1Schema } from "./project.ts"
+import { AgentProviderStatusSchema, ProviderApiSchema } from "./provider.ts"
 
 export { ApiRoutes } from "./routes.ts"
 
@@ -20,8 +21,47 @@ export const ChartProposalSchema = z
     id: ProposalIdSchema,
     base_revision: RevisionSchema,
     source: z.enum(["native_generate", "agent"]),
+    run_id: AgentRunIdSchema.optional(),
     summary: z.string().min(1).max(1_024),
     chart: NativeChartSchema,
+    music: NativeMusicSchema.optional(),
+    changes: z
+      .strictObject({
+        notes_added: NonNegativeIntegerSchema,
+        notes_removed: NonNegativeIntegerSchema,
+        timing_changed: z.boolean(),
+        offset_before: z.number().int().safe(),
+        offset_after: z.number().int().safe(),
+        tick_start: NonNegativeIntegerSchema.optional(),
+        tick_end: NonNegativeIntegerSchema.optional(),
+        lanes: z.array(NonNegativeIntegerSchema.max(9)).max(10).readonly(),
+      })
+      .readonly()
+      .optional(),
+  })
+  .readonly()
+
+const PreviewSchema = z.string().max(8_192)
+const AgentToolErrorSchema = z
+  .strictObject({ code: z.string().min(1).max(128), message: z.string().min(1).max(1_024) })
+  .readonly()
+const AgentToolCallSchema = z
+  .strictObject({
+    id: z.string().min(1).max(256),
+    tool_id: z.string().min(1).max(128),
+    state: z.enum(["started", "completed", "failed"]),
+    input_preview: PreviewSchema,
+    output_preview: PreviewSchema.optional(),
+    error: AgentToolErrorSchema.optional(),
+    truncated: z.boolean().optional(),
+  })
+  .readonly()
+const ProposalDecisionSchema = z
+  .strictObject({
+    id: ProposalIdSchema,
+    status: z.enum(["applied", "rejected"]),
+    revision: RevisionSchema.optional(),
+    summary: z.string().min(1).max(1_024),
   })
   .readonly()
 
@@ -32,6 +72,12 @@ export const AgentRunSnapshotSchema = z
     status: z.enum(["queued", "running", "completed", "cancelled", "failed"]),
     prompt: z.string().min(1).max(16_384),
     last_sequence: NonNegativeIntegerSchema,
+    text: z.string().max(65_536).optional(),
+    model: z.string().min(1).max(200).optional(),
+    api: ProviderApiSchema.optional(),
+    error: AgentToolErrorSchema.optional(),
+    tool_calls: z.array(AgentToolCallSchema).max(64).readonly().optional(),
+    proposal_decisions: z.array(ProposalDecisionSchema).max(16).readonly().optional(),
   })
   .readonly()
 
@@ -41,15 +87,24 @@ export const BootstrapSchema = z
     csrf_token: z.string().min(1),
     session_id: SessionIdSchema,
     native: z.strictObject({ ready: z.boolean(), message: z.string().min(1) }).readonly(),
-    agent: z
-      .strictObject({
-        configured: z.boolean(),
-        provider: z.string().nullable(),
-        model: z.string().nullable(),
-      })
-      .readonly(),
+    agent: AgentProviderStatusSchema,
+    tools: z
+      .array(
+        z
+          .strictObject({
+            id: z.string().min(1).max(128),
+            description: z.string().min(1).max(1_024),
+            available: z.boolean(),
+            reason: z.string().min(1).max(1_024).optional(),
+          })
+          .readonly(),
+      )
+      .max(16)
+      .readonly()
+      .optional(),
     proposals: z.array(ChartProposalSchema).readonly().optional(),
     active_run: AgentRunSnapshotSchema.nullable().optional(),
+    recent_runs: z.array(AgentRunSnapshotSchema).max(32).readonly().optional(),
   })
   .readonly()
 
@@ -84,6 +139,7 @@ export const AgentRunRequestSchema = z
   .strictObject({
     base_revision: RevisionSchema,
     prompt: z.string().trim().min(1).max(16_384),
+    model_id: z.string().min(1).max(200).optional(),
   })
   .readonly()
 
@@ -93,6 +149,13 @@ const AgentEventBase = {
 } as const
 
 export const AgentStreamEventSchema = z.discriminatedUnion("type", [
+  z
+    .strictObject({
+      ...AgentEventBase,
+      type: z.literal("snapshot"),
+      snapshot: AgentRunSnapshotSchema,
+    })
+    .readonly(),
   z
     .strictObject({
       ...AgentEventBase,
@@ -106,7 +169,12 @@ export const AgentStreamEventSchema = z.discriminatedUnion("type", [
       ...AgentEventBase,
       type: z.literal("tool"),
       tool_id: z.string().min(1),
-      state: z.enum(["started", "completed"]),
+      call_id: z.string().min(1).max(256).optional(),
+      state: z.enum(["started", "completed", "failed"]),
+      input_preview: PreviewSchema.optional(),
+      output_preview: PreviewSchema.optional(),
+      error: AgentToolErrorSchema.optional(),
+      truncated: z.boolean().optional(),
     })
     .readonly(),
   z

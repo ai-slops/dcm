@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
-import { canonicalizeChart, EvalContractSchema, StudioProjectV1Schema } from "../shared/index.ts"
+import {
+  AgentRunSnapshotSchema,
+  AgentStreamEventSchema,
+  BootstrapSchema,
+  canonicalizeChart,
+  EvalContractSchema,
+  StudioProjectV1Schema,
+} from "../shared/index.ts"
 import { repoRoot } from "./support/paths.ts"
 
 describe("canonicalizeChart", () => {
@@ -105,5 +112,126 @@ describe("EvalContractSchema", () => {
     // Then
     expect(result.success).toBe(false)
     if (!result.success) expect(result.error.issues[0]?.path).toEqual(["intents"])
+  })
+})
+
+describe("agent recovery contracts", () => {
+  it("parses bounded canonical tool state and proposal decisions", () => {
+    // Given
+    const snapshot = {
+      id: "run-1",
+      base_revision: 3,
+      status: "completed",
+      prompt: "Inspect",
+      last_sequence: 8,
+      text: "Done",
+      model: "gpt-6.1-sol",
+      api: "responses",
+      tool_calls: [
+        {
+          id: "call-1",
+          tool_id: "validate_ucs",
+          state: "completed",
+          input_preview: '{"mode":"Double"}',
+          output_preview: '{"valid":true}',
+        },
+      ],
+      proposal_decisions: [
+        { id: "proposal-1", status: "applied", revision: 4, summary: "Applied timing edit" },
+      ],
+    }
+
+    // When
+    const result = AgentRunSnapshotSchema.safeParse(snapshot)
+
+    // Then
+    expect(result.success).toBe(true)
+  })
+
+  it("parses failed tool detail without exposing an unbounded payload", () => {
+    // Given
+    const event = {
+      run_id: "run-1",
+      sequence: 4,
+      type: "tool",
+      tool_id: "evaluate_chart",
+      call_id: "call-1",
+      state: "failed",
+      input_preview: "{}",
+      error: { code: "native_unavailable", message: "Native runtime is unavailable" },
+    }
+
+    // When
+    const result = AgentStreamEventSchema.safeParse(event)
+
+    // Then
+    expect(result.success).toBe(true)
+  })
+
+  it("parses provider discovery, tool availability, and recent terminal runs on bootstrap", () => {
+    // Given
+    const project = StudioProjectV1Schema.parse({
+      schema_version: 1,
+      title: "Fixture",
+      artist: "PUMP",
+      music: {
+        duration_ticks: 32,
+        ticks_per_beat: 4,
+        offset_micros: 0,
+        tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
+        audio_sha256: Array.from({ length: 32 }, () => 0),
+        reference_accents: [],
+      },
+      chart: { ticks_per_beat: 4, span_ticks: 32, notes: [] },
+      evaluation_contract: {
+        schema_version: 2,
+        history_policy: { recent_window: 0, max_request_history: 0 },
+        foot_model: {
+          version: 1,
+          micros_per_panel_unit: 100_000,
+          bracket_setup_micros: 100_000,
+          crossover_penalty: 2,
+          bracket_penalty: 3,
+        },
+        difficulty: {
+          label: "fixture",
+          density: { minimum: 0, maximum: 1 },
+          movement: { minimum: 0, maximum: 1 },
+          brackets: { minimum: 0, maximum: 1 },
+          hold_occupancy: { minimum: 0, maximum: 1 },
+          local_load: { minimum: 0, maximum: 1 },
+          total: { minimum: 0, maximum: 1 },
+          local_windows: [],
+        },
+        intents: [],
+        budgets: { max_notes: 10, max_frames: 10, max_dp_work: 10, max_matching_work: 10 },
+      },
+      audio_asset: { format: "wav", byte_length: 44 },
+    })
+    const bootstrap = {
+      document: { revision: 3, project },
+      csrf_token: "csrf",
+      session_id: "session-1",
+      native: { ready: true, message: "ready" },
+      proposals: [],
+      active_run: null,
+      agent: {
+        configured: true,
+        provider: "DIM workspace router",
+        model: null,
+        source: "dim",
+        api: null,
+        runtime: "@slop-lab/part@0.1.0",
+        models: [{ id: "gpt-6.1-sol", name: "GPT", api: "responses" }],
+      },
+      tools: [{ id: "read_document", description: "Read project", available: true }],
+      recent_runs: [],
+    }
+
+    // When
+    const result = BootstrapSchema.safeParse(bootstrap)
+
+    // Then
+    expect(result.success).toBe(true)
   })
 })
