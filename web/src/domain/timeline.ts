@@ -1,5 +1,5 @@
 import type { NativeChart, NativeMusic } from "../../shared/index.ts"
-import { tickToAudioMicros } from "./timing.ts"
+import { bpmAtTick, tickToAudioMicros } from "./timing.ts"
 
 export const TIMELINE_WINDOW_ROWS = 48
 
@@ -7,7 +7,6 @@ export type TimelineCellState = "tap" | "hold-head" | "hold-body" | "hold-tail"
 
 type TimelineWindowInput = {
   readonly sourceTick: number
-  readonly quantize: number
   readonly spanTicks: number
 }
 
@@ -26,7 +25,7 @@ const statePriority: Readonly<Record<TimelineCellState, number>> = {
 }
 
 export function timelineWindowStart(input: TimelineWindowInput): number {
-  const pageTicks = input.quantize * TIMELINE_WINDOW_ROWS
+  const pageTicks = TIMELINE_WINDOW_ROWS
   const boundedTick = Math.min(Math.max(input.sourceTick, 0), Math.max(input.spanTicks - 1, 0))
   return Math.floor(boundedTick / pageTicks) * pageTicks
 }
@@ -34,26 +33,18 @@ export function timelineWindowStart(input: TimelineWindowInput): number {
 export function buildVisibleCellIndex(
   chart: NativeChart,
   startTick: number,
-  quantize: number,
-  rowCount: number,
+  rowCount = TIMELINE_WINDOW_ROWS,
 ): ReadonlyMap<string, TimelineCellState> {
   const cells = new Map<string, TimelineCellState>()
-  const endTick = startTick + quantize * rowCount
+  const endTick = startTick + rowCount
   for (const note of chart.notes) {
     const noteEnd = note.tick + note.hold_ticks
     if (note.tick >= endTick || noteEnd < startTick) continue
     for (let panel = 0; panel < 10; panel += 1) {
       if ((note.panel_mask & (1 << panel)) === 0) continue
-      const firstRow = Math.max(
-        0,
-        Math.ceil((Math.max(note.tick, startTick) - startTick) / quantize),
-      )
-      const lastRow = Math.min(
-        rowCount - 1,
-        Math.floor((Math.min(noteEnd, endTick - 1) - startTick) / quantize),
-      )
-      for (let row = firstRow; row <= lastRow; row += 1) {
-        const tick = startTick + row * quantize
+      const firstTick = Math.max(note.tick, startTick)
+      const lastTick = Math.min(noteEnd, endTick - 1)
+      for (let tick = firstTick; tick <= lastTick; tick += 1) {
         const state = cellState(note.tick, note.hold_ticks, tick)
         if (state !== null) setCell(cells, `${tick}:${panel}`, state)
       }
@@ -68,15 +59,9 @@ export function timingContextAtTick(
   audioMicros = tickToAudioMicros(music, tick),
 ): TimingContext {
   const boundedTick = Math.min(Math.max(tick, 0), music.duration_ticks)
-  const segment = [...music.tempo].reverse().find((item) => item.start_tick <= boundedTick)
-  const microsPerBeat = segment?.micros_per_beat
-  const bpm =
-    microsPerBeat === undefined
-      ? 0
-      : (60_000_000 * microsPerBeat.denominator) / microsPerBeat.numerator
   return {
     beat: formatBeat(boundedTick, music.ticks_per_beat),
-    bpm,
+    bpm: bpmAtTick(music, boundedTick),
     songTime: formatSongTime(audioMicros),
     offset: formatOffset(music.offset_micros),
   }

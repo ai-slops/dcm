@@ -7,13 +7,11 @@ export function TimelinePlayhead({
   playback,
   start,
   pageTicks,
-  quantize,
   followAudio,
 }: {
   readonly playback: AudioPlaybackController
   readonly start: number
   readonly pageTicks: number
-  readonly quantize: number
   readonly followAudio: boolean
 }) {
   const snapshot = usePlaybackSnapshot(playback)
@@ -46,7 +44,7 @@ export function TimelinePlayhead({
       className="timeline__playhead"
       data-testid="timeline-playhead"
       style={{
-        transform: `translateY(calc(${(tick - start) / quantize} * var(--timeline-row-size)))`,
+        transform: `translateY(calc(${tick - start} * var(--timeline-row-size)))`,
       }}
     />
   )

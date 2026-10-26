@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { NativeChart, NativeMusic } from "../shared/index.ts"
+import { snapPlacementTick } from "../src/domain/edit-snap.ts"
 import {
   buildVisibleCellIndex,
   timelineWindowStart,
@@ -23,8 +24,8 @@ describe("timeline window selection", () => {
   it("advances on the exact 48-row boundary", () => {
     // Given a one-tick quantized 48-row window
     // When selecting the last tick of one page and the first tick of the next
-    const previous = timelineWindowStart({ sourceTick: 47, quantize: 1, spanTicks: 192 })
-    const next = timelineWindowStart({ sourceTick: 48, quantize: 1, spanTicks: 192 })
+    const previous = timelineWindowStart({ sourceTick: 47, spanTicks: 192 })
+    const next = timelineWindowStart({ sourceTick: 48, spanTicks: 192 })
 
     // Then the boundary belongs to the next stable page
     expect(previous).toBe(0)
@@ -36,7 +37,7 @@ describe("timeline window selection", () => {
     const selectedTick = 7
 
     // When the followed window is derived from the audio clock
-    const start = timelineWindowStart({ sourceTick: 103.5, quantize: 2, spanTicks: 192 })
+    const start = timelineWindowStart({ sourceTick: 103.5, spanTicks: 192 })
 
     // Then playback chooses the visible page while the cursor value is untouched
     expect(start).toBe(96)
@@ -46,7 +47,7 @@ describe("timeline window selection", () => {
   it("clamps an old frozen window into a shorter replacement chart", () => {
     // Given a manual window far beyond a newly imported chart
     // When the replacement span is used to recompute the window
-    const start = timelineWindowStart({ sourceTick: 9_600, quantize: 1, spanTicks: 12 })
+    const start = timelineWindowStart({ sourceTick: 9_600, spanTicks: 12 })
 
     // Then the only valid 48-row page begins at zero
     expect(start).toBe(0)
@@ -66,11 +67,19 @@ describe("visible timeline cells", () => {
     }
 
     // When visible cells are indexed once for the current window
-    const cells = buildVisibleCellIndex(chart, 0, 1, 48)
+    const cells = buildVisibleCellIndex(chart, 0)
 
     // Then the later tap remains legible instead of being painted as a hold body
     expect(cells.get("8:0")).toBe("tap")
   })
+})
+
+it("snaps only future placements down to the selected edit grid within chart bounds", () => {
+  expect(snapPlacementTick(7, 2, 32)).toBe(6)
+  expect(snapPlacementTick(7, 4, 32)).toBe(4)
+  expect(snapPlacementTick(7, 8, 32)).toBe(0)
+  expect(snapPlacementTick(99, 8, 32)).toBe(24)
+  expect(snapPlacementTick(-1, 8, 32)).toBe(0)
 })
 
 describe("timeline timing context", () => {

@@ -37,19 +37,15 @@ export function Timeline(props: TimelineProps) {
   const [followAudio, setFollowAudio] = useState(true)
   const [manualStart, setManualStart] = useState(cursorStart)
   const start = usePlaybackWindowStart(props.playback, followAudio, manualStart, props)
-  const pageTicks = props.quantize * TIMELINE_WINDOW_ROWS
+  const pageTicks = TIMELINE_WINDOW_ROWS
   const ticks = useMemo(
     () =>
-      Array.from(
-        { length: TIMELINE_WINDOW_ROWS },
-        (_, index) => start + index * props.quantize,
-      ).filter((value) => value < props.chart.span_ticks),
-    [props.chart.span_ticks, props.quantize, start],
+      Array.from({ length: TIMELINE_WINDOW_ROWS }, (_, index) => start + index).filter(
+        (value) => value < props.chart.span_ticks,
+      ),
+    [props.chart.span_ticks, start],
   )
-  const cells = useMemo(
-    () => buildVisibleCellIndex(props.chart, start, props.quantize, TIMELINE_WINDOW_ROWS),
-    [props.chart, props.quantize, start],
-  )
+  const cells = useMemo(() => buildVisibleCellIndex(props.chart, start), [props.chart, start])
 
   useEffect(() => {
     if (!followAudio && previousSelectedTick.current !== props.selectedTick) {
@@ -162,7 +158,6 @@ export function Timeline(props: TimelineProps) {
             playback={props.playback}
             start={start}
             pageTicks={pageTicks}
-            quantize={props.quantize}
             followAudio={followAudio}
           />
           {ticks.map((rowTick) => (
@@ -222,7 +217,7 @@ function usePlaybackWindowStart(
   playback: AudioPlaybackController,
   followAudio: boolean,
   manualStart: number,
-  props: Pick<TimelineProps, "chart" | "quantize">,
+  props: Pick<TimelineProps, "chart">,
 ): number {
   const getSnapshot = useCallback(() => {
     if (!followAudio) return manualStart
@@ -233,10 +228,9 @@ function usePlaybackWindowStart(
   return useSyncExternalStore(playback.subscribe, getSnapshot, getSnapshot)
 }
 
-function windowStart(sourceTick: number, props: Pick<TimelineProps, "chart" | "quantize">): number {
+function windowStart(sourceTick: number, props: Pick<TimelineProps, "chart">): number {
   return timelineWindowStart({
     sourceTick,
-    quantize: props.quantize,
     spanTicks: props.chart.span_ticks,
   })
 }

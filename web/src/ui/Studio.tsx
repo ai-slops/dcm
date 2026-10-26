@@ -7,6 +7,7 @@ import type {
   StudioProjectV1,
 } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
+import { quantizedPlacementTick } from "../domain/edit-snap.ts"
 import type { PanelIndex } from "../domain/editor.ts"
 import { editPanelAtTick, findPanelDemand, updatePanelDemand } from "../domain/editor.ts"
 import { AgentPanel } from "./AgentPanel.tsx"
@@ -91,18 +92,22 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   }, [])
 
   function editCell(nextTick: number, nextLane: PanelIndex) {
-    setTick(nextTick)
-    setLane(nextLane)
-    if (tool === "select") return
     try {
       const existing = findPanelDemand(project.chart, nextTick, nextLane)
+      const placementTick =
+        tool !== "select" && tool !== "erase" && existing === undefined
+          ? quantizedPlacementTick(project.chart, { tick: nextTick, panel: nextLane }, quantize)
+          : nextTick
+      setTick(placementTick)
+      setLane(nextLane)
+      if (tool === "select") return
       const action =
         tool === "erase" ||
         (tool === "tap" && existing?.tick === nextTick && existing.hold_ticks === 0)
           ? "erase"
           : "place"
       const chart = editPanelAtTick(project.chart, {
-        tick: nextTick,
+        tick: placementTick,
         panel: nextLane,
         holdTicks: tool === "hold" ? holdTicks : 0,
         action,
