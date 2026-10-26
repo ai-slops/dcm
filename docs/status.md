@@ -41,8 +41,10 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
   and signed offsets for the documented Single/Double profile. The same audio-clock visualizer
   uses a bounded, synchronized timeline. UCS transfers remain uncertified drafts, with no video
   OCR, video-to-chart extraction, or imported observation pipeline; see `ucs.md`.
-- Real `@slop-lab/part` 0.1.0 runtime with server-only OpenAI-compatible provider configuration,
-  scoped chart tools, cancellation, SSE recovery, and explicit proposal approval.
+- Real `@slop-lab/part` 0.1.0 runtime with explicit workspace-scoped DIM discovery/model selection
+  and standalone Chat Completions or Responses configuration. Five scoped chart/native tools,
+  bounded observable results, cancellation, session refresh recovery, and explicit chart/timing
+  proposal apply/reject with stale-revision protection. Live-provider smoke is opt-in; see `studio.md`.
 - Independent Node 24.22+ web commands, documented in `studio.md`; existing CLI and v1 gateway
   remain separate. Provider credentials and physical Windows/game-engine validation are not assumed.
 

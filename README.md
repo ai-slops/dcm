@@ -43,6 +43,8 @@ saved project/audio import, finite-model evaluation, native UCS import/export, S
 reviewable agent proposals. UCS transfers preserve DCM's actual taps, chords, holds, and exact
 piecewise timing, and reuse the same audio-clock visualizer. See [UCS support and limits](docs/ucs.md).
 The agent uses the real `@slop-lab/part` runtime; provider credentials remain on the local server.
+An existing DIM workspace can deliberately enable its scoped model router without a new account
+key; standalone Chat Completions and Responses remain supported. See [provider setup](docs/studio.md#configure-a-real-model-provider).
 
 In a Linux DIM workspace, the shortest path is:
 
