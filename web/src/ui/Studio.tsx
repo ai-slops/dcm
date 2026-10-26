@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import type {
   Bootstrap,
@@ -20,6 +20,7 @@ import type { EditorTool } from "./studio-types.ts"
 import { Transport } from "./Transport.tsx"
 import { useAudioPlayback } from "./useAudioPlayback.ts"
 import { useBeforeUnload } from "./useBeforeUnload.ts"
+import { useProposalOwner } from "./useProposalOwner.ts"
 
 export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   const [project, setProjectState] = useState<StudioProjectV1>(bootstrap.document.project)
@@ -36,7 +37,6 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   const [holdTicks, setHoldTicks] = useState(project.chart.ticks_per_beat)
   const [quantize, setQuantize] = useState(1)
   const [tab, setTab] = useState<MobileTab>("editor")
-  const [proposals, setProposals] = useState<readonly ChartProposal[]>(bootstrap.proposals ?? [])
   const [status, setStatus] = useState("Ready")
   const [validationError, setValidationError] = useState("")
   const [past, setPast] = useState<readonly StudioProjectV1[]>([])
@@ -86,10 +86,6 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setPast([])
     setFuture([])
   }
-
-  const addProposal = useCallback((proposal: ChartProposal) => {
-    setProposals((current) => [proposal, ...current.filter((item) => item.id !== proposal.id)])
-  }, [])
 
   function editCell(nextTick: number, nextLane: PanelIndex) {
     try {
@@ -159,7 +155,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     }
   }
 
-  async function apply(proposal: ChartProposal) {
+  async function applyProposal(proposal: ChartProposal) {
     const startedFromProject = projectRef.current
     const document = await studioApi.applyProposal(bootstrap.csrf_token, proposal.id, {
       base_revision: revision,
@@ -177,13 +173,13 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setProject(reconciled.project)
     setPersistedProject(reconciled.persistedProject)
     setRevision(reconciled.revision)
-    setProposals((current) => current.filter((item) => item.id !== proposal.id))
   }
 
-  async function discard(proposal: ChartProposal) {
+  async function discardProposal(proposal: ChartProposal) {
     await studioApi.discardProposal(bootstrap.csrf_token, proposal.id)
-    setProposals((current) => current.filter((item) => item.id !== proposal.id))
   }
+
+  const proposalOwner = useProposalOwner(bootstrap.proposals ?? [], applyProposal, discardProposal)
 
   return (
     <main className="studio-shell">
@@ -200,8 +196,9 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
         redo={redo}
         save={save}
         onDocument={acceptDocument}
-        onProposal={addProposal}
+        onProposal={proposalOwner.addProposal}
         onStatus={setStatus}
+        onOpenAgent={() => setTab("agent")}
       />
       <MobileTabs selected={tab} onSelect={setTab} />
       <div className="studio-body">
@@ -238,15 +235,16 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           id="agent-panel"
           role="tabpanel"
           aria-labelledby="agent-tab"
+          tabIndex={-1}
         >
           <AgentPanel
             bootstrap={bootstrap}
             dirty={dirty}
             revision={revision}
-            proposals={proposals}
-            onProposal={addProposal}
-            apply={apply}
-            discard={discard}
+            proposals={proposalOwner.proposals}
+            onProposal={proposalOwner.addProposal}
+            apply={proposalOwner.apply}
+            discard={proposalOwner.discard}
           />
         </aside>
       </div>

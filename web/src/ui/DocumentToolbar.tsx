@@ -1,4 +1,4 @@
-import { Redo2, Save, Undo2 } from "lucide-react"
+import { Bot, Redo2, Save, Undo2 } from "lucide-react"
 
 import type {
   Bootstrap,
@@ -24,6 +24,7 @@ type DocumentToolbarProps = {
   readonly onDocument: (document: CurrentDocument) => void
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
+  readonly onOpenAgent?: () => void
 }
 
 export function DocumentToolbar(props: DocumentToolbarProps) {
@@ -63,6 +64,13 @@ export function DocumentToolbar(props: DocumentToolbarProps) {
           onClick={() => void props.save()}
         >
           {saveLabel}
+        </Button>
+        <Button
+          className="open-agent-button"
+          icon={<Bot size={15} />}
+          onClick={() => props.onOpenAgent?.()}
+        >
+          Agent
         </Button>
         <StudioActions
           onMode={(mode) => props.setProject({ ...props.project, ucs_mode: mode })}
