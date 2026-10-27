@@ -91,6 +91,7 @@ non-UCS native stderr stays private. Exact native rational overflow is separatel
 | `POST /api/v1/imports` | multipart `base_revision` decimal + `project` JSON part + one `audio` file | `CurrentDocument` |
 | `POST /api/v1/evaluations` | `BaseRevisionRequest` | `{ summary, raw_native }` validated by `EvaluationResponseSchema` |
 | `POST /api/v1/generations` | `GenerationRequest` with lowercase 64-hex seed | `ChartProposal` with source `native_generate` |
+| `GET /api/v1/projects/song-template/:songId` | none | authoritative empty `ChartDocument` using retained ZIP UCS timing when available |
 | `POST /api/v1/exports` | `BaseRevisionRequest` | `application/zip` SSC export |
 | `POST /api/v1/ucs/export` | `{ base_revision, mode: "Single" \| "Double" }` | actual UCS bytes, `text/plain; charset=utf-8`, attachment filename and `x-pump-certification: none` |
 | `POST /api/v1/ucs/import` | multipart `base_revision`, one `chart` UCS file, optional `audio` file | `CurrentDocument` with native parsed chart/music and persisted `ucs_mode` |
@@ -136,6 +137,8 @@ sixteen per browser session across revisions, including native generation.
 - The server owns one current document, monotonically increasing revision, proposals, run snapshots,
   and content-addressed audio under ignored `/.pump-studio/`. Write a replacement atomically before
   publishing its revision. Serialize all mutations.
+- `CurrentDocument.origin` is a server-derived projection of generated-chart provenance. Clients
+  cannot save it, and V3 persistence continues to store only document revision and project data.
 - The browser owns local draft edits and undo/redo. Save is explicit. Apply/import is disabled while
   the draft is dirty; stale proposals are never applied.
 - Native generation is limited to the server demo bundle and only when current music exactly matches

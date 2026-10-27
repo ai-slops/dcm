@@ -105,12 +105,22 @@ Coral is the product action accent. Cyan is a data identity for the second five-
 | Playhead | `--playhead` | `#FFF0C7` | Current timing line and transport marker |
 | Hold body | `--hold-fill` | `rgb(255 240 199 / 0.24)` | Hold duration, combined with pad-colored head/tail |
 | Rejected pattern | `--rejected-pattern` | `repeating-linear-gradient(135deg, transparent 0 4px, rgb(255 107 118 / 0.24) 4px 6px)` | Rejected candidate overlay; not color alone |
+| Note blue low | `--note-blue-low` | `#142D45` | Blue lane well, hold body tint, and inactive physical pad |
+| Note blue | `--note-blue` | `#4EA3E3` | Lane positions 1 and 5 within each five-panel pad |
+| Note blue high | `--note-blue-high` | `#A8D8FA` | Blue note edge, receptor label, and active pad ring |
+| Note red low | `--note-red-low` | `#401A20` | Red lane well, hold body tint, and inactive physical pad |
+| Note red | `--note-red` | `#E45561` | Lane positions 2 and 4 within each five-panel pad |
+| Note red high | `--note-red-high` | `#FFB0B7` | Red note edge, receptor label, and active pad ring |
+| Note yellow low | `--note-yellow-low` | `#3B3010` | Yellow center-lane well, hold body tint, and inactive physical pad |
+| Note yellow | `--note-yellow` | `#E7BC3F` | Lane position 3 within each five-panel pad |
+| Note yellow high | `--note-yellow-high` | `#FFE59A` | Yellow note edge, receptor label, and active pad ring |
 
 ### Color rules
 
 - Never use color alone for lane, evaluation, save, provider, or proposal state.
 - Coral and cyan text must be tested against their actual surfaces. Small text uses high-ramp values, not mid-ramp values.
 - The beat grid remains neutral until data, selection, playback, or evaluation gives color a job.
+- Note identity repeats by physical five-panel position as blue, red, yellow, red, blue on both pads. Every colored lane retains its `L` or `R` text and directional label; hue never replaces pad-side or panel-position text.
 - No raw hex, RGB, HSL, or named color may appear outside the token declaration layer.
 
 ## 3. Typography
@@ -222,6 +232,9 @@ Only these regions scroll vertically: Inspector body, Agent stream, and any moda
 - Lane headers remain visible while the beat grid scrolls. Left five lanes use coral identifiers; right five use cyan identifiers. Lane headers also include `L` or `R`, so color is not the only cue.
 - The Studio always visualizes the native ten-lane DCM chart. When the persisted UCS preference is Single, show the compact factual context `DCM 10 lanes · UCS Single uses left pad`; do not hide the right pad or imply Single changes the native chart model.
 - New placements snap down to the selected edit grid; existing notes and every native display row remain unchanged. A snapped placement onto an occupied target is rejected rather than replacing another note. Tap is a compact head. Hold is a head, duration body, and tail. The body uses `--hold-fill`; head and tail preserve pad identity.
+- Timeline scrolling is continuous and bounded. A finite physical runway rebases around the same logical visible tick before browser scroll-height limits are reached; rebase, tempo edits, chart replacement, and follow-audio updates preserve the visible tick anchor. The playhead crosses virtual-window boundaries without disappearing.
+- Pointer gestures capture on the stable timeline scroller, never a virtualized cell. A stationary pointerup commits one tap/delete; vertical movement commits one inclusive head-to-tail hold; pointer cancellation commits nothing. Near-edge dragging scrolls the same owner and extends the gesture without synthesizing a click after pointerup.
+- Named automatic regions render a hatched band and pinned visible name header across every intersecting row, including a region that starts above the current virtual window. Read-only region cells expose their reason and do not invoke mutation callbacks.
 - The grid exposes a visible keyboard cursor, pointer hover target, selected cells/range, current playhead, and evaluation overlays as separate layers.
 - The preview pane contains the physical two-pad diamond layout, current contacts, upcoming contacts, and exact current beat. It does not imitate a game skin or claim in-engine fidelity.
 
@@ -452,6 +465,16 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 - **Mutation lock:** while a project create/write or project load is in flight, every rule identity/JSON field and every project inspection/navigation control is disabled. The response may reset the form only after the user can no longer create a newer local draft during that request.
 - **Generated chart handoff:** generation shows the finite-model assessment and created saved-chart identity without replacing the current draft. `Open generated chart` uses the existing dirty-document save/discard guard and accepts only a `saved_current` result before switching.
 - **Responsive and accessibility:** lists and action clusters wrap into one column below tablet width, all actions retain `--control-touch`, labels remain visible above JSON editors, and operation state uses adjacent status/error regions.
+
+### ProjectGridEditor
+
+- **Structure:** production `/projects/:id/edit` route behind the existing bootstrap/auth boundary; compact project/song identity and save state, fixed-note tool dock, native Timeline canvas, automatic-region inspector, exact timing-tail controls, generation handoff, and the standard Transport bound to the selected song audio.
+- **Persistence:** the route edits the saved rule project, never the active Studio chart document. Save sends the complete `write_project` payload with the loaded project revision. A revision conflict leaves the exact local draft visible and dirty. Page leave, Back, and close paths warn before discarding unsaved rules.
+- **Hybrid rules:** V2 exposes only persisted `fixed_notes` and named `regions`; no generation rule is inferred from chart content or hidden in a chart document. Fixed-note placement inside an automatic region, snapshot collision, or hold-tail collision is rejected rather than replacing or truncating data. Erase and region removal are explicit labelled actions.
+- **Legacy conversion:** V1 remains JSON-editable and unchanged until the user opens the explicit conversion confirmation, names one region, and confirms. Conversion wraps the exact weighted cycle in one UUID-named automatic region with no fixed notes and warns that the hybrid algorithm can resample output.
+- **Timing:** the selected song's immutable ZIP timing template comes from its dedicated project API. Grid, tempo fractions, offset, and reference accents are copied exactly with no BPM display round-trip. `Add tail` accepts positive whole ticks and an optional exact BPM; it extends duration/chart span only, preserves every old timing value, and adds a tempo marker at the old end only when the supplied fraction differs. Regions do not auto-extend.
+- **Generated handoff:** generation persists a new inactive saved chart and exposes `View generated chart`; the route never activates it or replaces the root Studio document.
+- **Responsive and accessibility:** desktop uses a grid-dominant canvas with a token-width scroll-owning inspector. Below desktop the inspector follows the grid in one scroll owner. Inputs retain visible labels, errors remain adjacent, all actions reach `--control-touch` below tablet width, automatic region names remain textual on Timeline, and hatch patterns supplement rather than replace labels.
 
 ### Primitive showcase gate
 

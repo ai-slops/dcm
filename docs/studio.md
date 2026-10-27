@@ -146,6 +146,42 @@ seconds. Temporary invalid text does not replace the last valid projection with 
 
 ## Rule projects and the component library
 
+### Visual fixed-note and automatic-range authoring
+
+Use a saved project's **Edit grid** action to open `/projects/<project-id>/edit`. This grid edits
+the project's executable source, not the active saved chart result. Click an empty cell to place
+a tap; click an occupied tap or any part of a hold to remove that lane's demand. Drag vertically
+within a lane to create a hold, releasing at its tail. Cancellation does not commit a partial
+gesture. Other lanes of a chord remain untouched.
+
+Every editor placement reserves one UCS cell per lane/tick, including the hold-tail cell. A new
+onset cannot share that tail cell, and invalid overlapping gestures leave the previous notes intact.
+Playback still treats hold activity as half-open; the stricter editing rule reflects UCS encoding.
+
+Hybrid rules (`hybrid_regions_v1`, schema version 2) combine literal `fixed_notes` and named
+automatic regions. Region names and patterned backgrounds remain visible while scrolling through
+their ranges, including when their first row is above the viewport. Automatic ranges own all lanes
+over `[start_tick, end_tick)` and cannot overlap fixed cells or each other. Their generated hold
+tails must end before the range's exclusive end. Edit the region's rules instead of drawing fixed
+notes inside it. There is no silent note deletion, clipping, or resampling to conceal conflicts.
+
+Generation creates an independent chart result and stores a read-only snapshot of region names and
+bounds as origin metadata. Later project edits do not relabel old results. Existing version-1
+weighted-cycle projects remain valid; conversion to hybrid authoring is an explicit action, and
+the new region-local sampling algorithm may produce different notes for the same seed. Within
+version 2, changing a region name, an unrelated fixed note, another region, or the tail duration
+does not reshuffle an unchanged region's choices.
+
+New projects use the selected song's original UCS ZIP timing where available: exact grid,
+piecewise tempo, signed offset, and original duration, not the current Root editor's timing.
+Appending a tail extends duration without reconstructing or rounding that imported prefix; a new
+tempo segment is added at the former end only when a different tail BPM is requested.
+
+The editor uses a bounded continuous virtual scroll surface rather than 48-tick page replacement.
+Tempo boundaries change the media-clock-to-tick projection without restarting the scroll position.
+Note colors repeat **blue, red, yellow, red, blue** for each five-lane pad. Left/right identity is
+also stated in labels rather than relying on color.
+
 Open **Projects and library** to create a real rule project. Select a background song and explicitly
 choose **Single** or **Double**; leaving mode unselected cannot create a project. That song and mode
 are immutable for the project. Use another project when either must change.
