@@ -1,6 +1,6 @@
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, resolve } from "node:path"
+import { resolve } from "node:path"
 
 import { zipSync } from "fflate"
 import { z } from "zod"
@@ -17,7 +17,10 @@ import {
 import { StudioError } from "../errors.ts"
 import type { AudioRecord } from "../store.ts"
 import { type BundleCompileInput, resolveBundle } from "./bundle-cache.ts"
+import { nativeExecutable } from "./paths.ts"
 import { ProcessPool } from "./process.ts"
+
+export { exportFilename, nativeExecutable } from "./paths.ts"
 
 const GeneratedSchema = z.strictObject({
   candidate_id: z.array(z.number().int().min(0).max(255)).length(32),
@@ -96,6 +99,12 @@ export class NativeService {
     seed: string,
     signal?: AbortSignal,
   ): Promise<NativeChart> {
+    if (project.ucs_mode === "Single")
+      throw new StudioError(
+        422,
+        "legacy_single_generation",
+        "Single charts must be generated from a rule project",
+      )
     await this.#requireReady()
     const bundle = await this.#ensureBundle(project, audio, signal)
     const output = await this.#pool.run(
@@ -111,6 +120,12 @@ export class NativeService {
     audio: AudioRecord,
     signal?: AbortSignal,
   ): Promise<Uint8Array> {
+    if (project.ucs_mode === "Single")
+      throw new StudioError(
+        422,
+        "legacy_single_ssc_export",
+        "Single charts cannot be exported as Pump Double SSC; use UCS export",
+      )
     await this.#requireReady()
     return withWorkspace("pump-export-", async (root) => {
       const chart = resolve(root, "chart.json")
@@ -245,15 +260,4 @@ async function withWorkspace<T>(
   } finally {
     await rm(root, { recursive: true, force: true })
   }
-}
-
-export function exportFilename(project: StudioProjectV1): string {
-  return `${basename(project.title.replaceAll(/[^A-Za-z0-9._-]/g, "-") || "pump-chart")}.zip`
-}
-
-export function nativeExecutable(
-  repoRoot: string,
-  platform: NodeJS.Platform = process.platform,
-): string {
-  return resolve(repoRoot, "dist", platform === "win32" ? "pump.exe" : "pump")
 }
