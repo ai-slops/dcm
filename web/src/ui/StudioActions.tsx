@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Settings, Upload, WandSparkles } from "lucide-react"
+import { ArrowLeftRight, LibraryBig, Settings, WandSparkles } from "lucide-react"
 import { useState } from "react"
 
 import type {
@@ -11,8 +11,10 @@ import type {
 } from "../../shared/index.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { FileActionsDialog } from "./FileActionsDialog.tsx"
+import { LibraryDialog } from "./LibraryDialog.tsx"
 import { NativeActionsDialog } from "./NativeActionsDialog.tsx"
 import { IconButton } from "./primitives.tsx"
+import type { SaveResult } from "./studio-types.ts"
 import { UcsActionsDialog } from "./UcsActionsDialog.tsx"
 
 type ActionsProps = {
@@ -24,9 +26,10 @@ type ActionsProps = {
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
   readonly onMode: (mode: UcsMode) => void
+  readonly onSave: () => Promise<SaveResult | null>
 }
 
-type DialogName = "files" | "native" | "settings" | "ucs"
+type DialogName = "files" | "library" | "native" | "settings" | "ucs"
 
 export function StudioActions(props: ActionsProps) {
   const [open, setOpen] = useState<DialogName | null>(null)
@@ -34,9 +37,14 @@ export function StudioActions(props: ActionsProps) {
   return (
     <>
       <IconButton
-        label="Import and audio"
-        icon={<Upload size={15} />}
-        onClick={() => setOpen("files")}
+        label="Songs and library"
+        icon={<LibraryBig size={15} />}
+        onClick={() => setOpen("library")}
+      />
+      <IconButton
+        label="Settings"
+        icon={<Settings size={15} />}
+        onClick={() => setOpen("settings")}
       />
       <IconButton
         label="Generate and export"
@@ -48,11 +56,6 @@ export function StudioActions(props: ActionsProps) {
         icon={<ArrowLeftRight size={15} />}
         onClick={() => setOpen("ucs")}
       />
-      <IconButton
-        label="Settings"
-        icon={<Settings size={15} />}
-        onClick={() => setOpen("settings")}
-      />
       <FileActionsDialog
         csrfToken={props.bootstrap.csrf_token}
         dirty={props.dirty}
@@ -62,6 +65,19 @@ export function StudioActions(props: ActionsProps) {
         onClose={close}
         onDocument={props.onDocument}
         onStatus={props.onStatus}
+      />
+      <LibraryDialog
+        csrfToken={props.bootstrap.csrf_token}
+        dirty={props.dirty}
+        open={open === "library"}
+        revision={props.revision}
+        onClose={close}
+        onDocument={props.onDocument}
+        onSave={props.onSave}
+        onStatus={props.onStatus}
+        onOpenProjectFiles={() => setOpen("files")}
+        onOpenNativeTools={() => setOpen("native")}
+        onOpenUcsTransfer={() => setOpen("ucs")}
       />
       <NativeActionsDialog
         csrfToken={props.bootstrap.csrf_token}

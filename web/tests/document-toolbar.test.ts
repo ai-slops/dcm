@@ -78,7 +78,7 @@ function renderToolbar(status: string, dirty: boolean): string {
       setProject: () => undefined,
       undo: () => undefined,
       redo: () => undefined,
-      save: () => Promise.resolve(),
+      save: () => Promise.resolve(null),
       onDocument: (_document: CurrentDocument) => undefined,
       onProposal: () => undefined,
       onStatus: () => undefined,
@@ -97,5 +97,14 @@ describe("document toolbar save control", () => {
 
     // Then
     expect(markup).toContain(`aria-label="${name}"`)
+  })
+
+  it("uses one compact library entry for project and song workflows", () => {
+    // Given / When
+    const markup = renderToolbar("Saved", false)
+
+    // Then
+    expect(markup).toContain('aria-label="Songs and library"')
+    expect(markup).not.toContain('aria-label="Import and audio"')
   })
 })

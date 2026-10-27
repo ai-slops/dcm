@@ -8,6 +8,7 @@ import type {
 } from "../../shared/index.ts"
 import { Badge, Button, IconButton } from "./primitives.tsx"
 import { StudioActions } from "./StudioActions.tsx"
+import type { SaveResult } from "./studio-types.ts"
 
 type DocumentToolbarProps = {
   readonly bootstrap: Bootstrap
@@ -20,7 +21,7 @@ type DocumentToolbarProps = {
   readonly setProject: (project: StudioProjectV1) => void
   readonly undo: () => void
   readonly redo: () => void
-  readonly save: () => Promise<void>
+  readonly save: () => Promise<SaveResult | null>
   readonly onDocument: (document: CurrentDocument) => void
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
@@ -81,6 +82,7 @@ export function DocumentToolbar(props: DocumentToolbarProps) {
           onDocument={props.onDocument}
           onProposal={props.onProposal}
           onStatus={props.onStatus}
+          onSave={props.save}
         />
       </div>
     </header>
