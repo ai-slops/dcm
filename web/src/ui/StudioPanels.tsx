@@ -6,6 +6,7 @@ import {
   activePanelMaskAtSelectedTick,
   buildNoteAudioIntervals,
 } from "../domain/playback.ts"
+import { laneTone } from "../domain/timeline.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { Panel } from "./primitives.tsx"
 import { ScrollingChartPreview } from "./ScrollingChartPreview.tsx"
@@ -101,9 +102,10 @@ export function PlayfieldPads({
             <div className="playfield">
               {group.map((index) => (
                 <div
-                  className={`pad pad--${index < 5 ? "left" : "right"}`}
+                  className="pad"
                   data-active={(mask & (1 << index)) !== 0}
                   data-position={index % 5}
+                  data-tone={laneTone(index)}
                   key={laneLabels[index]}
                 >
                   <span>{laneLabels[index].slice(2)}</span>

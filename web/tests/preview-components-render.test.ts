@@ -28,6 +28,7 @@ it("keeps explicit pad-side identity in the scrolling preview", async () => {
   expect(markup).toContain("Right pad · R")
   expect(markup).toContain('aria-label="Preview lookahead range"')
   expect(markup).toContain('aria-label="Exact preview lookahead seconds"')
+  expect(markup).toContain('class="mono chart-preview__exact-input"')
   expect(markup).toContain('type="range"')
   expect(markup).toContain('min="0.1"')
   expect(markup).toContain('max="12"')

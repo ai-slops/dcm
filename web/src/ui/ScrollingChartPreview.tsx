@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from "react"
 
 import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
 import { buildChartPreviewIndex, projectVisibleContacts } from "../domain/chart-preview.ts"
+import { laneTone } from "../domain/timeline.ts"
 import { tickToAudioMicros } from "../domain/timing.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { laneLabels } from "./studio-types.ts"
@@ -91,7 +92,7 @@ export function ScrollingChartPreview({
             <label htmlFor={exactLookaheadId}>Exact seconds</label>
             <input
               id={exactLookaheadId}
-              className="mono"
+              className="mono chart-preview__exact-input"
               aria-label="Exact preview lookahead seconds"
               aria-describedby={lookaheadError === "" ? undefined : lookaheadErrorId}
               aria-invalid={lookaheadError === "" ? undefined : true}
@@ -125,12 +126,12 @@ export function ScrollingChartPreview({
         </div>
         <div className="chart-preview__lanes" aria-hidden="true">
           {visibleLanes.map((lane) => (
-            <span className={lane < 5 ? "is-left" : "is-right"} key={laneLabels[lane]} />
+            <span data-tone={laneTone(lane)} key={laneLabels[lane]} />
           ))}
         </div>
         <div className="chart-preview__receptors" aria-hidden="true">
           {visibleLanes.map((lane) => (
-            <span className={lane < 5 ? "is-left" : "is-right"} key={laneLabels[lane]}>
+            <span data-tone={laneTone(lane)} key={laneLabels[lane]}>
               {laneLabels[lane].slice(2)}
             </span>
           ))}
@@ -139,7 +140,8 @@ export function ScrollingChartPreview({
           {contacts.map((contact) => (
             <div
               aria-label={`${laneLabels[contact.lane]}, ${contact.kind}, tick ${contact.tick}${contact.kind === "hold" ? `, tail tick ${contact.tick + contact.holdTicks}` : ""}`}
-              className={`chart-contact chart-contact--${contact.kind} ${contact.lane < 5 ? "is-left" : "is-right"}`}
+              className={`chart-contact chart-contact--${contact.kind}`}
+              data-tone={laneTone(contact.lane)}
               key={contact.key}
               role="img"
               style={{

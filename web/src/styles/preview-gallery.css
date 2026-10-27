@@ -146,6 +146,11 @@
 .preview-gallery__timeline {
   block-size: var(--preview-field-height);
   min-inline-size: 0;
+  overflow: hidden;
+}
+
+.preview-gallery__timeline > .timeline {
+  block-size: 100%;
 }
 
 .preview-gallery__player .primitive-state-harness {

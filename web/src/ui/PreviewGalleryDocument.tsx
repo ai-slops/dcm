@@ -128,6 +128,7 @@ export function PreviewGalleryDocument({
               selectedTick={selectedTick}
               selectedLane={selectedLane}
               quantize={quantize}
+              automaticRegions={document.chart.generated_from?.automatic_regions}
               onQuantize={setQuantize}
               onCell={(tick, lane) => {
                 setSelectedTick(tick)
