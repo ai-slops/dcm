@@ -3,11 +3,13 @@ import { tmpdir } from "node:os"
 import { resolve } from "node:path"
 
 import {
+  ChartDocumentSchema,
   type StudioProjectV1,
   type UcsChart,
   UcsChartSchema,
   type UcsMode,
 } from "../../shared/index.ts"
+import { StudioError } from "../errors.ts"
 import type { AudioRecord } from "../store.ts"
 import { ProcessPool } from "./process.ts"
 import { nativeExecutable } from "./service.ts"
@@ -21,13 +23,16 @@ export class NativeUcsService {
   }
 
   export(project: StudioProjectV1, mode: UcsMode, signal?: AbortSignal): Promise<Uint8Array> {
+    const canonical = ChartDocumentSchema.parse(project)
+    if (canonical.ucs_mode !== mode)
+      throw new StudioError(409, "chart_mode_immutable", "UCS export mode must match the chart")
     return withUcsWorkspace(async (root) => {
       const chart = resolve(root, "chart.json")
       const music = resolve(root, "music.json")
       const output = resolve(root, "chart.ucs")
       await Promise.all([
-        writeFile(chart, JSON.stringify(project.chart)),
-        writeFile(music, JSON.stringify(project.music)),
+        writeFile(chart, JSON.stringify(canonical.chart)),
+        writeFile(music, JSON.stringify(canonical.music)),
       ])
       await this.#pool.run(
         this.#pump,
