@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { EvalContractSchema } from "./evaluation-contract.ts"
+import { validateProjectRules } from "./generation-rule-validation.ts"
 import { GenerationRulesSchema } from "./generation-rules.ts"
 import { LibraryLabelSchema, SongIdSchema } from "./library.ts"
 import { NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
@@ -80,36 +81,14 @@ export const GenerationProjectSchema = z
     if (!bound.success)
       for (const issue of bound.error.issues)
         context.addIssue({ code: "custom", message: issue.message, path: issue.path })
-    const rules = project.generation_rules
-    if (rules.end_tick > project.timing.duration_ticks)
-      context.addIssue({
-        code: "custom",
-        path: ["generation_rules", "end_tick"],
-        message: "Generation range exceeds project timing",
-      })
-    const slots = Math.ceil((rules.end_tick - rules.start_tick) / rules.step_ticks)
-    for (const [index, frame] of rules.pattern.entries()) {
-      for (const choice of frame.choices) {
-        if (project.mode === "Single" && (choice.panel_mask & ~0x001f) !== 0)
-          context.addIssue({
-            code: "custom",
-            path: ["generation_rules", "pattern", index],
-            message: "Single projects allow only five left-pad lanes",
-          })
-        if (index >= slots || choice.hold_ticks === 0) continue
-        const lastSlot =
-          index + Math.floor((slots - 1 - index) / rules.pattern.length) * rules.pattern.length
-        if (
-          rules.start_tick + lastSlot * rules.step_ticks + choice.hold_ticks >=
-          project.timing.duration_ticks
-        )
-          context.addIssue({
-            code: "custom",
-            path: ["generation_rules", "pattern", index],
-            message: "A hold tail must precede the project end for UCS export",
-          })
-      }
-    }
+    validateProjectRules(
+      {
+        rules: project.generation_rules,
+        duration: project.timing.duration_ticks,
+        mode: project.mode,
+      },
+      context,
+    )
   })
   .readonly()
 
