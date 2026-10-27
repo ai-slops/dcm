@@ -3,7 +3,6 @@ import { timingSafeEqual } from "node:crypto"
 import { serveStatic } from "@hono/node-server/serve-static"
 import { type Context, Hono } from "hono"
 import { basicAuth } from "hono/basic-auth"
-import { bodyLimit } from "hono/body-limit"
 import { compress } from "hono/compress"
 import { getCookie, setCookie } from "hono/cookie"
 import { HTTPException } from "hono/http-exception"
@@ -12,12 +11,15 @@ import { AgentRuns } from "./agent/runs.ts"
 import type { StudioConfig } from "./config.ts"
 import { loadDemo } from "./demo.ts"
 import { StudioError } from "./errors.ts"
-import { JSON_LIMIT, MULTIPART_LIMIT } from "./http.ts"
+import { enforceApiBodyLimit } from "./http.ts"
+import { LibraryArchives } from "./library/archives.ts"
+import { LibraryService } from "./library/service.ts"
 import { NativeService } from "./native/service.ts"
 import { NativeUcsService } from "./native/ucs.ts"
 import { configurationForModel, resolveAgentProvider } from "./provider/resolve.ts"
 import { registerAgentRoutes } from "./routes/agent.ts"
 import { registerDocumentRoutes } from "./routes/document.ts"
+import { registerLibraryRoutes } from "./routes/library.ts"
 import { registerNativeRoutes } from "./routes/native.ts"
 import { registerUcsRoutes } from "./routes/ucs.ts"
 import { SessionStore } from "./sessions.ts"
@@ -35,6 +37,8 @@ export async function createStudioApp(
   const native = new NativeService(config.repoRoot, config.dataRoot)
   const ucs = new NativeUcsService(config.repoRoot)
   const provider = await resolveAgentProvider(config)
+  const library = new LibraryService(store)
+  const archives = new LibraryArchives(store, ucs)
   const runs = new AgentRuns({
     configuration: provider.configuration,
     resolveConfiguration: (modelId) => configurationForModel(config, modelId),
@@ -48,7 +52,7 @@ export async function createStudioApp(
       },
     },
   })
-  const services: Services = { config, store, sessions, native, runs }
+  const services: Services = { config, store, sessions, native, library, archives, runs }
   const app = new Hono<StudioEnv>()
 
   app.use("*", async (context, next) => {
@@ -62,10 +66,6 @@ export async function createStudioApp(
     const origin = context.req.header("origin")
     if (origin !== undefined && !config.allowedOrigins.has(origin)) {
       throw new StudioError(403, "origin_denied", "Origin is not allowed")
-    }
-    const length = Number(context.req.header("content-length") ?? 0)
-    if (context.req.header("content-type")?.startsWith("application/json") && length > JSON_LIMIT) {
-      throw new StudioError(413, "body_too_large", "JSON body exceeds 8 MiB")
     }
     await next()
   })
@@ -92,17 +92,7 @@ export async function createStudioApp(
       }),
     )
   }
-  app.use(
-    "/api/v1/*",
-    bodyLimit({
-      maxSize: MULTIPART_LIMIT,
-      onError: (context) =>
-        context.json(
-          { error: { code: "body_too_large", message: "Request body exceeds its limit" } },
-          413,
-        ),
-    }),
-  )
+  app.use("/api/v1/*", enforceApiBodyLimit)
   app.use("/api/v1/*", async (context, next) => {
     let session = sessions.get(getCookie(context, SESSION_COOKIE))
     if (context.req.path === "/api/v1/bootstrap") {
@@ -181,6 +171,7 @@ export async function createStudioApp(
     })
   })
   registerDocumentRoutes(app, services)
+  registerLibraryRoutes(app, services, ucs)
   registerNativeRoutes(app, services)
   registerUcsRoutes(app, services)
   registerAgentRoutes(app, services)
