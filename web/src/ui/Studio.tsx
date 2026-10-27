@@ -1,20 +1,21 @@
 import { useMemo, useRef, useState } from "react"
 
-import type {
-  Bootstrap,
-  ChartProposal,
-  CurrentDocument,
-  StudioProjectV1,
-} from "../../shared/index.ts"
+import type { Bootstrap, ChartProposal, CurrentDocument } from "../../shared/api.ts"
+import type { StudioProjectV1 } from "../../shared/project.ts"
 import { studioApi } from "../api/client.ts"
 import { quantizedPlacementTick } from "../domain/edit-snap.ts"
 import type { PanelIndex } from "../domain/editor.ts"
-import { editPanelAtTick, findPanelDemand, updatePanelDemand } from "../domain/editor.ts"
-import { AgentPanel } from "./AgentPanel.tsx"
+import {
+  findPanelDemand,
+  placePanelHold,
+  togglePanelAtTick,
+  updatePanelDemand,
+} from "../domain/editor.ts"
 import { CenterStudio } from "./CenterStudio.tsx"
 import { DocumentToolbar } from "./DocumentToolbar.tsx"
 import { Inspector } from "./Inspector.tsx"
 import { type MobileTab, MobileTabs } from "./MobileTabs.tsx"
+import { StudioAgentAside } from "./StudioAgentAside.tsx"
 import { editorStateForReplacement, reconcileAppliedDocument } from "./studio-state.ts"
 import type { EditorTool } from "./studio-types.ts"
 import { Transport } from "./Transport.tsx"
@@ -33,6 +34,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   }
   const [persistedProject, setPersistedProject] = useState(bootstrap.document.project)
   const [revision, setRevision] = useState(bootstrap.document.revision)
+  const [origin, setOrigin] = useState(bootstrap.document.origin)
   const [tool, setTool] = useState<EditorTool>("tap")
   const [tick, setTick] = useState(0)
   const [lane, setLane] = useState<PanelIndex>(0)
@@ -80,6 +82,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setProject(document.project)
     setPersistedProject(document.project)
     setRevision(document.revision)
+    setOrigin(document.origin)
     setTick(editorState.tick)
     setLane(editorState.lane)
     setHoldTicks(editorState.holdTicks)
@@ -99,20 +102,26 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
       setTick(placementTick)
       setLane(nextLane)
       if (tool === "select") return
-      const action =
-        tool === "erase" ||
-        (tool === "tap" && existing?.tick === nextTick && existing.hold_ticks === 0)
-          ? "erase"
-          : "place"
-      const chart = editPanelAtTick(project.chart, {
-        tick: placementTick,
-        panel: nextLane,
-        holdTicks: tool === "hold" ? holdTicks : 0,
-        action,
-      })
+      if (tool === "erase" && existing === undefined) return
+      const chart = togglePanelAtTick(project.chart, { tick: nextTick, panel: nextLane }, quantize)
       replaceProject({ ...project, chart })
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : "The note edit is invalid")
+    }
+  }
+
+  function editHold(startTick: number, endTick: number, nextLane: PanelIndex) {
+    if (tool === "select" || tool === "erase") return
+    try {
+      const chart = placePanelHold(project.chart, { startTick, endTick, panel: nextLane }, quantize)
+      const selectedTick = Math.min(startTick, endTick)
+      setTick(
+        quantizedPlacementTick(project.chart, { tick: selectedTick, panel: nextLane }, quantize),
+      )
+      setLane(nextLane)
+      replaceProject({ ...project, chart })
+    } catch (error) {
+      setValidationError(error instanceof Error ? error.message : "The hold edit is invalid")
     }
   }
 
@@ -146,6 +155,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     onProject: setProject,
     onPersistedProject: setPersistedProject,
     onRevision: setRevision,
+    onOrigin: setOrigin,
     onStatus: setStatus,
     onValidationError: setValidationError,
   })
@@ -222,29 +232,24 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           selectedTick={tick}
           selectedLane={lane}
           quantize={quantize}
+          automaticRegions={origin?.automatic_regions}
           onQuantize={setQuantize}
           onCell={editCell}
+          onHold={editHold}
           onSelect={selectCell}
         />
-        <aside
-          className={`agent-rail mobile-${tab}`}
-          id="agent-panel"
-          role="tabpanel"
-          aria-labelledby="agent-tab"
-          tabIndex={-1}
-        >
-          <AgentPanel
-            bootstrap={refreshed.bootstrap}
-            dirty={dirty}
-            revision={revision}
-            proposals={proposalOwner.proposals}
-            onProposal={proposalOwner.addProposal}
-            onBootstrap={refreshed.accept}
-            runtimeError={refreshed.refreshError}
-            apply={proposalOwner.apply}
-            discard={proposalOwner.discard}
-          />
-        </aside>
+        <StudioAgentAside
+          tab={tab}
+          bootstrap={refreshed.bootstrap}
+          dirty={dirty}
+          revision={revision}
+          proposals={proposalOwner.proposals}
+          onProposal={proposalOwner.addProposal}
+          onBootstrap={refreshed.accept}
+          runtimeError={refreshed.refreshError}
+          apply={proposalOwner.apply}
+          discard={proposalOwner.discard}
+        />
       </div>
       <Transport
         project={project}

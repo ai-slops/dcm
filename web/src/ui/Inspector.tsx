@@ -41,7 +41,10 @@ export function Inspector(props: InspectorProps) {
             </ToolChip>
           ))}
         </div>
-        <Field label="Hold tool duration" help="Ticks used for the next hold.">
+        <Field
+          label="Hold duration"
+          help="Pointer drag sets its own tail; this value supports exact edits."
+        >
           <input
             className="mono"
             min="1"

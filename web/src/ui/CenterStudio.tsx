@@ -1,4 +1,4 @@
-import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
+import type { AutomaticRegionView, NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
 import type { PanelIndex } from "../domain/editor.ts"
 import type { MobileTab } from "./MobileTabs.tsx"
 import { Preview } from "./StudioPanels.tsx"
@@ -14,8 +14,10 @@ type CenterStudioProps = {
   readonly selectedTick: number
   readonly selectedLane: PanelIndex
   readonly quantize: number
+  readonly automaticRegions?: readonly AutomaticRegionView[] | undefined
   readonly onQuantize: (ticks: number) => void
   readonly onCell: (tick: number, lane: PanelIndex) => void
+  readonly onHold: (startTick: number, endTick: number, lane: PanelIndex) => void
   readonly onSelect: (tick: number, lane: PanelIndex) => void
 }
 
@@ -36,8 +38,10 @@ export function CenterStudio(props: CenterStudioProps) {
         selectedTick={props.selectedTick}
         selectedLane={props.selectedLane}
         quantize={props.quantize}
+        automaticRegions={props.automaticRegions}
         onQuantize={props.onQuantize}
         onCell={props.onCell}
+        onHold={props.onHold}
         onSelect={props.onSelect}
       />
       <Preview
