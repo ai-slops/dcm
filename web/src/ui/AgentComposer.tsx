@@ -18,8 +18,10 @@ type AgentComposerProps = {
   readonly dirty: boolean
   readonly running: boolean
   readonly busy: string | null
+  readonly allowProjectWrites: boolean
   readonly onPrompt: (prompt: string) => void
   readonly onModel: (modelId: string) => void
+  readonly onProjectWrites: (allowed: boolean) => void
   readonly onStart: () => void
   readonly onCancel: () => void
 }
@@ -66,6 +68,15 @@ export function AgentComposer(props: AgentComposerProps) {
         }
         onChange={(event) => props.onPrompt(event.target.value)}
       />
+      <label className="agent-write-access">
+        <input
+          type="checkbox"
+          checked={props.allowProjectWrites}
+          disabled={props.running || props.busy !== null}
+          onChange={(event) => props.onProjectWrites(event.target.checked)}
+        />
+        <span>Allow project and library writes</span>
+      </label>
       {props.dirty && (
         <span className="status-copy">Save the draft before starting an agent run.</span>
       )}

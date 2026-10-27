@@ -49,6 +49,7 @@ function ActivityItem({
 export function AgentPanel(props: AgentPanelProps) {
   const [prompt, setPrompt] = useState("")
   const [modelId, setModelId] = useState(() => initialModelId(props.bootstrap.agent))
+  const [allowProjectWrites, setAllowProjectWrites] = useState(false)
   const controller = useAgentRun(
     props.bootstrap,
     props.revision,
@@ -145,11 +146,13 @@ export function AgentPanel(props: AgentPanelProps) {
         dirty={props.dirty}
         running={controller.running}
         busy={controller.busy ?? proposalBusy}
+        allowProjectWrites={allowProjectWrites}
         onPrompt={setPrompt}
         onModel={setModelId}
+        onProjectWrites={setAllowProjectWrites}
         onCancel={() => void controller.cancel()}
         onStart={() =>
-          void controller.start(prompt, modelId).then((started) => {
+          void controller.start(prompt, modelId, allowProjectWrites).then((started) => {
             if (started) setPrompt("")
           })
         }

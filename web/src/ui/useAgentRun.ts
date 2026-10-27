@@ -13,22 +13,8 @@ import {
   proposalDecisionHistory,
   recoverAgentRun,
 } from "./agent-events.ts"
-import type { ProposalDecisionHistoryItem, RecoverableAgentRun } from "./agent-run-state.ts"
-
-type AgentRunController = {
-  readonly actionError: string
-  readonly activity: readonly AgentActivity[]
-  readonly busy: string | null
-  readonly disconnected: boolean
-  readonly decisions: readonly ProposalDecisionHistoryItem[]
-  readonly run: RecoverableAgentRun | null
-  readonly running: boolean
-  readonly cancel: () => Promise<void>
-  readonly refreshSnapshot: (runId?: RecoverableAgentRun["id"]) => Promise<void>
-  readonly reconnect: () => void
-  readonly setActionError: (message: string) => void
-  readonly start: (prompt: string, modelId: string) => Promise<boolean>
-}
+import { buildAgentRunRequest } from "./agent-run-request.ts"
+import type { AgentRunController, RecoverableAgentRun } from "./agent-run-state.ts"
 
 async function loadCanonicalRun(runId: RecoverableAgentRun["id"]) {
   const snapshot = await studioApi.agentSnapshot(runId)
@@ -187,17 +173,22 @@ export function useAgentRun(
     }
   }
 
-  async function start(prompt: string, modelId: string): Promise<boolean> {
+  async function start(
+    prompt: string,
+    modelId: string,
+    allowProjectWrites: boolean,
+  ): Promise<boolean> {
     if (busy !== null) return false
     const submittedPrompt = prompt.trim()
     setBusy("start")
     setActionError("")
     try {
-      const request = {
-        base_revision: revision,
+      const request = buildAgentRunRequest({
+        baseRevision: revision,
         prompt: submittedPrompt,
-        ...(modelId === "" ? {} : { model_id: modelId }),
-      }
+        modelId,
+        writeAccess: allowProjectWrites ? "projects_and_components" : "read_only",
+      })
       const next = await studioApi.startAgent(bootstrap.csrf_token, request)
       focusedRunIdRef.current = next.id
       lastSequenceRef.current = next.last_sequence
