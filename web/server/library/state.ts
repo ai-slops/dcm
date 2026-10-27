@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto"
 import { z } from "zod"
 
 import {
-  type CurrentDocument,
+  ChartDocumentSchema,
   CurrentDocumentSchema,
+  normalizeChartDocument,
+  RevisionSchema,
   StudioProjectV1Schema,
 } from "../../shared/index.ts"
 import {
@@ -23,11 +25,15 @@ import {
   MAX_LIBRARY_SONGS,
   SongIdSchema,
 } from "../../shared/library.ts"
+import { PersistedProjectsSchema } from "./project-collection.ts"
 
 export const StoredChartSchema = LibraryChartSchema.unwrap()
   .extend({ project: StudioProjectV1Schema })
   .readonly()
 export const StoredArchiveSchema = LibraryArchiveSchema
+export const LegacyCurrentDocumentSchema = z
+  .strictObject({ revision: RevisionSchema, project: StudioProjectV1Schema })
+  .readonly()
 export const StoredLibrarySchema = z
   .strictObject({
     revision: LibraryRevisionSchema,
@@ -121,7 +127,7 @@ export const StoredLibrarySchema = z
 export const PersistedStateV2Schema = z
   .strictObject({
     version: z.literal(2),
-    document: CurrentDocumentSchema,
+    document: LegacyCurrentDocumentSchema,
     library: StoredLibrarySchema,
   })
   .superRefine((state, context) => {
@@ -138,43 +144,86 @@ export const PersistedStateV2Schema = z
   })
   .readonly()
 
+export const PersistedStateV3Schema = z
+  .strictObject({
+    version: z.literal(3),
+    document: CurrentDocumentSchema,
+    library: StoredLibrarySchema,
+    projects: PersistedProjectsSchema,
+  })
+  .superRefine((state, context) => {
+    const active = state.library.charts.find((chart) => chart.id === state.library.active_chart_id)
+    if (
+      active !== undefined &&
+      JSON.stringify(active.project) !== JSON.stringify(state.document.project)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["document", "project"],
+        message: "document differs from active chart",
+      })
+    for (const [index, chart] of state.library.charts.entries()) {
+      const canonical = ChartDocumentSchema.safeParse(chart.project)
+      if (!canonical.success)
+        context.addIssue({
+          code: "custom",
+          path: ["library", "charts", index, "project"],
+          message: "stored chart is not canonical",
+        })
+    }
+  })
+  .readonly()
+
 export type StoredChart = z.infer<typeof StoredChartSchema>
 export type StoredArchive = z.infer<typeof StoredArchiveSchema>
 export type StoredLibrary = z.infer<typeof StoredLibrarySchema>
 export type PersistedStateV2 = z.infer<typeof PersistedStateV2Schema>
+export type PersistedStateV3 = z.infer<typeof PersistedStateV3Schema>
 
-export function initialState(document: CurrentDocument): PersistedStateV2 {
+export function initialState(
+  document: z.infer<typeof LegacyCurrentDocumentSchema>,
+): PersistedStateV3 {
+  const canonicalDocument = {
+    ...document,
+    project: normalizeChartDocument(document.project),
+  }
   const songId = SongIdSchema.parse(randomUUID())
   const chartId = ChartIdSchema.parse(randomUUID())
   const audio = AudioBindingSchema.parse({
-    ...document.project.audio_asset,
-    sha256: hexDigest(document.project.music.audio_sha256),
+    ...canonicalDocument.project.audio_asset,
+    sha256: hexDigest(canonicalDocument.project.music.audio_sha256),
   })
-  return PersistedStateV2Schema.parse({
-    version: 2,
-    document,
+  return PersistedStateV3Schema.parse({
+    version: 3,
+    document: canonicalDocument,
     library: {
       revision: 0,
       active_chart_id: chartId,
       songs: [
-        { id: songId, title: document.project.title, artist: document.project.artist, audio },
+        {
+          id: songId,
+          title: canonicalDocument.project.title,
+          artist: canonicalDocument.project.artist,
+          audio,
+        },
       ],
       charts: [
         {
           id: chartId,
           song_id: songId,
           name: "Main",
-          mode: document.project.ucs_mode ?? "Double",
-          ...chartSummary(document.project),
-          project: document.project,
+          mode: canonicalDocument.project.ucs_mode,
+          ...chartSummary(canonicalDocument.project),
+          project: canonicalDocument.project,
         },
       ],
       archives: [],
     },
+    projects: { revision: 0, selected_project_id: null, records: [], components: [] },
   })
 }
 
-export function snapshot(state: PersistedStateV2): LibrarySnapshot {
+export function snapshot(state: PersistedStateV3): LibrarySnapshot {
   return LibrarySnapshotSchema.parse({
     ...state.library,
     charts: state.library.charts.map(({ project: _project, ...chart }) => chart),
@@ -182,7 +231,7 @@ export function snapshot(state: PersistedStateV2): LibrarySnapshot {
 }
 
 export function chartDocument(
-  state: PersistedStateV2,
+  state: PersistedStateV3,
   id: ChartId,
 ): LibraryChartDocument | undefined {
   const stored = state.library.charts.find((chart) => chart.id === id)
