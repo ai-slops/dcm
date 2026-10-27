@@ -6,6 +6,7 @@ import "./styles/layout.css"
 import "./styles/agent.css"
 import "./styles/proposal.css"
 import "./styles/editor.css"
+import "./styles/timeline-regions.css"
 import "./styles/playfield.css"
 import "./styles/chart-preview.css"
 import "./styles/preview-gallery.css"
@@ -13,6 +14,7 @@ import "./styles/responsive.css"
 import "./styles/mobile.css"
 import "./styles/library.css"
 import "./styles/projects.css"
+import "./styles/project-grid.css"
 
 const showcase = import.meta.env.DEV && new URLSearchParams(window.location.search).has("showcase")
 const bootstrapLoad = showcase ? null : startBootstrap()

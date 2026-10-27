@@ -2,12 +2,18 @@ import { AlertTriangle, RefreshCw } from "lucide-react"
 import { lazy, Suspense, useEffect, useState } from "react"
 
 import type { BootstrapLoadResult } from "../bootstrap.ts"
+import { parseProjectEditPath } from "../domain/project-grid.ts"
 import { PrimitiveShowcase } from "./PrimitiveShowcase.tsx"
 import { Button } from "./primitives.tsx"
 import { Studio } from "./Studio.tsx"
 
 const PreviewGallery = lazy(() =>
   import("./PreviewGallery.tsx").then(({ PreviewGallery: Component }) => ({ default: Component })),
+)
+const ProjectEditPage = lazy(() =>
+  import("./ProjectEditPage.tsx").then(({ ProjectEditPage: Component }) => ({
+    default: Component,
+  })),
 )
 
 type LoadState = { readonly kind: "loading" } | BootstrapLoadResult
@@ -33,6 +39,23 @@ export function App({
   }, [bootstrapLoad])
 
   if (showcase) return <PrimitiveShowcase />
+  const projectId = parseProjectEditPath(window.location.pathname)
+  if (state.kind === "ready" && projectId !== null) {
+    return (
+      <Suspense fallback={<div className="empty-state">Loading project grid editor...</div>}>
+        <ProjectEditPage bootstrap={state.bootstrap} projectId={projectId} />
+      </Suspense>
+    )
+  }
+  if (state.kind === "ready" && window.location.pathname.startsWith("/projects/")) {
+    return (
+      <main className="empty-state">
+        <h1>Invalid project route</h1>
+        <p>Project editing requires a valid UUID route in the form /projects/:id/edit.</p>
+        <Button onClick={() => window.location.assign("/")}>Back to Studio</Button>
+      </main>
+    )
+  }
   if (state.kind === "ready" && window.location.pathname === "/previews") {
     return (
       <Suspense fallback={<div className="empty-state">Loading preview components...</div>}>
