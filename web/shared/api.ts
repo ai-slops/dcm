@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { EvaluationResponseSchema } from "./assessment.ts"
+import { AutomaticRegionViewSchema } from "./generation-rules.ts"
 import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
 import { StudioProjectV1Schema } from "./project.ts"
 import { GenerationProjectIdSchema, ProjectRevisionSchema } from "./project-identities.ts"
@@ -25,8 +26,20 @@ const AgentDeltaSchema = z
   .string()
   .refine((value) => new TextEncoder().encode(value).byteLength <= MAX_AGENT_DELTA_BYTES)
 
+export const DocumentOriginSchema = z
+  .strictObject({
+    project_id: GenerationProjectIdSchema,
+    project_revision: ProjectRevisionSchema,
+    automatic_regions: z.array(AutomaticRegionViewSchema).max(64).readonly(),
+  })
+  .readonly()
+
 export const CurrentDocumentSchema = z
-  .strictObject({ revision: RevisionSchema, project: StudioProjectV1Schema })
+  .strictObject({
+    revision: RevisionSchema,
+    project: StudioProjectV1Schema,
+    origin: DocumentOriginSchema.optional(),
+  })
   .readonly()
 
 export const ChartProposalSchema = z
@@ -236,6 +249,7 @@ export const AgentStreamEventSchema = z.discriminatedUnion("type", [
 
 export type Revision = z.infer<typeof RevisionSchema>
 export type CurrentDocument = z.infer<typeof CurrentDocumentSchema>
+export type DocumentOrigin = z.infer<typeof DocumentOriginSchema>
 export type ChartProposal = z.infer<typeof ChartProposalSchema>
 export type Bootstrap = z.infer<typeof BootstrapSchema>
 export type ApiError = z.infer<typeof ApiErrorSchema>
