@@ -20,6 +20,8 @@ type NativeActionsProps = {
   readonly project: StudioProjectV1
   readonly revision: Revision
   readonly onClose: () => void
+  readonly onOpenProjects: () => void
+  readonly onOpenUcs: () => void
   readonly onProposal: (proposal: ChartProposal) => void
 }
 
@@ -38,6 +40,7 @@ export function NativeActionsDialog(props: NativeActionsProps) {
     readonly text: string
   } | null>(null)
   const persisted = !props.dirty
+  const single = props.project.ucs_mode === "Single"
   const currentResult = !props.dirty && result?.revision === props.revision ? result.text : ""
 
   async function runNative(
@@ -66,34 +69,48 @@ export function NativeActionsDialog(props: NativeActionsProps) {
     >
       <div className="action-dialog__body">
         <p className="status-copy">{props.nativeMessage}</p>
-        <label>
-          64-character seed
-          <input
-            value={seed}
-            maxLength={64}
-            disabled={busy !== null}
-            onChange={(event) => setSeed(event.target.value.toLowerCase())}
-          />
-        </label>
+        {single ? (
+          <p className="status-copy">
+            Single charts do not use legacy proposal generation or Pump Double SSC ZIP export. Use a
+            Single rule project to generate charts, or export this chart through UCS transfer.
+          </p>
+        ) : (
+          <label>
+            64-character seed
+            <input
+              value={seed}
+              maxLength={64}
+              disabled={busy !== null}
+              onChange={(event) => setSeed(event.target.value.toLowerCase())}
+            />
+          </label>
+        )}
         <div className="cluster">
-          <Button
-            disabled={!persisted || !props.nativeReady || seed.length !== 64 || busy !== null}
-            onClick={() =>
-              void runNative("generate", async () => {
-                const proposal = await studioApi.generate(props.csrfToken, {
-                  base_revision: props.revision,
-                  seed,
+          {single ? (
+            <>
+              <Button onClick={props.onOpenProjects}>Projects and library</Button>
+              <Button onClick={props.onOpenUcs}>UCS transfer</Button>
+            </>
+          ) : (
+            <Button
+              disabled={!persisted || !props.nativeReady || seed.length !== 64 || busy !== null}
+              onClick={() =>
+                void runNative("generate", async () => {
+                  const proposal = await studioApi.generate(props.csrfToken, {
+                    base_revision: props.revision,
+                    seed,
+                  })
+                  props.onProposal(proposal)
+                  setResult({
+                    revision: props.revision,
+                    text: "Generated a review-only proposal. It was not applied.",
+                  })
                 })
-                props.onProposal(proposal)
-                setResult({
-                  revision: props.revision,
-                  text: "Generated a review-only proposal. It was not applied.",
-                })
-              })
-            }
-          >
-            {busy === "generate" ? "Generating" : "Generate proposal"}
-          </Button>
+              }
+            >
+              {busy === "generate" ? "Generating" : "Generate proposal"}
+            </Button>
+          )}
           <Button
             disabled={!persisted || !props.nativeReady || busy !== null}
             onClick={() =>
@@ -107,25 +124,27 @@ export function NativeActionsDialog(props: NativeActionsProps) {
           >
             {busy === "evaluate" ? "Evaluating" : "Evaluate"}
           </Button>
-          <Button
-            disabled={
-              !persisted ||
-              !props.nativeReady ||
-              props.project.audio_asset.byte_length === 0 ||
-              busy !== null
-            }
-            onClick={() =>
-              void runNative("export", async () => {
-                const blob = await studioApi.exportZip(props.csrfToken, {
-                  base_revision: props.revision,
+          {single ? null : (
+            <Button
+              disabled={
+                !persisted ||
+                !props.nativeReady ||
+                props.project.audio_asset.byte_length === 0 ||
+                busy !== null
+              }
+              onClick={() =>
+                void runNative("export", async () => {
+                  const blob = await studioApi.exportZip(props.csrfToken, {
+                    base_revision: props.revision,
+                  })
+                  downloadBlob(blob, "pump-studio-export.zip")
+                  setResult({ revision: props.revision, text: "SSC ZIP downloaded." })
                 })
-                downloadBlob(blob, "pump-studio-export.zip")
-                setResult({ revision: props.revision, text: "SSC ZIP downloaded." })
-              })
-            }
-          >
-            {busy === "export" ? "Exporting" : "Download SSC ZIP"}
-          </Button>
+              }
+            >
+              {busy === "export" ? "Exporting" : "Download SSC ZIP"}
+            </Button>
+          )}
         </div>
         {!persisted && <p className="status-copy">Save the draft before native operations.</p>}
         {currentResult !== "" && <output className="operation-result">{currentResult}</output>}
