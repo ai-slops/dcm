@@ -131,8 +131,10 @@ export async function importUcsThroughUi(page, path) {
 }
 
 export async function downloadUcs(page, path, mode = "Double") {
+  const state = await bootstrap(page.context(), page.url())
+  assert.equal(state.document.project.ucs_mode, mode, "Export must use the chart's fixed mode")
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
-  await page.getByRole("radio", { name: mode, exact: true }).check()
+  assert.equal(await page.getByRole("radio", { name: mode, exact: true }).count(), 0)
   const pending = page.waitForEvent("download")
   await page.getByRole("button", { name: "Download UCS", exact: true }).click()
   const download = await pending

@@ -7,11 +7,11 @@ import { strToU8, zipSync } from "fflate"
 import { chromium } from "playwright"
 
 import { loadDemo } from "../../server/demo.ts"
+import { createUcsSession, restoreUcsSession } from "./ucs-session.mjs"
 import {
   bootstrap,
   browserConfiguration,
   extendDemoAudio,
-  importProject,
   ownedMutation,
   repoRoot,
   SINGLE_UCS_FIXTURE,
@@ -41,6 +41,7 @@ await page.addInitScript(() => {
 let baseline
 let originalAudio
 let owned
+let session
 
 async function chooseSegment(start, end, loop = false) {
   await page.getByRole("button", { name: "Segment", exact: true }).click()
@@ -81,6 +82,8 @@ try {
   saveRecovery(baseline.document.project, originalAudio)
   const demo = await loadDemo(repoRoot)
   const audio = extendDemoAudio(demo.audio)
+  session = await createUcsSession(context, configuration.url, { mode: "Single", audio })
+  owned = session.document
   const single = resolve(evidence, "single-song.zip")
   const multiple = resolve(evidence, "multiple-charts.zip")
   const invalid = resolve(evidence, "missing-music.zip")
@@ -188,21 +191,8 @@ try {
   )
 } finally {
   try {
-    if (owned !== undefined) {
-      const current = await bootstrap(context, configuration.url)
-      assert.deepEqual(
-        current.document,
-        owned,
-        "Concurrent edits detected; refusing to overwrite the saved project",
-      )
-      await importProject(context, configuration.url, {
-        csrfToken: current.csrf_token,
-        revision: current.document.revision,
-        project: baseline.document.project,
-        audio: originalAudio,
-      })
-      console.log("Original project and audio restored; only monotonic revision advanced.")
-    }
+    if (owned !== undefined && session !== undefined)
+      await restoreUcsSession(context, configuration.url, { ...session, expected: owned })
   } finally {
     await browser.close()
   }

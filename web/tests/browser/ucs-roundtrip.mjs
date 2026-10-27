@@ -9,8 +9,8 @@ import { chromium } from "playwright"
 import { loadDemo } from "../../server/demo.ts"
 import { StudioProjectV1Schema } from "../../shared/index.ts"
 import { verifyVisibleChrome } from "./ucs-layout.mjs"
-import { saveExportMode } from "./ucs-mode-preference.mjs"
 import { verifyAudioClock } from "./ucs-playback.mjs"
+import { createUcsSession, openSingleFixture, restoreUcsSession } from "./ucs-session.mjs"
 import {
   bootstrap,
   browserConfiguration,
@@ -48,6 +48,7 @@ await page.addInitScript(() => {
 let baseline
 let originalAudio
 let owned
+let session
 
 try {
   baseline = await bootstrap(context, configuration.url)
@@ -85,9 +86,11 @@ try {
     },
     audio_asset: { format: "wav", byte_length: audio.byteLength },
   })
+  session = await createUcsSession(context, configuration.url, { mode: "Double", audio })
+  owned = session.document
   owned = await importProject(context, configuration.url, {
     csrfToken: baseline.csrf_token,
-    revision: baseline.document.revision,
+    revision: owned.revision,
     project: fixture,
     audio,
   })
@@ -149,16 +152,24 @@ try {
   await verifyVisibleChrome(page)
   await page.screenshot({ path: resolve(evidenceRoot, "desktop.png") })
 
-  owned = await saveExportMode(page, "Single")
-  await page.reload()
-  assert.equal((await bootstrap(context, configuration.url)).document.project.ucs_mode, "Single")
+  const modeChange = await context.request.put(
+    new URL("/api/v1/document", configuration.url).toString(),
+    {
+      headers: { "x-csrf-token": baseline.csrf_token },
+      data: {
+        base_revision: owned.revision,
+        project: {
+          ...owned.project,
+          chart: { ...owned.project.chart, notes: [] },
+          ucs_mode: "Single",
+        },
+      },
+    },
+  )
+  assert.equal(modeChange.status(), 409)
+  assert.deepEqual((await bootstrap(context, configuration.url)).document, owned)
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
-  assert.equal(await page.getByRole("radio", { name: "Single", exact: true }).isChecked(), true)
-  await page.getByRole("button", { name: "Download UCS", exact: true }).click()
-  await page
-    .getByRole("alert")
-    .filter({ hasText: /Single|right/i })
-    .waitFor()
+  assert.equal(await page.getByRole("radio", { name: "Single", exact: true }).count(), 0)
   const malformed = resolve(evidenceRoot, "malformed.ucs")
   writeFileSync(malformed, ":Format=1\n:Mode=Double\n:UNSUPPORTED=1\n")
   await page.getByLabel("UCS chart", { exact: true }).setInputFiles(malformed)
@@ -172,6 +183,8 @@ try {
   await page.getByRole("button", { name: "Close", exact: true }).click()
   const single = resolve(evidenceRoot, "single.ucs")
   writeFileSync(single, SINGLE_UCS_FIXTURE)
+  owned = await openSingleFixture(context, configuration.url, session.songId)
+  await page.reload()
   owned = await importUcsThroughUi(page, single)
   assert.equal(owned.project.ucs_mode, "Single")
   assert.ok(owned.project.chart.notes.every((note) => (note.panel_mask & ~31) === 0))
@@ -207,22 +220,8 @@ try {
   )
 } finally {
   try {
-    if (owned !== undefined) {
-      const current = await bootstrap(context, configuration.url)
-      assert.deepEqual(
-        current.document,
-        owned,
-        "Concurrent edits detected; refusing to restore over another document",
-      )
-      const restored = await importProject(context, configuration.url, {
-        csrfToken: current.csrf_token,
-        revision: current.document.revision,
-        project: baseline.document.project,
-        audio: originalAudio,
-      })
-      assert.deepEqual(restored.project, baseline.document.project)
-      console.log("Original saved chart and audio restored; only monotonic revision advanced.")
-    }
+    if (owned !== undefined && session !== undefined)
+      await restoreUcsSession(context, configuration.url, { ...session, expected: owned })
   } finally {
     await browser.close()
   }
