@@ -156,4 +156,5 @@ export type MusicTiming = z.infer<typeof MusicTimingSchema>
 export type GenerationProject = z.infer<typeof GenerationProjectSchema>
 export type GenerationProjectSummary = z.infer<typeof GenerationProjectSummarySchema>
 export type ReusableComponent = z.infer<typeof ReusableComponentSchema>
+export type ReusableComponentSummary = z.infer<typeof ReusableComponentSummarySchema>
 export type ProjectWorkspace = z.infer<typeof ProjectWorkspaceSchema>

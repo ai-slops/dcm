@@ -3,6 +3,7 @@ import { z } from "zod"
 import { CurrentDocumentSchema } from "./api.ts"
 import { NonNegativeIntegerSchema } from "./native.ts"
 import { AudioAssetSchema, StudioProjectV1Schema, UcsModeSchema } from "./project.ts"
+import { GenerationProjectIdSchema, ProjectRevisionSchema } from "./project-identities.ts"
 
 export const MAX_LIBRARY_SONGS = 64
 export const MAX_LIBRARY_CHARTS = 128
@@ -36,6 +37,14 @@ export const LibraryChartSchema = z
     hold_count: NonNegativeIntegerSchema.max(100_000),
     ticks_per_beat: z.number().int().positive().max(4_096),
     duration_ticks: z.number().int().positive().max(1_000_000),
+    generated_from: z
+      .strictObject({
+        project_id: GenerationProjectIdSchema,
+        project_revision: ProjectRevisionSchema,
+        seed: z.string().regex(/^[0-9a-f]{64}$/),
+      })
+      .readonly()
+      .optional(),
   })
   .readonly()
 
