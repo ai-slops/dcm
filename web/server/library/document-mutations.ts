@@ -7,9 +7,13 @@ import {
   RevisionSchema,
   type StudioProjectV1,
 } from "../../shared/index.ts"
+import { LibraryRevisionSchema } from "../../shared/library.ts"
+import { assertEditableChart } from "../chart-boundary.ts"
 import { StudioError } from "../errors.ts"
 import type { AudioRecord, StoreMutation } from "../store.ts"
-import { chartSummary, hexDigest, type PersistedStateV3 } from "./state.ts"
+import { chartSummary, hexDigest } from "./chart-summary.ts"
+import { currentDocument } from "./document-view.ts"
+import type { PersistedStateV3 } from "./state.ts"
 
 export function saveDocumentMutation(
   state: PersistedStateV3,
@@ -18,6 +22,7 @@ export function saveDocumentMutation(
 ): StoreMutation<CurrentDocument> {
   expectRevision(state, baseRevision)
   const project = ChartDocumentSchema.parse(projectInput)
+  assertEditableChart(project.chart)
   const active = activeChart(state)
   if (project.ucs_mode !== active.mode)
     throw new StudioError(409, "chart_mode_immutable", "Create a new chart to use a different mode")
@@ -37,7 +42,7 @@ export function saveDocumentMutation(
     document: nextDocument,
     library: {
       ...state.library,
-      revision: state.library.revision + (summaryChanged ? 1 : 0),
+      revision: LibraryRevisionSchema.parse(state.library.revision + (summaryChanged ? 1 : 0)),
       charts: state.library.charts.map((chart) =>
         chart.id === active.id
           ? {
@@ -50,7 +55,7 @@ export function saveDocumentMutation(
       ),
     },
   }
-  return { state: next, result: nextDocument }
+  return { state: next, result: currentDocument(next) }
 }
 
 export function replaceDocumentMutation(
@@ -61,6 +66,7 @@ export function replaceDocumentMutation(
 ): StoreMutation<CurrentDocument> {
   expectRevision(state, baseRevision)
   const project = normalizeChartDocument(projectInput)
+  assertEditableChart(project.chart)
   const audio = audioRecord(bytes, project.audio_asset.format)
   assertReplacementAudio(project, audio)
   const active = activeChart(state)
@@ -87,7 +93,7 @@ export function replaceDocumentMutation(
     document: { revision: RevisionSchema.parse(state.document.revision + 1), project },
     library: {
       ...state.library,
-      revision: state.library.revision + 1,
+      revision: LibraryRevisionSchema.parse(state.library.revision + 1),
       songs: state.library.songs.map((song) =>
         song.id === active.song_id ? { ...song, audio: binding } : song,
       ),
@@ -96,7 +102,7 @@ export function replaceDocumentMutation(
   }
   return {
     state: next,
-    result: next.document,
+    result: currentDocument(next),
     assets: [
       { directory: "audio", digest: audio.digest, extension: audio.format, bytes: audio.bytes },
     ],

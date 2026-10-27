@@ -7,7 +7,9 @@ import {
   type SongId,
 } from "../../shared/library.ts"
 import { StudioError } from "../errors.ts"
-import { chartSummary, type PersistedStateV3, snapshot } from "./state.ts"
+import { chartSummary } from "./chart-summary.ts"
+import { currentDocument } from "./document-view.ts"
+import { type PersistedStateV3, snapshot } from "./state.ts"
 
 export function storedChart(
   id: ChartId,
@@ -52,7 +54,7 @@ export function bumpLibrary(
 }
 
 export function mutation(state: PersistedStateV3): LibraryMutation {
-  return LibraryMutationSchema.parse({ document: state.document, library: snapshot(state) })
+  return LibraryMutationSchema.parse({ document: currentDocument(state), library: snapshot(state) })
 }
 
 export function expectRevision(state: PersistedStateV3, revision: number): void {

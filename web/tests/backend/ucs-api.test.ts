@@ -61,6 +61,42 @@ describe("native UCS Studio flow", () => {
     expect((await createStudioApp(config)).store.document()).toEqual(document)
   })
 
+  it("rejects replacement imports with an inclusive UCS hold-tail collision", async () => {
+    // Given
+    const { studio, bootstrap, headers } = await client()
+    const originalAudio = studio.store.audio()
+    const project = {
+      ...bootstrap.document.project,
+      chart: {
+        ...bootstrap.document.project.chart,
+        notes: [
+          { tick: 0, panel_mask: 1, hold_ticks: 4 },
+          { tick: 4, panel_mask: 1, hold_ticks: 0 },
+        ],
+      },
+    }
+    const form = new FormData()
+    form.set("base_revision", "0")
+    form.set("project", JSON.stringify(project))
+    form.set(
+      "audio",
+      new File([Uint8Array.from(originalAudio.bytes).buffer], "music.wav", { type: "audio/wav" }),
+    )
+
+    // When
+    const response = await studio.app.request("http://127.0.0.1:4173/api/v1/imports", {
+      method: "POST",
+      headers,
+      body: form,
+    })
+
+    // Then
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { code: "ucs_cell_conflict" } })
+    expect(studio.store.document()).toEqual(bootstrap.document)
+    expect(studio.store.audio()).toEqual(originalAudio)
+  })
+
   it("exports actual notes then imports exact timing with current audio and persists it", async () => {
     // Given
     const { studio, bootstrap, headers, config } = await client()
