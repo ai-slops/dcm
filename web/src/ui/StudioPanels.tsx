@@ -34,10 +34,17 @@ export function Preview({
       <ScrollingChartPreview
         chart={chart}
         music={music}
+        mode={ucsMode}
         playback={playback}
         selectedTick={selectedTick}
       />
-      <PlayfieldPads chart={chart} music={music} playback={playback} selectedTick={selectedTick} />
+      <PlayfieldPads
+        chart={chart}
+        music={music}
+        playback={playback}
+        selectedTick={selectedTick}
+        mode={ucsMode}
+      />
       <TimelineClock
         music={music}
         playback={playback}
@@ -53,11 +60,13 @@ export function PlayfieldPads({
   music,
   selectedTick,
   playback,
+  mode = "Double",
 }: {
   readonly chart: NativeChart
   readonly music: NativeMusic
   readonly selectedTick: number
   readonly playback: AudioPlaybackController
+  readonly mode?: UcsMode
 }) {
   const snapshot = usePlaybackSnapshot(playback)
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
@@ -71,10 +80,13 @@ export function PlayfieldPads({
           : activePanelMaskAtSelectedTick(chart, selectedTick),
     [audioIntervals, chart, selectedTick, snapshot.audioMicros, snapshot.status, usesClock],
   )
-  const groups = [
-    [1, 3, 2, 0, 4],
-    [6, 8, 7, 5, 9],
-  ] as const
+  const groups =
+    mode === "Single"
+      ? ([[1, 3, 2, 0, 4]] as const)
+      : ([
+          [1, 3, 2, 0, 4],
+          [6, 8, 7, 5, 9],
+        ] as const)
   const activeLabels = laneLabels.filter((_, index) => (mask & (1 << index)) !== 0)
   return (
     <section className="playfield-preview" aria-label="Physical pad contacts">

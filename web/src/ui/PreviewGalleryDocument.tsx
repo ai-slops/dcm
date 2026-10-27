@@ -86,7 +86,7 @@ export function PreviewGalleryDocument({
       {!hasAudio ? (
         <p className="preview-gallery__missing">
           This song has no stored audio. Playback stays disabled.{" "}
-          <a href="/">Add audio in Studio Library.</a>
+          <a href="/">Add audio in Songs and charts.</a>
         </p>
       ) : null}
       <nav className="preview-gallery__views" aria-label="Preview components">
@@ -104,6 +104,7 @@ export function PreviewGalleryDocument({
           <ScrollingChartPreview
             chart={document.project.chart}
             music={document.project.music}
+            mode={document.chart.mode}
             playback={playback}
             selectedTick={selectedTick}
           />
@@ -114,6 +115,7 @@ export function PreviewGalleryDocument({
             music={document.project.music}
             playback={playback}
             selectedTick={selectedTick}
+            mode={document.chart.mode}
           />
         ) : null}
         {view === "timeline" ? (

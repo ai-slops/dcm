@@ -51,9 +51,9 @@ export function PreviewGallery() {
       <main className="empty-state">
         <Library aria-hidden="true" size={28} />
         <h1>No stored charts</h1>
-        <p>Add a song and chart in Studio Library before opening the player gallery.</p>
+        <p>Add a song and chart in Songs and charts before opening the player gallery.</p>
         <a className="button button--primary" href="/">
-          Open Studio Library
+          Open Songs and charts
         </a>
       </main>
     )
@@ -97,14 +97,14 @@ function LoadedPreviewGallery({ library }: { readonly library: LibrarySnapshot }
         <div>
           <span className="mono preview-gallery__eyebrow">COMPONENT PREVIEW</span>
           <h1>Stored chart player</h1>
-          <p>Real library timing, native holds, and the selected song audio asset.</p>
+          <p>Real stored-chart timing, native holds, and the selected song audio asset.</p>
         </div>
         <a className="button button--secondary" href="/">
           <ExternalLink aria-hidden="true" size={15} />
-          <span>Studio Library</span>
+          <span>Songs and charts</span>
         </a>
       </header>
-      <section className="preview-gallery__selectors" aria-label="Library selection">
+      <section className="preview-gallery__selectors" aria-label="Song and chart selection">
         <label>
           Song
           <select
