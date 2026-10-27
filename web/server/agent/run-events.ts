@@ -51,6 +51,11 @@ export class RunEvents {
     this.onSnapshot(this.#snapshot)
   }
 
+  markProjectMutation(): void {
+    this.#snapshot = AgentRunSnapshotSchema.parse({ ...this.#snapshot, project_mutated: true })
+    this.onSnapshot(this.#snapshot)
+  }
+
   publish(payload: EventPayload): void {
     const sequence = this.events.length === 0 ? 0 : (this.events.at(-1)?.sequence ?? 0) + 1
     const text =

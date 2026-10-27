@@ -5,6 +5,21 @@ export type AgentToolCall = NonNullable<AgentRunSnapshot["tool_calls"]>[number]
 
 export type RecoverableAgentRun = AgentRunSnapshot
 
+export type AgentRunController = {
+  readonly actionError: string
+  readonly activity: readonly AgentActivity[]
+  readonly busy: string | null
+  readonly disconnected: boolean
+  readonly decisions: readonly ProposalDecisionHistoryItem[]
+  readonly run: RecoverableAgentRun | null
+  readonly running: boolean
+  readonly cancel: () => Promise<void>
+  readonly refreshSnapshot: (runId?: RecoverableAgentRun["id"]) => Promise<void>
+  readonly reconnect: () => void
+  readonly setActionError: (message: string) => void
+  readonly start: (prompt: string, modelId: string, allowProjectWrites: boolean) => Promise<boolean>
+}
+
 export type RecoverableBootstrap = Pick<Bootstrap, "active_run" | "recent_runs">
 
 export type ProposalDecisionHistoryItem = NonNullable<
