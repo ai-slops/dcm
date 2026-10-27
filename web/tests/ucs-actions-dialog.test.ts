@@ -22,12 +22,13 @@ describe("UCS transfer dialog", () => {
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
-        onMode: () => undefined,
       }),
     )
 
     // Then Double is explicit and audio fallback copy is visible
-    expect(markup).toMatch(/<input[^>]*checked=""[^>]*value="Double"/)
+    expect(markup).toContain("Chart mode:")
+    expect(markup).toContain("Double")
+    expect(markup).toContain("Existing charts cannot change mode")
     expect(markup).toContain("Omit audio to keep the current project audio")
     expect(markup).toMatch(/<input[^>]*accept="\.zip,application\/zip"[^>]*name="ucs-zip"/)
     expect(markup).toContain("ZIP import requires bundled music")
@@ -48,7 +49,6 @@ describe("UCS transfer dialog", () => {
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
-        onMode: () => undefined,
       }),
     )
 

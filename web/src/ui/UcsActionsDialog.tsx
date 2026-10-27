@@ -1,7 +1,7 @@
 import { Download, Upload } from "lucide-react"
 import { useState } from "react"
 
-import type { CurrentDocument, Revision, StudioProjectV1, UcsMode } from "../../shared/index.ts"
+import type { CurrentDocument, Revision, StudioProjectV1 } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { downloadBlob, errorMessage } from "./action-utils.ts"
@@ -17,7 +17,6 @@ type UcsActionsProps = {
   readonly onClose: () => void
   readonly onDocument: (document: CurrentDocument) => void
   readonly onStatus: (status: string) => void
-  readonly onMode: (mode: UcsMode) => void
 }
 
 export function UcsActionsDialog(props: UcsActionsProps) {
@@ -144,22 +143,9 @@ export function UcsActionsDialog(props: UcsActionsProps) {
               Save your changes before exporting UCS.
             </p>
           )}
-          <fieldset className="ucs-mode">
-            <legend>Chart mode</legend>
-            {(["Single", "Double"] as const).map((value) => (
-              <label key={value}>
-                <input
-                  type="radio"
-                  name="ucs-mode"
-                  value={value}
-                  checked={mode === value}
-                  disabled={busy !== null}
-                  onChange={() => props.onMode(value)}
-                />
-                {value}
-              </label>
-            ))}
-          </fieldset>
+          <p className="status-copy">
+            <strong>Chart mode:</strong> {mode}. Existing charts cannot change mode.
+          </p>
           <Button
             icon={<Download size={15} />}
             disabled={!exportEnabled}
