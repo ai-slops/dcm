@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use crate::chart_build::read_json;
 use crate::chart_cli::{ChartGenerateRulesArgs, UcsModeArg};
 use crate::chart_commands::output;
+use crate::chart_rule_model::{HybridRules, WeightedCycleRules};
 use crate::cli::OutputFormat;
 
 pub use crate::chart_rule_model::GenerationRules;
@@ -71,7 +72,17 @@ pub fn run(args: &ChartGenerateRulesArgs, format: OutputFormat) -> Result<()> {
 }
 
 pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutput> {
-    let slots = crate::chart_rule_model::validate_request(&request)?;
+    match request.rules {
+        GenerationRules::WeightedCycleV1(rules) => generate_weighted(&request, rules),
+        GenerationRules::HybridRegionsV1(rules) => generate_hybrid(&request, rules),
+    }
+}
+
+fn generate_weighted(
+    request: &RuleGenerationRequest<'_>,
+    rules: &WeightedCycleRules,
+) -> Result<RuleGenerationOutput> {
+    let slots = crate::chart_rule_model::validate_weighted_request(request, rules)?;
     let request_bytes = serde_json::to_vec(&HashedRequest {
         schema_version: 1,
         algorithm_version: "weighted_cycle_v1",
@@ -85,10 +96,9 @@ pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutp
     let request_sha256: [u8; 32] = Sha256::digest(request_bytes).into();
     let mut notes = Vec::with_capacity(usize::try_from(slots).context("slot count conversion")?);
     for slot in 0..slots {
-        let pattern_index = usize::try_from(slot).context("pattern index conversion")?
-            % request.rules.pattern.len();
-        let frame = request
-            .rules
+        let pattern_index =
+            usize::try_from(slot).context("pattern index conversion")? % rules.pattern.len();
+        let frame = rules
             .pattern
             .get(pattern_index)
             .context("pattern frame is missing")?;
@@ -101,12 +111,44 @@ pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutp
             .context("sampled choice is missing")?;
         if choice.panel_mask != 0 {
             notes.push(Note {
-                tick: request.rules.start_tick + slot * request.rules.step_ticks,
+                tick: rules.start_tick + slot * rules.step_ticks,
                 panel_mask: choice.panel_mask,
                 hold_ticks: choice.hold_ticks,
             });
         }
     }
+    finish_generation(request, notes, request_sha256, false)
+}
+
+fn generate_hybrid(
+    request: &RuleGenerationRequest<'_>,
+    rules: &HybridRules,
+) -> Result<RuleGenerationOutput> {
+    let region_slots = crate::chart_rule_hybrid::validate(request, rules)?;
+    let request_bytes = serde_json::to_vec(&HashedRequest {
+        schema_version: 2,
+        algorithm_version: "hybrid_regions_v1",
+        mode: mode_name(request.mode),
+        rules: request.rules,
+        music: request.music,
+        contract: request.contract,
+        seed: request.seed,
+    })
+    .context("encode versioned generation request")?;
+    let request_sha256: [u8; 32] = Sha256::digest(request_bytes).into();
+    let mut notes = rules.fixed_notes.clone();
+    for (region, slots) in rules.regions.iter().zip(region_slots) {
+        crate::chart_rule_hybrid::generate_region(&request.seed, region, slots, &mut notes)?;
+    }
+    finish_generation(request, notes, request_sha256, true)
+}
+
+fn finish_generation(
+    request: &RuleGenerationRequest<'_>,
+    notes: Vec<Note>,
+    request_sha256: [u8; 32],
+    require_ucs: bool,
+) -> Result<RuleGenerationOutput> {
     let chart = pump_chart::normalize_chart(&Chart {
         ticks_per_beat: request.music.ticks_per_beat,
         span_ticks: request.music.duration_ticks,
@@ -116,7 +158,22 @@ pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutp
     let assessment = pump_eval::assess(&chart, request.music, request.contract)
         .context("assess generated concrete chart")?;
     let mode: pump_ucs::UcsMode = request.mode.into();
-    let ucs_validation = match pump_ucs::render_ucs(&chart, request.music, mode) {
+    let rendered = pump_ucs::render_ucs(&chart, request.music, mode);
+    if require_ucs {
+        let text = rendered.context("hybrid generated chart failed UCS validation")?;
+        return Ok(build_output(
+            chart,
+            assessment,
+            mode,
+            request_sha256,
+            UcsValidation {
+                valid: true,
+                byte_length: Some(text.len()),
+                error: None,
+            },
+        ));
+    }
+    let ucs_validation = match rendered {
         Ok(text) => UcsValidation {
             valid: true,
             byte_length: Some(text.len()),
@@ -128,7 +185,23 @@ pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutp
             error: Some(error.to_string().chars().take(1024).collect()),
         },
     };
-    Ok(RuleGenerationOutput {
+    Ok(build_output(
+        chart,
+        assessment,
+        mode,
+        request_sha256,
+        ucs_validation,
+    ))
+}
+
+fn build_output(
+    chart: Chart,
+    assessment: Assessment,
+    mode: pump_ucs::UcsMode,
+    request_sha256: [u8; 32],
+    ucs_validation: UcsValidation,
+) -> RuleGenerationOutput {
+    RuleGenerationOutput {
         schema_version: 1,
         mode,
         chart,
@@ -139,7 +212,7 @@ pub fn generate(request: RuleGenerationRequest<'_>) -> Result<RuleGenerationOutp
             status: "none",
             reason: "not_generated_from_verified_bundle",
         },
-    })
+    }
 }
 
 const fn mode_name(mode: UcsModeArg) -> &'static str {

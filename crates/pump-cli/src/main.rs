@@ -28,6 +28,10 @@ mod chart_replay_tests;
 mod chart_rule_generate;
 #[cfg(test)]
 mod chart_rule_generate_tests;
+mod chart_rule_hybrid;
+#[cfg(test)]
+mod chart_rule_hybrid_tests;
+mod chart_rule_hybrid_validation;
 mod chart_rule_model;
 mod chart_rule_sampling;
 mod chart_runtime;

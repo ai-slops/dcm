@@ -56,6 +56,10 @@ fn generation_is_deterministic_for_identical_versioned_request() -> anyhow::Resu
     })?;
 
     assert_eq!(first.request_sha256, second.request_sha256);
+    assert_eq!(
+        first.request_sha256,
+        "95b9b84d456207c7129b51e0c2a6f291d30fffdf3563aaa021b333e5d0d090be"
+    );
     assert_eq!(first.chart, second.chart);
     assert_eq!(first.chart.notes.len(), 4);
     assert!(first.ucs_validation.valid);
