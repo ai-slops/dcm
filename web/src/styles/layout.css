@@ -41,7 +41,8 @@
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--type-body);
+  line-height: var(--type-body-line);
   font-weight: 650;
 }
 .toolbar-actions {
@@ -121,8 +122,8 @@
 }
 .proposal p {
   color: var(--text-muted);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--type-dense-copy);
+  line-height: var(--type-dense-copy-line);
 }
 .proposal__head {
   display: flex;
@@ -144,6 +145,22 @@
   position: relative;
   border-block-start: 1px solid var(--border-subtle);
 }
+.transport__primary,
+.transport__secondary {
+  display: contents;
+}
+.transport__tick {
+  font-size: var(--type-mono);
+  line-height: var(--type-mono-line);
+  white-space: nowrap;
+}
+.transport__tick-accessible {
+  position: absolute;
+  inline-size: var(--stroke-hairline);
+  block-size: var(--stroke-hairline);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .transport input[type="range"] {
   min-inline-size: 80px;
   flex: 1;
@@ -154,7 +171,8 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
   white-space: nowrap;
 }
 .transport__compact input[type="range"] {
@@ -164,15 +182,16 @@
 .transport__error {
   max-inline-size: 32ch;
   color: var(--status-error);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
 }
 .agent-event {
   margin: 0;
   padding: var(--space-2);
   border-inline-start: 2px solid var(--cyan-primary);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
   white-space: pre-wrap;
 }
 .agent-event--prompt {
@@ -209,11 +228,13 @@
 }
 .showcase__header h1 {
   margin: var(--space-1) 0 0;
-  font-size: 20px;
+  font-size: var(--type-title);
+  line-height: var(--type-title-line);
 }
 .showcase__eyebrow {
   color: var(--coral-primary);
-  font-size: 11px;
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
 }
 .showcase__grid {
   max-inline-size: 1200px;

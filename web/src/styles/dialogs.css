@@ -27,8 +27,8 @@
 }
 .action-dialog__head h2 {
   margin: 0;
-  font-size: 15px;
-  line-height: 20px;
+  font-size: var(--type-panel-title);
+  line-height: var(--type-panel-title-line);
 }
 .action-dialog__body,
 .action-dialog__body form {
@@ -53,8 +53,8 @@
 .status-copy,
 .operation-result {
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--type-support);
+  line-height: var(--type-support-line);
 }
 .settings-code,
 .operation-result {
@@ -76,8 +76,8 @@
   margin: 0;
 }
 .ucs-dialog__section h3 {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--type-body);
+  line-height: var(--type-body-line);
 }
 .ucs-mode {
   display: flex;
@@ -91,14 +91,16 @@
 .ucs-mode legend {
   padding-inline: var(--space-1);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
 }
 .ucs-mode label {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
 }
 .ucs-mode input {
   inline-size: var(--space-4);
@@ -118,7 +120,8 @@
 .segment-dialog__duration {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
 }
 .segment-dialog__loop {
   min-block-size: var(--control-default);
@@ -126,7 +129,8 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
 }
 .segment-dialog__loop input {
   inline-size: var(--space-4);

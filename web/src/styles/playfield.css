@@ -1,11 +1,26 @@
 .preview {
   margin: var(--space-2);
   align-self: start;
+  min-block-size: 0;
+  max-block-size: calc(100% - var(--space-4));
+}
+.preview .panel__body {
+  overflow: auto;
 }
 .playfields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+}
+.playfield-group {
+  min-inline-size: 0;
+}
+.playfield__side {
+  margin: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
+  text-align: center;
 }
 .playfield {
   display: grid;
@@ -39,8 +54,8 @@
 }
 .pad span {
   transform: rotate(-45deg) scale(1.3889);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--type-pad-label);
+  line-height: var(--type-pad-label-line);
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -64,7 +79,8 @@
 .preview__summary {
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
   text-align: center;
 }
 .preview .timeline__context {
