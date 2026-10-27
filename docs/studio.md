@@ -125,6 +125,14 @@ The preview is a schematic chart audition, not StepMania rendering or physical-s
 Browser timing is floating-point playback timing; the native renderer retains exact supported
 timing when exporting. No audio starts without user interaction.
 
+Use **Segment** in the bottom transport to audition only part of the loaded music. Enter start and
+end in **audio seconds**, then choose **Play segment**. The end must be after the start and within
+the actual media duration. Playback pauses at that end, or repeats only the interval when **Loop
+selected segment** is checked. This is independent of the transport's whole-song Loop preference.
+The existing offset/tempo projection continues to drive the chart and playfield. Stop, ordinary
+chart seeking, or **Clear segment** exits interval mode; replacing/reloading audio resets it.
+The Segment dialog is also available from the mobile Preview tab.
+
 ## Audio, projects, and export
 
 The file dialog accepts WAV, OGG, or MP3 audio up to 32 MiB. Browser codec support still determines
@@ -177,6 +185,22 @@ snapping, so existing off-grid taps and hold endpoints never disappear. The audi
 to real media duration, even if a chart is longer than the selected audio.
 
 See [UCS format profile, exactness limits, native commands, references, and tests](ucs.md).
+
+### Downloaded UCS ZIP with bundled music
+
+In **UCS transfer**, choose a file under **UCS song ZIP**. Select **Chart from ZIP** and **Music
+from ZIP**, then click **Import selected ZIP files**. A single chart or music file is selected
+automatically; multiple candidates require an explicit choice. Nested folders and UTF-8 filenames
+are supported. The selected chart and WAV/OGG/MP3 replace the current project together under the
+existing revision guard. ZIP import never silently pairs a chart with unrelated current audio.
+After **Audio ready**, use Segment to audition the imported music.
+
+Archives are read in the browser, never unpacked into server-selected paths. Limits are 64 MiB ZIP
+input, 128 entries, 32 chart/music files, 16 MiB per UCS, 32 MiB per audio file, and 48 MiB combined
+decompressed song data. Actual streamed byte counts and CRCs are checked, not just declared sizes.
+Encrypted, ZIP64, split-volume, unsafe/ambiguous-path, and unsupported-compression archives are
+rejected without changing the saved document. Stored and DEFLATE entries are supported. Raw UCS
+import with optional separately chosen audio remains available; UCS export is still a plain `.ucs`.
 
 ## Native assessment and generation
 

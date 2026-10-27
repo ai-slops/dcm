@@ -24,6 +24,12 @@ and tempo changes do not create a separate UCS clock. The timeline uses a bounde
 rather than rendering every row of a long file. A UCS file does not identify or contain audio:
 choosing current audio is an explicit association, not proof that it matches the imported song.
 
+Downloaded ZIP packages can instead supply both the UCS and its music through **UCS transfer → UCS
+song ZIP**. Multiple chart/audio candidates require explicit selection. Extraction stays in the
+browser with bounded streaming and checksum checks; the existing native import commits both files.
+Use the transport's **Segment** action to play or loop a chosen audio-second interval while the same
+chart clock/visualizer follows it. See [ZIP limits and segment controls](studio.md#downloaded-ucs-zip-with-bundled-music).
+
 ## Supported Format 1 profile
 
 - Header: `:Format=1`, then an explicit `:Mode=Single` or `:Mode=Double` before timing data.
