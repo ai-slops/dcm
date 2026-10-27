@@ -14,6 +14,7 @@ pub enum ChartCommand {
     CompilePackage(ChartPackageArgs),
     CompileLocked(ChartLockedArgs),
     Generate(ChartGenerateArgs),
+    GenerateRules(ChartGenerateRulesArgs),
     Analyze(ChartBundleArgs),
     Explain(ChartGenerateArgs),
     Verify(ChartVerifyArgs),
@@ -79,6 +80,19 @@ pub struct ChartGenerateArgs {
     pub history: Vec<String>,
     #[arg(long)]
     pub request_out: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartGenerateRulesArgs {
+    pub rules: PathBuf,
+    #[arg(long)]
+    pub music: PathBuf,
+    #[arg(long)]
+    pub contract: PathBuf,
+    #[arg(long, value_enum, ignore_case = true)]
+    pub mode: UcsModeArg,
+    #[arg(long)]
+    pub seed: String,
 }
 
 #[derive(Debug, Args)]
@@ -167,7 +181,7 @@ pub struct ChartImportUcsArgs {
     pub audio: Option<PathBuf>,
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub enum UcsModeArg {
     Single,
     Double,

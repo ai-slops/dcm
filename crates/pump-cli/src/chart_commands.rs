@@ -55,6 +55,7 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
             )
         }
         ChartCommand::Generate(args) => crate::chart_generate::generate(args, format, false),
+        ChartCommand::GenerateRules(args) => crate::chart_rule_generate::run(args, format),
         ChartCommand::Analyze(args) => {
             let bundle = crate::chart_bundle::load(&args.bundle)?;
             output(&bundle.report, format)

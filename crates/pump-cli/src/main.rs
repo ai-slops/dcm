@@ -25,6 +25,11 @@ mod chart_generate;
 mod chart_host;
 #[cfg(test)]
 mod chart_replay_tests;
+mod chart_rule_generate;
+#[cfg(test)]
+mod chart_rule_generate_tests;
+mod chart_rule_model;
+mod chart_rule_sampling;
 mod chart_runtime;
 #[cfg(test)]
 mod chart_runtime_tests;
