@@ -208,6 +208,8 @@ describe("Studio library API", () => {
     const imported = LibraryMutationSchema.parse(await importedResponse.json())
     expect(imported.document).toEqual(client.bootstrap.document)
     expect(imported.library.songs).toHaveLength(2)
+    const song = imported.library.songs[1]
+    if (song === undefined) return
     const file = await client.request(`/api/v1/library/archives/${archive.id}/file`)
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(archiveBytes)
     const corrupted = Uint8Array.from(archiveBytes)
@@ -216,8 +218,6 @@ describe("Studio library API", () => {
     const corruptResponse = await client.request(`/api/v1/library/archives/${archive.id}/file`)
     expect(corruptResponse.status).toBe(500)
     expect(await corruptResponse.json()).toMatchObject({ error: { code: "archive_corrupt" } })
-    const song = imported.library.songs[1]
-    if (song === undefined) return
     const bundle = await client.request(`/api/v1/library/songs/${song.id}/export`)
     expect(Object.keys(unzipSync(new Uint8Array(await bundle.arrayBuffer()))).sort()).toEqual([
       "charts_main.ucs",

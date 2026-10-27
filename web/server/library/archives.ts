@@ -22,9 +22,12 @@ import type { NativeUcsService } from "../native/ucs.ts"
 import type { AudioRecord, StudioStore } from "../store.ts"
 import { archiveAudioFormat, archiveLabel, chartFilename } from "./archive-names.ts"
 import { parseArchiveInWorker } from "./archive-resource.ts"
+import { archiveSource } from "./archive-source.ts"
+import { chartSummary } from "./chart-summary.ts"
+import { currentDocument } from "./document-view.ts"
 import { downloadUcsPackage } from "./download.ts"
 import { bindingFor, nativeMetadata } from "./project-factory.ts"
-import { chartSummary, type PersistedStateV3, snapshot } from "./state.ts"
+import { type PersistedStateV3, snapshot } from "./state.ts"
 
 type StageMetadata = {
   readonly name: string
@@ -132,6 +135,7 @@ export class LibraryArchives {
               artist: command.artist,
               audio: binding,
               archive_id: command.archive_id,
+              archive_source: archiveSource(chartEntries[0], audioEntry, imported[0]),
             },
           ],
           charts: [...state.library.charts, ...charts],
@@ -247,7 +251,7 @@ function requireEntry(
 }
 
 function mutation(state: PersistedStateV3): LibraryMutation {
-  return LibraryMutationSchema.parse({ document: state.document, library: snapshot(state) })
+  return LibraryMutationSchema.parse({ document: currentDocument(state), library: snapshot(state) })
 }
 
 function audioRecord(bytes: Uint8Array, format: AudioRecord["format"]): AudioRecord {

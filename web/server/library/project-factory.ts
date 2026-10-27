@@ -24,7 +24,7 @@ export function newSongProject(
       reference_accents: [],
     },
     chart: { ticks_per_beat: 48, span_ticks: duration, notes: [] },
-    evaluation_contract: compatibleContract(template, duration),
+    evaluation_contract: compatibleEvaluationContract(template, duration),
     audio_asset: { format: audio.format, byte_length: audio.byte_length },
     ucs_mode: input.mode,
   })
@@ -70,7 +70,7 @@ export function bindingFor(bytes: Uint8Array, format: AudioBinding["format"]): A
   }
 }
 
-function compatibleContract(template: StudioProjectV1, duration: number) {
+export function compatibleEvaluationContract(template: StudioProjectV1, duration: number) {
   const contract = template.evaluation_contract
   return {
     ...contract,
