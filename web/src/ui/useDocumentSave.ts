@@ -1,6 +1,6 @@
 import type { RefObject } from "react"
 
-import type { Revision, StudioProjectV1 } from "../../shared/index.ts"
+import type { DocumentOrigin, Revision, StudioProjectV1 } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import type { SaveResult } from "./studio-types.ts"
 
@@ -12,6 +12,7 @@ type DocumentSaveInput = {
   readonly onProject: (project: StudioProjectV1) => void
   readonly onPersistedProject: (project: StudioProjectV1) => void
   readonly onRevision: (revision: Revision) => void
+  readonly onOrigin: (origin: DocumentOrigin | undefined) => void
   readonly onStatus: (status: string) => void
   readonly onValidationError: (message: string) => void
 }
@@ -27,6 +28,7 @@ export function useDocumentSave(input: DocumentSaveInput) {
       })
       const savedCurrent = input.projectRef.current === savingProject
       input.onRevision(document.revision)
+      input.onOrigin(document.origin)
       input.onPersistedProject(document.project)
       if (savedCurrent) input.onProject(document.project)
       input.onValidationError("")

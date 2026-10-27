@@ -21,6 +21,7 @@ describe("document save result", () => {
       onProject,
       onPersistedProject: vi.fn(),
       onRevision: vi.fn(),
+      onOrigin: vi.fn(),
       onStatus,
       onValidationError: vi.fn(),
     })
