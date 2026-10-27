@@ -99,12 +99,13 @@ describe("document toolbar save control", () => {
     expect(markup).toContain(`aria-label="${name}"`)
   })
 
-  it("uses one compact library entry for project and song workflows", () => {
+  it("separates song and chart management from rule projects and reusable components", () => {
     // Given / When
     const markup = renderToolbar("Saved", false)
 
     // Then
-    expect(markup).toContain('aria-label="Songs and library"')
+    expect(markup).toContain('aria-label="Songs and charts"')
+    expect(markup).toContain('aria-label="Projects and library"')
     expect(markup).not.toContain('aria-label="Import and audio"')
   })
 })

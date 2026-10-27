@@ -1,4 +1,4 @@
-import { ArrowLeftRight, LibraryBig, Settings, WandSparkles } from "lucide-react"
+import { ArrowLeftRight, FolderKanban, LibraryBig, Settings, WandSparkles } from "lucide-react"
 import { useState } from "react"
 
 import type {
@@ -7,12 +7,12 @@ import type {
   CurrentDocument,
   Revision,
   StudioProjectV1,
-  UcsMode,
 } from "../../shared/index.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { FileActionsDialog } from "./FileActionsDialog.tsx"
 import { LibraryDialog } from "./LibraryDialog.tsx"
 import { NativeActionsDialog } from "./NativeActionsDialog.tsx"
+import { ProjectManagerDialog } from "./ProjectManagerDialog.tsx"
 import { IconButton } from "./primitives.tsx"
 import type { SaveResult } from "./studio-types.ts"
 import { UcsActionsDialog } from "./UcsActionsDialog.tsx"
@@ -25,11 +25,10 @@ type ActionsProps = {
   readonly onDocument: (document: CurrentDocument) => void
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
-  readonly onMode: (mode: UcsMode) => void
   readonly onSave: () => Promise<SaveResult | null>
 }
 
-type DialogName = "files" | "library" | "native" | "settings" | "ucs"
+type DialogName = "files" | "library" | "native" | "projects" | "settings" | "ucs"
 
 export function StudioActions(props: ActionsProps) {
   const [open, setOpen] = useState<DialogName | null>(null)
@@ -37,9 +36,14 @@ export function StudioActions(props: ActionsProps) {
   return (
     <>
       <IconButton
-        label="Songs and library"
+        label="Songs and charts"
         icon={<LibraryBig size={15} />}
         onClick={() => setOpen("library")}
+      />
+      <IconButton
+        label="Projects and library"
+        icon={<FolderKanban size={15} />}
+        onClick={() => setOpen("projects")}
       />
       <IconButton
         label="Settings"
@@ -88,10 +92,22 @@ export function StudioActions(props: ActionsProps) {
         project={props.project}
         revision={props.revision}
         onClose={close}
+        onOpenProjects={() => setOpen("projects")}
+        onOpenUcs={() => setOpen("ucs")}
         onProposal={props.onProposal}
       />
+      <ProjectManagerDialog
+        csrfToken={props.bootstrap.csrf_token}
+        currentChart={props.project}
+        dirty={props.dirty}
+        open={open === "projects"}
+        revision={props.revision}
+        onClose={close}
+        onDocument={props.onDocument}
+        onSave={props.onSave}
+        onStatus={props.onStatus}
+      />
       <UcsActionsDialog
-        onMode={props.onMode}
         csrfToken={props.bootstrap.csrf_token}
         dirty={props.dirty}
         open={open === "ucs"}

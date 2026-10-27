@@ -12,6 +12,7 @@ import "./styles/preview-gallery.css"
 import "./styles/responsive.css"
 import "./styles/mobile.css"
 import "./styles/library.css"
+import "./styles/projects.css"
 
 const showcase = import.meta.env.DEV && new URLSearchParams(window.location.search).has("showcase")
 const bootstrapLoad = showcase ? null : startBootstrap()
