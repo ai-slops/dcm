@@ -6,6 +6,7 @@ import {
   RevisionSchema,
   StudioProjectV1Schema,
 } from "../../shared/index.ts"
+import { assertEditableChart } from "../chart-boundary.ts"
 import { StudioError } from "../errors.ts"
 import type { ProposalInput } from "./part-runtime.ts"
 
@@ -15,6 +16,7 @@ export function buildAgentProposal(
   runId: string,
 ): ChartProposal {
   const chart = canonicalizeChart(input.chart)
+  assertEditableChart(chart)
   const project = StudioProjectV1Schema.parse({
     ...document.project,
     chart,
