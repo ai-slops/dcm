@@ -1,10 +1,14 @@
 import { AlertTriangle, RefreshCw } from "lucide-react"
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 
 import type { BootstrapLoadResult } from "../bootstrap.ts"
 import { PrimitiveShowcase } from "./PrimitiveShowcase.tsx"
 import { Button } from "./primitives.tsx"
 import { Studio } from "./Studio.tsx"
+
+const PreviewGallery = lazy(() =>
+  import("./PreviewGallery.tsx").then(({ PreviewGallery: Component }) => ({ default: Component })),
+)
 
 type LoadState = { readonly kind: "loading" } | BootstrapLoadResult
 
@@ -29,6 +33,13 @@ export function App({
   }, [bootstrapLoad])
 
   if (showcase) return <PrimitiveShowcase />
+  if (state.kind === "ready" && window.location.pathname === "/previews") {
+    return (
+      <Suspense fallback={<div className="empty-state">Loading preview components...</div>}>
+        <PreviewGallery />
+      </Suspense>
+    )
+  }
   if (state.kind === "ready") return <Studio bootstrap={state.bootstrap} />
   if (state.kind === "loading") {
     return (
