@@ -9,7 +9,7 @@ import { chromium } from "playwright"
 import { loadDemo } from "../../server/demo.ts"
 import { StudioProjectV1Schema } from "../../shared/index.ts"
 import { verifyVisibleChrome } from "./ucs-layout.mjs"
-import { verifyAudioClock } from "./ucs-playback.mjs"
+import { verifyAudioClock, verifyBoundedTimeline } from "./ucs-playback.mjs"
 import { createUcsSession, openSingleFixture, restoreUcsSession } from "./ucs-session.mjs"
 import {
   bootstrap,
@@ -127,7 +127,7 @@ try {
     native.chart,
   )
   assert.equal((await bootstrap(context, configuration.url)).document.project.ucs_mode, "Double")
-  assert.ok((await page.locator(".timeline__cell").count()) <= 480)
+  await verifyBoundedTimeline(page)
 
   await verifyAudioClock(page)
 

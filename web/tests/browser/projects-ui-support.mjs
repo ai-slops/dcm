@@ -39,11 +39,17 @@ export async function createProjectThroughUi(page, input) {
     const form = document.querySelector("dialog[open] .project-editor")
     return form !== null && !form.querySelector('button[type="submit"]').disabled
   })
-  const rules = JSON.parse(
-    await form.getByRole("textbox", { name: "Generation rules", exact: true }).inputValue(),
+  const timing = JSON.parse(
+    await form.getByRole("textbox", { name: "Timing", exact: true }).inputValue(),
   )
-  rules.end_tick = Math.min(rules.end_tick, rules.step_ticks * 8)
-  rules.pattern = [{ choices: [{ panel_mask: input.mask, hold_ticks: 0, weight: 1 }] }]
+  const rules = {
+    schema_version: 1,
+    algorithm: "weighted_cycle_v1",
+    start_tick: 0,
+    end_tick: Math.min(timing.duration_ticks, timing.ticks_per_beat * 8),
+    step_ticks: timing.ticks_per_beat,
+    pattern: [{ choices: [{ panel_mask: input.mask, hold_ticks: 0, weight: 1 }] }],
+  }
   await form
     .getByRole("textbox", { name: "Generation rules", exact: true })
     .fill(JSON.stringify(rules, null, 2))

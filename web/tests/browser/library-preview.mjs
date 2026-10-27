@@ -3,9 +3,9 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 import { chromium } from "playwright"
-
 import { LibraryChartDocumentSchema } from "../../shared/library.ts"
 import { tickToAudioMicros } from "../../src/domain/timing.ts"
+import { waitForGalleryTimeline } from "./grid-gestures.mjs"
 import { bootstrap, browserConfiguration, repoRoot } from "./ucs-support.mjs"
 
 const chartId = process.env.STUDIO_LIBRARY_CHART_ID
@@ -72,6 +72,7 @@ try {
     await page.setViewportSize({ width, height: 1000 })
     for (const view of ["player", "pads", "timeline", "transport", "primitives"]) {
       await page.getByRole("button", { name: view, exact: true }).click()
+      if (view === "timeline") await waitForGalleryTimeline(page)
       await page
         .getByRole("button", { name: view, exact: true })
         .getAttribute("aria-pressed")

@@ -1,4 +1,14 @@
 import assert from "node:assert/strict"
+import { TIMELINE_BUFFER_ROWS } from "../../src/domain/timeline.ts"
+
+export async function verifyBoundedTimeline(page, lanes = 10) {
+  const geometry = await page.locator(".timeline__scroller").evaluate((node) => ({
+    height: node.clientHeight,
+    rowSize: Number.parseFloat(getComputedStyle(node).getPropertyValue("--timeline-row-size")),
+  }))
+  const maximumRows = Math.ceil(geometry.height / geometry.rowSize) + TIMELINE_BUFFER_ROWS * 2 + 2
+  assert.ok((await page.locator(".timeline__cell").count()) <= maximumRows * lanes)
+}
 
 export async function verifyAudioClock(page) {
   for (const quantize of [2, 4, 8]) {
@@ -11,7 +21,7 @@ export async function verifyAudioClock(page) {
     ]) {
       await page.getByRole("button", { name: label, exact: true }).waitFor()
     }
-    assert.equal(await page.locator(".timeline__cell").count(), 480)
+    await verifyBoundedTimeline(page)
   }
   await page.getByLabel(/^Quantize/).selectOption("1")
   await page.getByRole("button", { name: "Play", exact: true }).click()
@@ -70,6 +80,6 @@ export async function verifyAudioClock(page) {
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.getByRole("button", { name: "L DL, tick 48, empty", exact: true }).waitFor()
   assert.equal(await page.getByLabel("Go to tick", { exact: true }).inputValue(), "0")
-  assert.equal(await page.locator(".timeline__cell").count(), 480)
+  await verifyBoundedTimeline(page)
   await page.getByRole("button", { name: "Pause", exact: true }).click()
 }
