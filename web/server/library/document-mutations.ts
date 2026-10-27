@@ -1,23 +1,26 @@
 import { createHash } from "node:crypto"
 
 import {
+  ChartDocumentSchema,
   type CurrentDocument,
+  normalizeChartDocument,
   RevisionSchema,
   type StudioProjectV1,
-  StudioProjectV1Schema,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import type { AudioRecord, StoreMutation } from "../store.ts"
-import { chartSummary, hexDigest, type PersistedStateV2 } from "./state.ts"
+import { chartSummary, hexDigest, type PersistedStateV3 } from "./state.ts"
 
 export function saveDocumentMutation(
-  state: PersistedStateV2,
+  state: PersistedStateV3,
   baseRevision: number,
   projectInput: unknown,
 ): StoreMutation<CurrentDocument> {
   expectRevision(state, baseRevision)
-  const project = StudioProjectV1Schema.parse(projectInput)
+  const project = ChartDocumentSchema.parse(projectInput)
   const active = activeChart(state)
+  if (project.ucs_mode !== active.mode)
+    throw new StudioError(409, "chart_mode_immutable", "Create a new chart to use a different mode")
   const song = state.library.songs.find((candidate) => candidate.id === active.song_id)
   if (song === undefined) throw new StudioError(500, "library_corrupt", "Active song is missing")
   if (
@@ -29,20 +32,18 @@ export function saveDocumentMutation(
   const nextDocument = { revision: RevisionSchema.parse(state.document.revision + 1), project }
   const summaryChanged =
     JSON.stringify(chartSummary(project)) !== JSON.stringify(chartSummary(active.project))
-  const mode = project.ucs_mode ?? "Double"
-  const modeChanged = mode !== active.mode
   const next = {
     ...state,
     document: nextDocument,
     library: {
       ...state.library,
-      revision: state.library.revision + (summaryChanged || modeChanged ? 1 : 0),
+      revision: state.library.revision + (summaryChanged ? 1 : 0),
       charts: state.library.charts.map((chart) =>
         chart.id === active.id
           ? {
               ...chart,
               ...chartSummary(project),
-              mode,
+              mode: project.ucs_mode,
               project,
             }
           : chart,
@@ -53,13 +54,13 @@ export function saveDocumentMutation(
 }
 
 export function replaceDocumentMutation(
-  state: PersistedStateV2,
+  state: PersistedStateV3,
   baseRevision: number,
   projectInput: unknown,
   bytes: Uint8Array,
 ): StoreMutation<CurrentDocument> {
   expectRevision(state, baseRevision)
-  const project = StudioProjectV1Schema.parse(projectInput)
+  const project = normalizeChartDocument(projectInput)
   const audio = audioRecord(bytes, project.audio_asset.format)
   assertReplacementAudio(project, audio)
   const active = activeChart(state)
@@ -77,7 +78,7 @@ export function replaceDocumentMutation(
     return {
       ...chart,
       ...(chart.id === active.id ? chartSummary(project) : {}),
-      mode: chart.id === active.id ? (project.ucs_mode ?? "Double") : chart.mode,
+      mode: chart.id === active.id ? project.ucs_mode : chart.mode,
       project: rebound,
     }
   })
@@ -102,7 +103,7 @@ export function replaceDocumentMutation(
   }
 }
 
-function activeChart(state: PersistedStateV2) {
+function activeChart(state: PersistedStateV3) {
   const chart = state.library.charts.find(
     (candidate) => candidate.id === state.library.active_chart_id,
   )
@@ -110,7 +111,7 @@ function activeChart(state: PersistedStateV2) {
   return chart
 }
 
-function expectRevision(state: PersistedStateV2, revision: number): void {
+function expectRevision(state: PersistedStateV3, revision: number): void {
   if (revision !== state.document.revision)
     throw new StudioError(
       409,

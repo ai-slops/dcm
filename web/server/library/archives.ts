@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 
 import { strToU8, zipSync } from "fflate"
 
-import { StudioProjectV1Schema, type UcsChart } from "../../shared/index.ts"
+import { ChartDocumentSchema, type UcsChart } from "../../shared/index.ts"
 import {
   ArchiveIdSchema,
   ChartIdSchema,
@@ -24,7 +24,7 @@ import { archiveAudioFormat, archiveLabel, chartFilename } from "./archive-names
 import { parseArchiveInWorker } from "./archive-resource.ts"
 import { downloadUcsPackage } from "./download.ts"
 import { bindingFor, nativeMetadata } from "./project-factory.ts"
-import { chartSummary, type PersistedStateV2, snapshot } from "./state.ts"
+import { chartSummary, type PersistedStateV3, snapshot } from "./state.ts"
 
 type StageMetadata = {
   readonly name: string
@@ -81,7 +81,7 @@ export class LibraryArchives {
     for (const entry of chartEntries) imported.push(await this.ucs.import(entry.data, audio))
     const template = this.store.document().project
     const projects = imported.map((ucsChart) => {
-      const parsed = StudioProjectV1Schema.safeParse({
+      const parsed = ChartDocumentSchema.safeParse({
         ...template,
         title: nativeMetadata(command.title),
         artist: nativeMetadata(command.artist),
@@ -246,7 +246,7 @@ function requireEntry(
   return entry
 }
 
-function mutation(state: PersistedStateV2): LibraryMutation {
+function mutation(state: PersistedStateV3): LibraryMutation {
   return LibraryMutationSchema.parse({ document: state.document, library: snapshot(state) })
 }
 

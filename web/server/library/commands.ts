@@ -180,6 +180,12 @@ function deleteSong(
 ): Promise<LibraryMutation> {
   return store.transact(command.library_revision, (state) => {
     requireSong(state, command.song_id)
+    if (state.projects.records.some((project) => project.song_id === command.song_id))
+      throw new StudioError(
+        409,
+        "song_has_projects",
+        "Delete generation projects before deleting their song",
+      )
     if (state.library.songs.length === 1)
       throw new StudioError(409, "last_song", "The last song cannot be deleted")
     const removedIds = new Set(

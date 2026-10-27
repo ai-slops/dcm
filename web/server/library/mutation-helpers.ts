@@ -7,7 +7,7 @@ import {
   type SongId,
 } from "../../shared/library.ts"
 import { StudioError } from "../errors.ts"
-import { chartSummary, type PersistedStateV2, snapshot } from "./state.ts"
+import { chartSummary, type PersistedStateV3, snapshot } from "./state.ts"
 
 export function storedChart(
   id: ChartId,
@@ -20,8 +20,8 @@ export function storedChart(
 }
 
 export function switchActive(
-  state: PersistedStateV2,
-  chart: PersistedStateV2["library"]["charts"][number],
+  state: PersistedStateV3,
+  chart: PersistedStateV3["library"]["charts"][number],
 ) {
   return {
     ...state,
@@ -38,8 +38,8 @@ export function switchActive(
 }
 
 export function bumpLibrary(
-  state: PersistedStateV2,
-  changes: Partial<PersistedStateV2["library"]>,
+  state: PersistedStateV3,
+  changes: Partial<PersistedStateV3["library"]>,
 ) {
   return {
     ...state,
@@ -51,11 +51,11 @@ export function bumpLibrary(
   }
 }
 
-export function mutation(state: PersistedStateV2): LibraryMutation {
+export function mutation(state: PersistedStateV3): LibraryMutation {
   return LibraryMutationSchema.parse({ document: state.document, library: snapshot(state) })
 }
 
-export function expectRevision(state: PersistedStateV2, revision: number): void {
+export function expectRevision(state: PersistedStateV3, revision: number): void {
   if (state.document.revision !== revision)
     throw new StudioError(
       409,
@@ -65,20 +65,20 @@ export function expectRevision(state: PersistedStateV2, revision: number): void 
     )
 }
 
-export function requireChart(state: PersistedStateV2, id: ChartId) {
+export function requireChart(state: PersistedStateV3, id: ChartId) {
   const chart = state.library.charts.find((candidate) => candidate.id === id)
   if (chart === undefined) throw new StudioError(404, "chart_not_found", "Chart was not found")
   return chart
 }
 
-export function requireSong(state: PersistedStateV2, id: SongId) {
+export function requireSong(state: PersistedStateV3, id: SongId) {
   const song = state.library.songs.find((candidate) => candidate.id === id)
   if (song === undefined) throw new StudioError(404, "song_not_found", "Song was not found")
   return song
 }
 
 export function requireFallback(
-  state: PersistedStateV2,
+  state: PersistedStateV3,
   id: ChartId | undefined,
   deleted: ChartId,
 ) {
@@ -94,7 +94,7 @@ export function requireFallback(
 }
 
 export function requireFallbackSet(
-  state: PersistedStateV2,
+  state: PersistedStateV3,
   id: ChartId | undefined,
   deleted: ReadonlySet<ChartId>,
 ) {
