@@ -8,19 +8,23 @@ import { getCookie, setCookie } from "hono/cookie"
 import { HTTPException } from "hono/http-exception"
 import { z } from "zod"
 import { AgentRuns } from "./agent/runs.ts"
+import { agentToolReadiness } from "./agent/tool-readiness.ts"
 import type { StudioConfig } from "./config.ts"
 import { loadDemo } from "./demo.ts"
 import { StudioError } from "./errors.ts"
 import { enforceApiBodyLimit } from "./http.ts"
 import { LibraryArchives } from "./library/archives.ts"
 import { LibraryService } from "./library/service.ts"
+import { ProjectNativeService } from "./native/project-rules.ts"
 import { NativeService } from "./native/service.ts"
 import { NativeUcsService } from "./native/ucs.ts"
+import { ProjectService } from "./projects/service.ts"
 import { configurationForModel, resolveAgentProvider } from "./provider/resolve.ts"
 import { registerAgentRoutes } from "./routes/agent.ts"
 import { registerDocumentRoutes } from "./routes/document.ts"
 import { registerLibraryRoutes } from "./routes/library.ts"
 import { registerNativeRoutes } from "./routes/native.ts"
+import { registerProjectRoutes } from "./routes/projects.ts"
 import { registerUcsRoutes } from "./routes/ucs.ts"
 import { SessionStore } from "./sessions.ts"
 import { StudioStore } from "./store.ts"
@@ -35,6 +39,8 @@ export async function createStudioApp(
   const store = await StudioStore.open(config.dataRoot, demo.document, demo.audio)
   const sessions = new SessionStore()
   const native = new NativeService(config.repoRoot, config.dataRoot)
+  const projectNative = new ProjectNativeService(config.repoRoot)
+  const projects = new ProjectService(store, projectNative)
   const ucs = new NativeUcsService(config.repoRoot)
   const provider = await resolveAgentProvider(config)
   const library = new LibraryService(store)
@@ -43,6 +49,7 @@ export async function createStudioApp(
     configuration: provider.configuration,
     resolveConfiguration: (modelId) => configurationForModel(config, modelId),
     store,
+    projects,
     native: {
       evaluate: (project, signal) => native.evaluate(project, signal),
       generate: (project, audio, seed, signal) => native.generate(project, audio, seed, signal),
@@ -52,7 +59,17 @@ export async function createStudioApp(
       },
     },
   })
-  const services: Services = { config, store, sessions, native, library, archives, runs }
+  const services: Services = {
+    config,
+    store,
+    sessions,
+    native,
+    projectNative,
+    projects,
+    library,
+    archives,
+    runs,
+  }
   const app = new Hono<StudioEnv>()
 
   app.use("*", async (context, next) => {
@@ -118,6 +135,7 @@ export async function createStudioApp(
   app.get("/api/v1/bootstrap", async (context) => {
     const session = context.get("session")
     const readiness = await native.readiness()
+    const projectReadiness = await projectNative.readiness()
     const generatorCompatible =
       readiness.ready &&
       JSON.stringify(store.document().project.music) === JSON.stringify(demo.document.project.music)
@@ -132,38 +150,11 @@ export async function createStudioApp(
       session_id: session.id,
       native: readiness,
       agent: refreshedProvider.status,
-      tools: [
-        { id: "read_document", description: "Read the frozen saved project.", available: true },
-        {
-          id: "evaluate_chart",
-          description: "Evaluate the frozen chart with the native finite model.",
-          available: readiness.ready,
-          ...(readiness.ready ? {} : { reason: readiness.message }),
-        },
-        {
-          id: "generate_variant",
-          description: "Generate a native candidate chart.",
-          available: generatorCompatible,
-          ...(generatorCompatible
-            ? {}
-            : {
-                reason: readiness.ready
-                  ? "Current timing/audio differs from the bundled generator profile"
-                  : readiness.message,
-              }),
-        },
-        {
-          id: "propose_chart",
-          description: "Create a reviewable chart and timing proposal.",
-          available: true,
-        },
-        {
-          id: "validate_ucs",
-          description: "Validate native UCS export for the frozen project.",
-          available: readiness.ready,
-          ...(readiness.ready ? {} : { reason: readiness.message }),
-        },
-      ],
+      tools: agentToolReadiness({
+        native: readiness,
+        projects: projectReadiness,
+        generatorCompatible,
+      }),
       proposals: [...session.proposals.values()],
       active_run:
         session.activeRunId === undefined ? null : (session.runs.get(session.activeRunId) ?? null),
@@ -173,6 +164,7 @@ export async function createStudioApp(
   registerDocumentRoutes(app, services)
   registerLibraryRoutes(app, services, ucs)
   registerNativeRoutes(app, services)
+  registerProjectRoutes(app, services)
   registerUcsRoutes(app, services)
   registerAgentRoutes(app, services)
 
