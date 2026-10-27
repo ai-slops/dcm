@@ -6,6 +6,7 @@ import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { downloadBlob, errorMessage } from "./action-utils.ts"
 import { Button } from "./primitives.tsx"
+import { UcsZipImport } from "./UcsZipImport.tsx"
 
 type UcsActionsProps = {
   readonly csrfToken: string
@@ -82,6 +83,7 @@ export function UcsActionsDialog(props: UcsActionsProps) {
       onClose={props.onClose}
     >
       <div className="action-dialog__body ucs-dialog">
+        <UcsZipImport disabled={!replacementEnabled} onImport={importUcs} />
         <section className="ucs-dialog__section" aria-labelledby="ucs-import-heading">
           <div>
             <h3 id="ucs-import-heading">Import UCS</h3>

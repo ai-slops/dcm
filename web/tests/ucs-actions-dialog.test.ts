@@ -29,6 +29,8 @@ describe("UCS transfer dialog", () => {
     // Then Double is explicit and audio fallback copy is visible
     expect(markup).toMatch(/<input[^>]*checked=""[^>]*value="Double"/)
     expect(markup).toContain("Omit audio to keep the current project audio")
+    expect(markup).toMatch(/<input[^>]*accept="\.zip,application\/zip"[^>]*name="ucs-zip"/)
+    expect(markup).toContain("ZIP import requires bundled music")
   })
 
   it("disables replacement import for a dirty draft", async () => {
@@ -53,6 +55,7 @@ describe("UCS transfer dialog", () => {
     // Then the blocking reason and disabled chart picker are both present
     expect(markup).toContain("Save or undo your changes before importing UCS")
     expect(markup).toMatch(/<input[^>]*disabled=""[^>]*name="chart"/)
+    expect(markup).toMatch(/<input[^>]*disabled=""[^>]*name="ucs-zip"/)
     expect(markup).toContain("Save your changes before exporting UCS")
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Download UCS/s)
   })
