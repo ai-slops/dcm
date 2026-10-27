@@ -57,13 +57,13 @@ export function FileActionsDialog(props: FileActionsProps) {
     <ActionDialog
       open={props.open}
       busy={busy !== null}
-      title="Project files"
+      title="Chart document"
       onClose={props.onClose}
     >
       <div className="action-dialog__body">
         {props.dirty && (
           <p className="status-copy" role="status">
-            Save or undo your changes before replacing audio or importing a project.
+            Save or undo your changes before replacing audio or importing a chart document.
           </p>
         )}
         <label className="file-action">
@@ -89,7 +89,7 @@ export function FileActionsDialog(props: FileActionsProps) {
           }}
         >
           <label className="file-action">
-            Project JSON
+            Chart document JSON
             <input
               required
               name="project"
@@ -124,7 +124,7 @@ export function FileActionsDialog(props: FileActionsProps) {
             )
           }
         >
-          Export project JSON
+          Export chart document JSON
         </Button>
       </div>
     </ActionDialog>

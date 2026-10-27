@@ -115,7 +115,7 @@ export function LibraryDialog(props: LibraryDialogProps) {
     <ActionDialog
       open={props.open}
       busy={busy}
-      title="Songs and library"
+      title="Songs and charts"
       onClose={closeOrCancelPending}
     >
       <div className="action-dialog__body library-dialog">

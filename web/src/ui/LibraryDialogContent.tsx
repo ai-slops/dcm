@@ -40,7 +40,7 @@ export function LibraryDialogContent(props: LibraryDialogContentProps) {
     <>
       <nav className="library-shortcuts" aria-label="Library tools">
         <Button disabled={props.busy} onClick={props.onOpenProjectFiles}>
-          Project files
+          Chart document
         </Button>
         <Button disabled={props.busy} onClick={props.onOpenNativeTools}>
           Generate and export
