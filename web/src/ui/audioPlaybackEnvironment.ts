@@ -38,6 +38,12 @@ export const browserAudioPlaybackEnvironment: AudioPlaybackEnvironment = {
   revokeObjectUrl: (url) => URL.revokeObjectURL(url),
 }
 
+export function browserAudioPlaybackEnvironmentFor(
+  loadAudio: () => Promise<Blob>,
+): AudioPlaybackEnvironment {
+  return { ...browserAudioPlaybackEnvironment, loadAudio }
+}
+
 export function clearPlaybackMediaHandlers(audio: PlaybackMedia): void {
   audio.oncanplay = null
   audio.onended = null
