@@ -7,6 +7,15 @@
 }
 
 @font-face {
+  font-family: "Noto Sans KR";
+  src: url("/fonts/noto-sans-kr-korean-400.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7AF, U+D7B0-D7FF;
+}
+
+@font-face {
   font-family: "IBM Plex Mono";
   src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2");
   font-style: normal;
@@ -113,8 +122,8 @@
   --motion-micro: 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-standard: 220ms cubic-bezier(0.16, 1, 0.3, 1);
   font-family:
-    "Satoshi Variable", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", Arial,
-    system-ui, sans-serif;
+    "Satoshi Variable", "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo",
+    Arial, system-ui, sans-serif;
   font-synthesis: none;
 }
 
@@ -143,8 +152,8 @@ button {
 }
 .mono {
   font-family:
-    "IBM Plex Mono", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace,
-    monospace;
+    "IBM Plex Mono", "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Apple SD Gothic Neo",
+    ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .agent-event {
