@@ -28,6 +28,17 @@
   .ucs-dialog__section .button {
     inline-size: 100%;
   }
+  .ucs-zip-selection,
+  .segment-dialog__range {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .segment-dialog__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .segment-dialog__actions .button {
+    inline-size: 100%;
+  }
   .timeline__controls {
     min-inline-size: 100%;
     display: grid;

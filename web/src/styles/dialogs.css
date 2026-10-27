@@ -38,7 +38,8 @@
 .action-dialog__body {
   padding: var(--space-4);
 }
-.action-dialog__body input {
+.action-dialog__body input,
+.action-dialog__body select {
   inline-size: 100%;
   min-block-size: var(--control-default);
   margin-block-start: var(--space-2);
@@ -107,4 +108,34 @@
 }
 .operation-result--error {
   color: var(--status-error);
+}
+.ucs-zip-selection,
+.segment-dialog__range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.segment-dialog__duration {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.segment-dialog__loop {
+  min-block-size: var(--control-default);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.segment-dialog__loop input {
+  inline-size: var(--space-4);
+  min-block-size: var(--space-4);
+  margin: 0;
+  accent-color: var(--coral-primary);
+}
+.segment-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
