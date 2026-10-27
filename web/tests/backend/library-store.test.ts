@@ -57,8 +57,9 @@ describe("Studio library persistence", () => {
     expect(migrated.library().charts).toHaveLength(1)
     expect(migrated.library().active_chart_id).toBe(migrated.library().charts[0]?.id)
     expect(JSON.parse(await readFile(join(root, "document.json"), "utf8"))).toMatchObject({
-      version: 2,
+      version: 3,
       document: demo.document,
+      projects: { revision: 0, selected_project_id: null, records: [], components: [] },
     })
   })
 
@@ -82,22 +83,21 @@ describe("Studio library persistence", () => {
     expect(store.chartDocument(active).project.chart.notes).toEqual([])
   })
 
-  it("increments the library revision when save changes canonical UCS mode", async () => {
+  it("rejects changing canonical UCS mode through normal save", async () => {
     // Given
     const root = await mkdtemp(join(tmpdir(), "pump-library-mode-"))
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
 
-    // When
-    await store.save(store.document().revision, { ...demo.document.project, ucs_mode: "Single" })
-    const afterSingle = store.library()
-    await store.save(store.document().revision, demo.document.project)
+    const changed = store.save(store.document().revision, {
+      ...demo.document.project,
+      ucs_mode: "Single",
+    })
 
     // Then
-    expect(afterSingle.revision).toBe(1)
-    expect(afterSingle.charts[0]?.mode).toBe("Single")
-    expect(store.library().revision).toBe(2)
+    await expect(changed).rejects.toMatchObject({ code: "chart_mode_immutable" })
+    expect(store.library().revision).toBe(0)
     expect(store.library().charts[0]?.mode).toBe("Double")
   })
 
@@ -137,8 +137,19 @@ describe("Studio library persistence", () => {
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
-    const single = { ...demo.document.project, ucs_mode: "Single" as const }
-    await store.save(store.document().revision, single)
+    const library = new LibraryService(store)
+    const song = store.library().songs[0]
+    if (song === undefined) throw new Error("Expected initial song")
+    await library.command(
+      LibraryCommandSchema.parse({
+        type: "new_chart",
+        library_revision: 0,
+        base_revision: 0,
+        song_id: song.id,
+        name: "Single",
+        mode: "Single",
+      }),
+    )
 
     // When
     const restored = await store.replace(
@@ -150,6 +161,29 @@ describe("Studio library persistence", () => {
     // Then
     expect(restored.project).toEqual(demo.document.project)
     expect(store.chartDocument(store.library().active_chart_id).chart.mode).toBe("Double")
+  })
+
+  it("rejects migration of explicit Single charts containing right-pad notes", async () => {
+    // Given
+    const root = await mkdtemp(join(tmpdir(), "pump-library-mode-migration-"))
+    roots.push(root)
+    const demo = await loadDemo(repoRoot)
+    await StudioStore.open(root, demo.document, demo.audio)
+    const path = join(root, "document.json")
+    const state = JSON.parse(await readFile(path, "utf8"))
+    state.version = 2
+    delete state.projects
+    state.document.project.ucs_mode = "Single"
+    state.document.project.chart.notes[0].panel_mask = 32
+    state.library.charts[0].mode = "Single"
+    state.library.charts[0].project = state.document.project
+    await writeFile(path, `${JSON.stringify(state)}\n`)
+
+    // When
+    const reopened = StudioStore.open(root, demo.document, demo.audio)
+
+    // Then
+    await expect(reopened).rejects.toBeInstanceOf(Error)
   })
 
   it("does not publish a chart switch when its active audio asset is missing", async () => {

@@ -1,24 +1,30 @@
 import { createHash } from "node:crypto"
 import { mkdir, readFile } from "node:fs/promises"
 import { resolve } from "node:path"
-
-import {
-  type CurrentDocument,
-  CurrentDocumentSchema,
-  type StudioProjectV1,
-} from "../shared/index.ts"
+import type {
+  GenerationProject,
+  ProjectWorkspace,
+  ReusableComponent,
+} from "../shared/generation-projects.ts"
+import { ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
+import type { CurrentDocument, StudioProjectV1 } from "../shared/index.ts"
 import type { ChartId, LibraryChartDocument, LibrarySnapshot } from "../shared/library.ts"
+import type { ComponentId, GenerationProjectId } from "../shared/project-identities.ts"
 import { StudioError } from "./errors.ts"
 import { type AssetWrite, atomicState, readAsset, writeAsset } from "./library/assets.ts"
 import { replaceDocumentMutation, saveDocumentMutation } from "./library/document-mutations.ts"
+import { migrateV2ToV3 } from "./library/migration.ts"
 import {
   hexDigest,
   initialState,
-  type PersistedStateV2,
+  LegacyCurrentDocumentSchema,
   PersistedStateV2Schema,
+  type PersistedStateV3,
+  PersistedStateV3Schema,
   chartDocument as projectForChart,
   snapshot,
 } from "./library/state.ts"
+import { componentSummary, projectSummary } from "./projects/views.ts"
 
 export type AudioRecord = {
   readonly bytes: Uint8Array
@@ -34,13 +40,13 @@ export type StoreMutation<T> = {
 
 export class StudioStore {
   readonly #documentPath: string
-  #state: PersistedStateV2
+  #state: PersistedStateV3
   #audio: AudioRecord
   #tail = Promise.resolve()
 
   private constructor(
     readonly root: string,
-    state: PersistedStateV2,
+    state: PersistedStateV3,
     audio: AudioRecord,
   ) {
     this.#documentPath = resolve(root, "document.json")
@@ -59,13 +65,19 @@ export class StudioStore {
     ])
     const initialAudio = audioRecord(audio, initial.project.audio_asset.format)
     assertAudio(initial.project, initialAudio)
-    let state: PersistedStateV2
+    let state: PersistedStateV3
     let persist = false
     try {
       const parsed: unknown = JSON.parse(await readFile(resolve(root, "document.json"), "utf8"))
-      const current = PersistedStateV2Schema.safeParse(parsed)
-      state = current.success ? current.data : initialState(CurrentDocumentSchema.parse(parsed))
-      persist = !current.success
+      const current = PersistedStateV3Schema.safeParse(parsed)
+      if (current.success) state = current.data
+      else {
+        const previous = PersistedStateV2Schema.safeParse(parsed)
+        state = previous.success
+          ? migrateV2ToV3(previous.data)
+          : initialState(LegacyCurrentDocumentSchema.parse(parsed))
+        persist = true
+      }
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error
       state = initialState(initial)
@@ -93,6 +105,25 @@ export class StudioStore {
 
   library(): LibrarySnapshot {
     return structuredClone(snapshot(this.#state))
+  }
+
+  projects(): ProjectWorkspace {
+    return ProjectWorkspaceSchema.parse({
+      revision: this.#state.projects.revision,
+      selected_project_id: this.#state.projects.selected_project_id,
+      projects: this.#state.projects.records.map(projectSummary),
+      components: this.#state.projects.components.map(componentSummary),
+    })
+  }
+
+  generationProject(id: GenerationProjectId): GenerationProject | undefined {
+    const project = this.#state.projects.records.find((candidate) => candidate.id === id)
+    return project === undefined ? undefined : structuredClone(project)
+  }
+
+  reusableComponent(id: ComponentId): ReusableComponent | undefined {
+    const component = this.#state.projects.components.find((candidate) => candidate.id === id)
+    return component === undefined ? undefined : structuredClone(component)
   }
 
   chartDocument(id: ChartId): LibraryChartDocument {
@@ -152,7 +183,8 @@ export class StudioStore {
 
   transact<T>(
     libraryRevision: number | undefined,
-    operation: (state: PersistedStateV2) => StoreMutation<T> | Promise<StoreMutation<T>>,
+    operation: (state: PersistedStateV3) => StoreMutation<T> | Promise<StoreMutation<T>>,
+    commitSignal?: AbortSignal,
   ): Promise<T> {
     return this.#serialized(async () => {
       if (libraryRevision !== undefined && libraryRevision !== this.#state.library.revision)
@@ -163,7 +195,7 @@ export class StudioStore {
           this.#state.library.revision,
         )
       const mutation = await operation(structuredClone(this.#state))
-      const next = PersistedStateV2Schema.parse(mutation.state)
+      const next = PersistedStateV3Schema.parse(mutation.state)
       for (const asset of mutation.assets ?? []) await writeAsset(this.root, asset)
       const active = activeChart(next)
       const bytes = await readAsset(this.root, {
@@ -173,6 +205,7 @@ export class StudioStore {
       })
       const nextAudio = audioRecord(bytes, active.project.audio_asset.format)
       assertAudio(active.project, nextAudio)
+      commitSignal?.throwIfAborted()
       await atomicState(this.root, this.#documentPath, next)
       this.#state = next
       this.#audio = nextAudio
@@ -190,7 +223,7 @@ export class StudioStore {
   }
 }
 
-function activeChart(state: PersistedStateV2) {
+function activeChart(state: PersistedStateV3) {
   const chart = state.library.charts.find(
     (candidate) => candidate.id === state.library.active_chart_id,
   )
