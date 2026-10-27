@@ -65,9 +65,6 @@
     min-inline-size: 0;
     inline-size: 100%;
   }
-  .transport__compact {
-    display: none;
-  }
   .inspector.mobile-editor {
     display: block;
     max-block-size: 220px;
@@ -108,5 +105,83 @@
   }
   .showcase__grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1199px) {
+  .studio-shell {
+    grid-template-rows: var(--toolbar-height) var(--mobile-tabs-height) minmax(0, 1fr) var(
+        --transport-height-mobile
+      );
+  }
+  .transport {
+    min-block-size: var(--transport-height-mobile);
+    display: grid;
+    grid-template-rows: repeat(2, var(--control-touch));
+    align-content: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+  }
+  .transport__primary,
+  .transport__secondary {
+    min-inline-size: 0;
+    display: grid;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .transport__primary {
+    grid-template-columns: var(--control-touch) var(--control-touch) auto minmax(40px, 1fr) auto;
+  }
+  .transport__secondary {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+  }
+  .transport__primary > .badge {
+    position: static;
+    min-inline-size: 0;
+  }
+  .transport__tick {
+    min-inline-size: 0;
+  }
+  .transport input[type="range"] {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+  .transport__compact {
+    min-inline-size: 0;
+    min-block-size: var(--control-touch);
+    display: inline-flex;
+  }
+  .transport__secondary .button {
+    min-block-size: var(--control-touch);
+    padding-inline: var(--space-2);
+  }
+  .transport__compact select {
+    min-inline-size: 52px;
+  }
+  .transport__volume input[type="range"] {
+    min-inline-size: 48px;
+  }
+}
+
+@media (max-width: 599px) {
+  .studio-shell {
+    grid-template-rows: var(--toolbar-height) var(--mobile-tabs-height) minmax(0, 1fr) var(
+        --transport-height-phone
+      );
+  }
+  .transport {
+    min-block-size: var(--transport-height-phone);
+    grid-template-rows: repeat(3, var(--control-touch));
+  }
+  .transport__secondary {
+    grid-row: 2 / span 2;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-rows: repeat(2, var(--control-touch));
+  }
+  .transport__volume {
+    grid-column: 1 / -1;
+  }
+  .transport__tick-prefix {
+    display: none;
   }
 }

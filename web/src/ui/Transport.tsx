@@ -63,6 +63,12 @@ export function Transport(props: TransportProps) {
   const visibleTick = usesClock ? (playback.chartTick ?? 0) : props.selectedTick
   const scrubTick = Math.min(Math.max(visibleTick, 0), props.project.chart.span_ticks)
   const status = audioStatus(playback.status)
+  const tickValue =
+    playback.chartTick === null && usesClock
+      ? "PRE-ROLL"
+      : usesClock
+        ? visibleTick.toFixed(2)
+        : String(Math.floor(visibleTick))
   const canPlay =
     playback.status === "ready" ||
     playback.status === "playing" ||
@@ -71,83 +77,92 @@ export function Transport(props: TransportProps) {
 
   return (
     <footer className="transport">
-      <IconButton
-        label={playback.status === "playing" ? "Pause" : "Play"}
-        icon={playback.status === "playing" ? <Pause size={16} /> : <Play size={16} />}
-        disabled={!canPlay}
-        onClick={() => void props.playback.toggle()}
-      />
-      <IconButton
-        label="Stop"
-        icon={<Square size={14} />}
-        disabled={!canPlay}
-        onClick={() => {
-          props.playback.stop()
-          props.onSeekSelection(0)
-        }}
-      />
-      <span className="mono" data-testid="transport-tick">
-        {playback.chartTick === null && usesClock
-          ? "PRE-ROLL"
-          : `TICK ${usesClock ? visibleTick.toFixed(2).padStart(9, "0") : String(Math.floor(visibleTick)).padStart(6, "0")}`}
-      </span>
-      <input
-        aria-label="Chart position"
-        aria-valuetext={`Tick ${scrubTick.toFixed(2)} of ${props.project.chart.span_ticks}`}
-        max={props.project.chart.span_ticks}
-        min="0"
-        step="any"
-        type="range"
-        value={scrubTick}
-        onChange={(event) => {
-          const nextTick = Number(event.currentTarget.value)
-          props.playback.seek(nextTick)
-          props.onSeekSelection(Math.min(nextTick, props.project.chart.span_ticks - 1))
-        }}
-      />
-      <Button
-        type="button"
-        className="transport__segment"
-        icon={<Scissors size={15} />}
-        aria-pressed={playback.segment !== null}
-        onClick={() => setSegmentOpen(true)}
-      >
-        Segment
-      </Button>
-      <label className="transport__compact">
-        Loop{" "}
-        <input
-          type="checkbox"
-          checked={playback.loop}
-          onChange={(event) => props.playback.setLoop(event.currentTarget.checked)}
+      <div className="transport__primary">
+        <IconButton
+          label={playback.status === "playing" ? "Pause" : "Play"}
+          icon={playback.status === "playing" ? <Pause size={16} /> : <Play size={16} />}
+          disabled={!canPlay}
+          onClick={() => void props.playback.toggle()}
         />
-      </label>
-      <label className="transport__compact">
-        Speed{" "}
-        <select
-          value={playback.rate}
-          onChange={(event) => props.playback.setRate(Number(event.currentTarget.value))}
-        >
-          <option value="0.75">0.75x</option>
-          <option value="1">1x</option>
-          <option value="1.25">1.25x</option>
-        </select>
-      </label>
-      <label className="transport__compact">
-        Volume{" "}
+        <IconButton
+          label="Stop"
+          icon={<Square size={14} />}
+          disabled={!canPlay}
+          onClick={() => {
+            props.playback.stop()
+            props.onSeekSelection(0)
+          }}
+        />
+        <span className="mono transport__tick" data-testid="transport-tick">
+          <span className="transport__tick-accessible">
+            {tickValue === "PRE-ROLL" ? "Chart pre-roll" : `Chart tick ${tickValue}`}
+          </span>
+          <span aria-hidden="true">
+            <span className="transport__tick-prefix">TICK </span>
+            {tickValue}
+          </span>
+        </span>
         <input
-          aria-label="Volume"
-          max="1"
+          aria-label="Chart position"
+          aria-valuetext={`Tick ${scrubTick.toFixed(2)} of ${props.project.chart.span_ticks}`}
+          max={props.project.chart.span_ticks}
           min="0"
-          step="0.05"
+          step="any"
           type="range"
-          value={playback.volume}
-          onChange={(event) => props.playback.setVolume(Number(event.currentTarget.value))}
+          value={scrubTick}
+          onChange={(event) => {
+            const nextTick = Number(event.currentTarget.value)
+            props.playback.seek(nextTick)
+            props.onSeekSelection(Math.min(nextTick, props.project.chart.span_ticks - 1))
+          }}
         />
-      </label>
-      <Badge tone={status.tone}>
-        <StatusIcon status={playback.status} /> {status.label}
-      </Badge>
+        <Badge tone={status.tone}>
+          <StatusIcon status={playback.status} /> {status.label}
+        </Badge>
+      </div>
+      <div className="transport__secondary">
+        <Button
+          type="button"
+          className="transport__segment"
+          icon={<Scissors size={15} />}
+          aria-pressed={playback.segment !== null}
+          onClick={() => setSegmentOpen(true)}
+        >
+          Segment
+        </Button>
+        <label className="transport__compact">
+          Loop{" "}
+          <input
+            type="checkbox"
+            checked={playback.loop}
+            onChange={(event) => props.playback.setLoop(event.currentTarget.checked)}
+          />
+        </label>
+        <label className="transport__compact">
+          Speed{" "}
+          <select
+            aria-label="Playback speed"
+            value={playback.rate}
+            onChange={(event) => props.playback.setRate(Number(event.currentTarget.value))}
+          >
+            <option value="0.75">0.75x</option>
+            <option value="1">1x</option>
+            <option value="1.25">1.25x</option>
+          </select>
+        </label>
+        <label className="transport__compact transport__volume">
+          Volume{" "}
+          <input
+            aria-label="Volume"
+            max="1"
+            min="0"
+            step="0.05"
+            type="range"
+            value={playback.volume}
+            onChange={(event) => props.playback.setVolume(Number(event.currentTarget.value))}
+          />
+        </label>
+      </div>
       {playback.error === null ? null : (
         <span className="transport__error" role="alert">
           {playback.error}

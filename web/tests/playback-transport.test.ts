@@ -16,7 +16,7 @@ it("keeps one visible segment action in the responsive transport", async () => {
   const markup = renderToStaticMarkup(
     createElement(Transport, {
       project: demo.document.project,
-      selectedTick: 0,
+      selectedTick: 999_999,
       onSeekSelection: () => undefined,
       playback,
     }),
@@ -24,6 +24,14 @@ it("keeps one visible segment action in the responsive transport", async () => {
 
   // Then a labelled Segment action remains visible without inline range fields
   expect(markup).toMatch(/<button[^>]*>.*Segment.*<\/button>/s)
+  expect(markup).toContain('class="transport__primary"')
+  expect(markup).toContain('class="transport__secondary"')
+  expect(markup).toContain("Loop")
+  expect(markup).toContain('aria-label="Playback speed"')
+  expect(markup).toContain('aria-label="Volume"')
+  expect(markup).toContain("Chart tick 999999")
+  expect(markup).toContain('class="transport__tick-prefix">TICK </span>999999')
+  expect(markup).not.toContain("TICK 000999999")
   expect(markup).not.toContain('aria-label="Segment start')
   expect(markup).not.toContain('aria-label="Segment end')
 })

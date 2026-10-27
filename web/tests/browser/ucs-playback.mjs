@@ -35,7 +35,7 @@ export async function verifyAudioClock(page) {
   assert.ok(Math.abs(clock.duration - 24) < 0.001)
   assert.match(await page.locator(".preview__summary").innerText(), /L UL.*L C/)
   assert.match(await page.getByLabel("Current timing context").innerText(), /150(?:\.00)? BPM/)
-  await page.getByLabel(/^Speed/).selectOption("0.75")
+  await page.getByRole("combobox", { name: "Playback speed", exact: true }).selectOption("0.75")
   await page.getByLabel("Volume", { exact: true }).fill("0.5")
   await page.getByLabel("Loop", { exact: true }).check()
   assert.deepEqual(
