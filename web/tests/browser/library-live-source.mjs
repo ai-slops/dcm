@@ -136,7 +136,7 @@ try {
   assert.ok(first)
   await page.getByLabel("Chart position", { exact: true }).fill(String(first.tick))
   await page
-    .getByRole("region", { name: "Scrolling ten-lane chart preview", exact: true })
+    .getByRole("region", { name: "Scrolling 10-lane Double chart preview", exact: true })
     .waitFor()
   const startedAt = await page.evaluate(() => window.__studioAudio.currentTime)
   await page.screenshot({ path: resolve(evidence, "reference-first-note.png") })

@@ -28,13 +28,13 @@ export function savedChartRow(page, name) {
 }
 
 export async function openLibrary(page) {
-  await page.getByRole("button", { name: "Songs and library", exact: true }).click()
-  await page.getByRole("heading", { name: "Songs and charts", exact: true }).waitFor()
+  await page.getByRole("button", { name: "Songs and charts", exact: true }).click()
+  await page.getByRole("region", { name: "Create song", exact: true }).waitFor()
 }
 
 export async function closeLibrary(page) {
   await page
-    .getByRole("dialog", { name: "Songs and library", exact: true })
+    .getByRole("dialog", { name: "Songs and charts", exact: true })
     .getByRole("button", { name: "Close", exact: true })
     .click()
 }
