@@ -1,8 +1,10 @@
-import { AlertTriangle, Check, LoaderCircle, Pause, Play, Square } from "lucide-react"
+import { AlertTriangle, Check, LoaderCircle, Pause, Play, Scissors, Square } from "lucide-react"
+import { useState } from "react"
 
 import type { StudioProjectV1 } from "../../shared/index.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
-import { Badge, IconButton } from "./primitives.tsx"
+import { Badge, Button, IconButton } from "./primitives.tsx"
+import { SegmentPlaybackDialog } from "./SegmentPlaybackDialog.tsx"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
 type TransportProps = {
@@ -55,6 +57,7 @@ function StatusIcon({
 }
 
 export function Transport(props: TransportProps) {
+  const [segmentOpen, setSegmentOpen] = useState(false)
   const playback = usePlaybackSnapshot(props.playback)
   const usesClock = showsPlaybackClock(playback.status) || playback.status === "ended"
   const visibleTick = usesClock ? (playback.chartTick ?? 0) : props.selectedTick
@@ -102,6 +105,15 @@ export function Transport(props: TransportProps) {
           props.onSeekSelection(Math.min(nextTick, props.project.chart.span_ticks - 1))
         }}
       />
+      <Button
+        type="button"
+        className="transport__segment"
+        icon={<Scissors size={15} />}
+        aria-pressed={playback.segment !== null}
+        onClick={() => setSegmentOpen(true)}
+      >
+        Segment
+      </Button>
       <label className="transport__compact">
         Loop{" "}
         <input
@@ -141,6 +153,9 @@ export function Transport(props: TransportProps) {
           {playback.error}
         </span>
       )}
+      {segmentOpen ? (
+        <SegmentPlaybackDialog playback={props.playback} onClose={() => setSegmentOpen(false)} />
+      ) : null}
     </footer>
   )
 }
