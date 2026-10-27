@@ -49,7 +49,10 @@ async function parseJson<T>(response: Response, schema: z.ZodType<T>): Promise<T
   return schema.parse(await response.json())
 }
 
-async function request<T>(operation: Promise<Response>, schema: z.ZodType<T>): Promise<T> {
+export async function typedRequest<T>(
+  operation: Promise<Response>,
+  schema: z.ZodType<T>,
+): Promise<T> {
   try {
     return await parseJson(await operation, schema)
   } catch (error) {
@@ -71,7 +74,7 @@ function rethrowApiError(error: unknown): never {
   })
 }
 
-async function requestBlob(operation: Promise<Response>): Promise<Blob> {
+export async function requestBlob(operation: Promise<Response>): Promise<Blob> {
   try {
     return await (await operation).blob()
   } catch (error) {
@@ -79,13 +82,13 @@ async function requestBlob(operation: Promise<Response>): Promise<Blob> {
   }
 }
 
-function mutationHeaders(csrfToken: string): Readonly<Record<string, string>> {
+export function mutationHeaders(csrfToken: string): Readonly<Record<string, string>> {
   return { "x-csrf-token": csrfToken }
 }
 
 export const studioApi = {
   bootstrap(): Promise<Bootstrap> {
-    return request(http.get(ApiRoutes.bootstrap), BootstrapSchema)
+    return typedRequest(http.get(ApiRoutes.bootstrap), BootstrapSchema)
   },
   audio(): Promise<Blob> {
     return http.get(ApiRoutes.audio).blob()
@@ -94,7 +97,7 @@ export const studioApi = {
     const body = new FormData()
     body.set("base_revision", String(baseRevision))
     body.set("audio", audio)
-    return request(
+    return typedRequest(
       http.put(ApiRoutes.audio, { headers: mutationHeaders(csrfToken), body }),
       CurrentDocumentSchema,
     )
@@ -109,31 +112,31 @@ export const studioApi = {
     body.set("base_revision", String(baseRevision))
     body.set("project", JSON.stringify(project))
     body.set("audio", audio)
-    return request(
+    return typedRequest(
       http.post(ApiRoutes.imports, { headers: mutationHeaders(csrfToken), body }),
       CurrentDocumentSchema,
     )
   },
   save(csrfToken: string, body: PutDocumentRequest): Promise<CurrentDocument> {
-    return request(
+    return typedRequest(
       http.put(ApiRoutes.document, { headers: mutationHeaders(csrfToken), json: body }),
       CurrentDocumentSchema,
     )
   },
   evaluate(csrfToken: string, body: BaseRevisionRequest): Promise<EvaluationResponse> {
-    return request(
+    return typedRequest(
       http.post(ApiRoutes.evaluations, { headers: mutationHeaders(csrfToken), json: body }),
       EvaluationResponseSchema,
     )
   },
   generate(csrfToken: string, body: GenerationRequest): Promise<ChartProposal> {
-    return request(
+    return typedRequest(
       http.post(ApiRoutes.generations, { headers: mutationHeaders(csrfToken), json: body }),
       ChartProposalSchema,
     )
   },
   applyProposal(csrfToken: string, proposalId: string, body: BaseRevisionRequest) {
-    return request(
+    return typedRequest(
       http.post(`${ApiRoutes.proposals}/${encodeURIComponent(proposalId)}/apply`, {
         headers: mutationHeaders(csrfToken),
         json: body,
@@ -147,19 +150,19 @@ export const studioApi = {
     })
   },
   startAgent(csrfToken: string, body: AgentRunRequest): Promise<AgentRunSnapshot> {
-    return request(
+    return typedRequest(
       http.post(ApiRoutes.agentRuns, { headers: mutationHeaders(csrfToken), json: body }),
       AgentRunSnapshotSchema,
     )
   },
   agentSnapshot(runId: string): Promise<AgentRunSnapshot> {
-    return request(
+    return typedRequest(
       http.get(`${ApiRoutes.agentRuns}/${encodeURIComponent(runId)}`),
       AgentRunSnapshotSchema,
     )
   },
   cancelAgent(csrfToken: string, runId: string): Promise<AgentRunSnapshot> {
-    return request(
+    return typedRequest(
       http.delete(`${ApiRoutes.agentRuns}/${encodeURIComponent(runId)}`, {
         headers: mutationHeaders(csrfToken),
       }),
@@ -182,7 +185,7 @@ export const studioApi = {
     body.set("base_revision", String(input.baseRevision))
     body.set("chart", input.chart)
     if (input.audio !== undefined) body.set("audio", input.audio)
-    return request(
+    return typedRequest(
       http.post(ApiRoutes.ucsImport, { headers: mutationHeaders(csrfToken), body }),
       CurrentDocumentSchema,
     )
