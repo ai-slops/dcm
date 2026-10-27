@@ -84,6 +84,15 @@
   --selection-outline: #ff9a8f;
   --playhead: #fff0c7;
   --hold-fill: rgb(255 240 199 / 0.24);
+  --note-blue-low: #142d45;
+  --note-blue: #4ea3e3;
+  --note-blue-high: #a8d8fa;
+  --note-red-low: #401a20;
+  --note-red: #e45561;
+  --note-red-high: #ffb0b7;
+  --note-yellow-low: #3b3010;
+  --note-yellow: #e7bc3f;
+  --note-yellow-high: #ffe59a;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -138,6 +147,7 @@
   --radius-pill: 999px;
   --stroke-hairline: 1px;
   --layer-sticky: 10;
+  --layer-modal: 70;
   --depth-control:
     0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.08),
     inset 0 -1px 0 rgb(0 0 0 / 0.28);
