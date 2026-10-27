@@ -17,6 +17,11 @@ Status: implementation contract for the first visual frontend. This document own
 
 ## 1. Atmosphere & Identity
 
+The ZIP song picker must render Korean filenames even on hosts without Korean system fonts.
+`Noto Sans KR` Korean 400 is self-hosted from `@fontsource/noto-sans-kr@5.3.1` at
+`web/public/fonts/noto-sans-kr-korean-400.woff2`, with its OFL-1.1 license alongside it.
+Its Hangul-only Unicode range keeps the existing Latin typography and avoids runtime font CDNs.
+
 PUMP Chart Studio should feel like a purpose-built rhythm instrument: dense, immediate, and trustworthy, with no marketing layer between the author and the beat grid. The room is graphite-black with cold metallic rims. Warm coral energizes the left pad and authoring actions; electric cyan identifies the second pad and live preview. The signature is the **split pulse**: the ten-lane grid, pad preview, and transport playhead share one precise coral-to-cyan timing event, so every edit visibly connects authored data to physical play.
 
 The material is not generic glass. It is **machined graphite**: a matte blue-black fill, a one-pixel cool outer ring, an inset top sheen, an inset bottom shade, and a short tinted shadow only on floating surfaces. Grain, decorative glow, gradients behind text, and ambient animation are prohibited. Color is functional and restrained.
@@ -343,13 +348,21 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### Transport
 
-- **Structure:** previous/step, play/pause, stop, mono time/beat, scrubber, loop/range, tempo context, zoom, and audio/runtime state.
+- **Structure:** previous/step, play/pause, stop, mono time/beat, scrubber, one visible `Segment` action, full-song loop, tempo context, zoom, and audio/runtime state. `Segment` opens the standard ActionDialog for audio-second start/end and segment-loop controls; these fields never crowd the fixed transport.
 - **Variants:** desktop full, tablet reduced, mobile essential.
 - **Spacing:** fixed shell row `--transport-height`; groups separated by `--space-4` and internal gap `--space-2`.
 - **States:** stopped, playing, seeking, loop active, no audio, audio loading, and playback error.
 - **Accessibility:** play/pause label reflects action; scrubber exposes min/max/current text; Space shortcut is active only when focus is not in an editable field.
 - **Motion:** playhead transform follows time; play/pause icon crossfades. No waveform or fake spectrum when audio data is unavailable.
 - **Layout:** fixed `cluster`; lower-priority groups enter overflow before essentials disappear.
+
+### SegmentPlaybackDialog
+
+- **Structure:** standard ActionDialog with actual audio duration, start and end fields in audio seconds, a segment-loop checkbox, inline validation, `Clear segment`, and primary `Play segment`.
+- **States:** unavailable until finite media duration is known, ready, active, paused within range, looping range, validation error, and playback error. Validation requires finite `0 <= start < end <= duration` and never changes playback state on failure.
+- **Accessibility:** visible labels include `audio seconds`; helper copy distinguishes media time from chart timing; invalid submission keeps the dialog open and focuses no unrelated surface. The same transport action remains available while the mobile Preview tab is selected.
+- **Motion:** uses the existing Modal contract only; playback position follows the real media clock with no second animation timer.
+- **Layout:** one-column `stack`; related numeric fields may share a two-column field group when space permits and collapse through intrinsic wrapping.
 
 ### ProposalRow
 
@@ -538,7 +551,10 @@ No Critical or Major accessibility issue may be added to this table as ordinary 
 - **JSON export:** export current chart and metadata with real dirty/save context. Filename derives from actual title with safe fallback.
 - **SSC ZIP download:** label exactly `Download SSC ZIP`. Explain that export targets StepMania/OutFox, uses pump-double lane order, and is not in-engine validation. Missing audio/native CLI/runtime has a specific blocking reason.
 - **UCS import:** use a dedicated `UCS transfer` dialog. Require one `.ucs` file and allow optional WAV/OGG/MP3 audio. If audio is omitted, state `Current project audio will be kept.` Import is available only for a persisted draft and accepts the returned native document as the complete chart/timing replacement.
+- **UCS ZIP import:** the same dialog includes a separate `.zip` picker for downloaded UCS song archives. After bounded browser-side inspection, list supported `.ucs` charts and WAV/OGG/MP3 music by archive path. A single chart or audio entry may auto-select; multiple entries always require an explicit selection. ZIP import requires both a selected chart and selected bundled audio, states that bundled music replaces current audio, and never falls back to current project audio. Convert the selected entries to browser `File` objects and submit through the same native UCS import action so chart, timing, audio digest, and revision update atomically. Raw UCS plus optional audio remains a separate unchanged workflow; no ZIP export is offered.
 - **UCS export:** require an explicit `Single` or `Double` selection, initially `project.ucs_mode ?? Double`. Disable export while the visible draft is dirty because the native endpoint serializes the saved revision, show `Save your changes before exporting UCS.`, and never silently omit visible edits. Single maps to the left five native panels; right-pad notes produce a clear native error. Download only the returned UCS blob with a title-derived `.ucs` filename; never package or download project audio.
+
+- **Segment audition:** `Segment` accepts validated start/end values in actual audio seconds and optionally loops only that interval. Starting seeks to the selected start and plays; reaching the end pauses exactly at the boundary or seeks to the segment start when segment loop is active. Pause/Play resumes the selected range. Full-chart seek and Stop clear the segment, while full-song loop/rate/volume preferences remain intact. Importing new audio clears duration and segment state until the new media reports a finite duration. Chart projection continues to use the existing offset/tempo conversion from the single HTML media clock.
 
 - **Timeline chrome:** controls and timing context wrap within the owning pane, outside the independently scrolling chart canvas. Lane headers stick within that canvas. The app shell uses a bounded zero-minimum column so toolbar/transport actions never force content beyond the viewport.
 - **Preview context:** both editor and physical-pad preview reuse the same media-clock timing readout. Read-only pad boxes stay at least `--space-6` wide at supported viewports; added mode/context copy must not shrink their labels. Checkboxes retain a compact glyph within a `--control-touch` label target.
