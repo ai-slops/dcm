@@ -64,7 +64,7 @@ export const toolJsonSchemas = {
   validate_ucs: objectSchema({ mode: { type: "string", enum: ["Single", "Double"] } }, ["mode"]),
 } as const
 
-function partSchema<T>(id: string, validator: z.ZodType<T>): Contracts.Schema<T> {
+export function partSchema<T>(id: string, validator: z.ZodType<T>): Contracts.Schema<T> {
   return schema(id, (value): value is T => validator.safeParse(value).success)
 }
 

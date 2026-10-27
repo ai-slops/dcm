@@ -1,6 +1,6 @@
 import { ok } from "@slop-lab/part/contracts/index.js"
 import { bearerAuth, createFetchTransport, noAuth } from "@slop-lab/part/model/index.js"
-import type { Contracts, Model, Runtime, Tools } from "@slop-lab/part/reference/index.js"
+import type { Contracts, Model, Runtime } from "@slop-lab/part/reference/index.js"
 import { functionTool } from "@slop-lab/part/tools.js"
 import { createAgent } from "@slop-lab/part-plugins/agent/index.js"
 import { createOpenAICompatibleAdapter } from "@slop-lab/part-plugins/providers/openai-compatible/index.js"
@@ -10,8 +10,6 @@ import type {
   NativeMusic,
   StudioProjectV1,
 } from "../../shared/index.ts"
-import { truncateUtf8 } from "../../shared/text.ts"
-import { StudioError } from "../errors.ts"
 import {
   ChartSchema,
   EmptySchema,
@@ -25,7 +23,11 @@ import {
   UcsInputSchema,
   UcsOutputSchema,
 } from "./part-schemas.ts"
+import { createProjectToolBindings } from "./project-tool-bindings.ts"
+import { projectToolJsonSchemas } from "./project-tool-schemas.ts"
+import type { ProjectAgentTools } from "./project-tools.ts"
 import { createStudioResponsesAdapter } from "./responses-adapter.ts"
+import { withTool } from "./tool-execution.ts"
 
 export type PartRuntimeOptions = {
   readonly endpoint: URL
@@ -34,6 +36,7 @@ export type PartRuntimeOptions = {
   readonly api?: "chat" | "responses"
   readonly signal: AbortSignal
   readonly project: StudioProjectV1
+  readonly projectTools?: ProjectAgentTools
   readonly evaluateChart: (signal: AbortSignal) => Promise<EvaluationResponse>
   readonly generateVariant: (seed: string, signal: AbortSignal) => Promise<NativeChart>
   readonly proposeChart: (input: ProposalInput, signal: AbortSignal) => Promise<ProposalOutput>
@@ -59,7 +62,7 @@ export type ValidateUcsOutput = {
   readonly mode: "Single" | "Double"
   readonly byte_length: number
 }
-type ToolStateDetail = {
+export type ToolStateDetail = {
   readonly call_id: string
   readonly input_preview: string
   readonly output_preview?: string
@@ -87,9 +90,11 @@ export type PartRuntime = {
 
 export type PartRuntimeFactory = (options: PartRuntimeOptions) => Contracts.Result<PartRuntime>
 
-const MAX_TOOL_OUTPUT_BYTES = 1024 * 1024
-
 export const createPartRuntime: PartRuntimeFactory = (options) => {
+  const projectTools =
+    options.projectTools === undefined
+      ? []
+      : createProjectToolBindings({ ...options, projectTools: options.projectTools })
   const tools = [
     functionTool({
       id: "read_document",
@@ -98,6 +103,7 @@ export const createPartRuntime: PartRuntimeFactory = (options) => {
       output: ProjectSchema,
       execute: withTool(options, "read_document", (_input, _signal) => options.project),
     }),
+    ...projectTools,
     functionTool({
       id: "evaluate_chart",
       description: "Evaluate the frozen chart with the native finite model.",
@@ -158,7 +164,10 @@ export const createPartRuntime: PartRuntimeFactory = (options) => {
       auth: options.apiKey === undefined ? noAuth : bearerAuth(() => options.apiKey ?? ""),
     },
     tools,
-    toolSchemas: toolJsonSchemas,
+    toolSchemas:
+      options.projectTools === undefined
+        ? toolJsonSchemas
+        : { ...toolJsonSchemas, ...projectToolJsonSchemas },
     limits: {
       maxModelInvocations: 8,
       maxToolDispatches: 16,
@@ -185,52 +194,6 @@ export const createPartRuntime: PartRuntimeFactory = (options) => {
   })
 }
 
-function withTool<I, O>(
-  options: PartRuntimeOptions,
-  toolId: string,
-  operation: (input: I, signal: AbortSignal) => Promise<O> | O,
-): (input: I, context: Tools.ExecutionContext) => Promise<O> {
-  return async (input, context) => {
-    const inputPreview = preview(input)
-    const callId = context.operationId
-    options.onToolState(toolId, "started", {
-      call_id: callId,
-      input_preview: inputPreview.text,
-      ...(inputPreview.truncated ? { truncated: true } : {}),
-    })
-    try {
-      const result = await operation(input, AbortSignal.any([context.signal, options.signal]))
-      if (Buffer.byteLength(JSON.stringify(result), "utf8") > MAX_TOOL_OUTPUT_BYTES) {
-        throw new StudioError(
-          500,
-          "agent_tool_output_limit",
-          "Agent tool output exceeded its limit",
-        )
-      }
-      const outputPreview = preview(result)
-      options.onToolState(toolId, "completed", {
-        call_id: callId,
-        input_preview: inputPreview.text,
-        output_preview: outputPreview.text,
-        ...(inputPreview.truncated || outputPreview.truncated ? { truncated: true } : {}),
-      })
-      return result
-    } catch (error) {
-      const safe =
-        error instanceof StudioError
-          ? { code: error.code, message: error.message }
-          : { code: "tool_failed", message: "Tool execution failed" }
-      options.onToolState(toolId, "failed", {
-        call_id: callId,
-        input_preview: inputPreview.text,
-        error: safe,
-        ...(inputPreview.truncated ? { truncated: true } : {}),
-      })
-      throw error
-    }
-  }
-}
-
 async function* observeText(
   handle: Runtime.ExecutionHandle<Model.Response>,
 ): AsyncIterable<PartTextDelta> {
@@ -253,11 +216,4 @@ function normalizeOutcome(outcome: Runtime.ManagedOutcome<Model.Response>): Part
   }
   if (outcome.phase === "cancelled") return { phase: "cancelled" }
   return { phase: "failed", code: outcome.error.code, message: outcome.error.message }
-}
-
-function preview(value: unknown): { readonly text: string; readonly truncated: boolean } {
-  const text = JSON.stringify(value)
-  const bytes = Buffer.from(text, "utf8")
-  if (bytes.byteLength <= 8_192) return { text, truncated: false }
-  return { text: truncateUtf8(text, 8_192), truncated: true }
 }
