@@ -8,6 +8,7 @@ import {
 } from "../domain/playback.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { Panel } from "./primitives.tsx"
+import { ScrollingChartPreview } from "./ScrollingChartPreview.tsx"
 import { laneLabels } from "./studio-types.ts"
 import { TimelineClock } from "./TimelineClock.tsx"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
@@ -24,6 +25,39 @@ export function Preview({
   readonly selectedTick: number
   readonly playback: AudioPlaybackController
   readonly ucsMode?: UcsMode
+}) {
+  return (
+    <Panel title="Chart preview" className="preview">
+      {ucsMode === "Single" ? (
+        <p className="status-copy">UCS Single preference · left-pad mapping</p>
+      ) : null}
+      <ScrollingChartPreview
+        chart={chart}
+        music={music}
+        playback={playback}
+        selectedTick={selectedTick}
+      />
+      <PlayfieldPads chart={chart} music={music} playback={playback} selectedTick={selectedTick} />
+      <TimelineClock
+        music={music}
+        playback={playback}
+        selectedTick={selectedTick}
+        label="Preview timing context"
+      />
+    </Panel>
+  )
+}
+
+export function PlayfieldPads({
+  chart,
+  music,
+  selectedTick,
+  playback,
+}: {
+  readonly chart: NativeChart
+  readonly music: NativeMusic
+  readonly selectedTick: number
+  readonly playback: AudioPlaybackController
 }) {
   const snapshot = usePlaybackSnapshot(playback)
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
@@ -43,27 +77,27 @@ export function Preview({
   ] as const
   const activeLabels = laneLabels.filter((_, index) => (mask & (1 << index)) !== 0)
   return (
-    <Panel title="Playfield preview" className="preview">
-      {ucsMode === "Single" ? (
-        <p className="status-copy">UCS Single preference · left-pad mapping</p>
-      ) : null}
+    <section className="playfield-preview" aria-label="Physical pad contacts">
       <div className="playfields">
         {groups.map((group, side) => (
           <section
-            className="playfield"
+            className="playfield-group"
             aria-label={`${side === 0 ? "Left" : "Right"} pad`}
             key={side === 0 ? "left" : "right"}
           >
-            {group.map((index) => (
-              <div
-                className={`pad pad--${index < 5 ? "left" : "right"}`}
-                data-active={(mask & (1 << index)) !== 0}
-                data-position={index % 5}
-                key={laneLabels[index]}
-              >
-                <span>{laneLabels[index].slice(2)}</span>
-              </div>
-            ))}
+            <h3 className="playfield__side">{side === 0 ? "Left pad · L" : "Right pad · R"}</h3>
+            <div className="playfield">
+              {group.map((index) => (
+                <div
+                  className={`pad pad--${index < 5 ? "left" : "right"}`}
+                  data-active={(mask & (1 << index)) !== 0}
+                  data-position={index % 5}
+                  key={laneLabels[index]}
+                >
+                  <span>{laneLabels[index].slice(2)}</span>
+                </div>
+              ))}
+            </div>
           </section>
         ))}
       </div>
@@ -75,12 +109,6 @@ export function Preview({
       <p className="preview__summary" aria-live="polite">
         {activeLabels.length === 0 ? "No active contacts" : `Active: ${activeLabels.join(", ")}`}
       </p>
-      <TimelineClock
-        music={music}
-        playback={playback}
-        selectedTick={selectedTick}
-        label="Preview timing context"
-      />
-    </Panel>
+    </section>
   )
 }
