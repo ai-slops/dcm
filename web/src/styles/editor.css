@@ -75,7 +75,7 @@
 .timeline__row {
   display: grid;
   grid-template-columns: var(--timeline-tick-size) repeat(10, minmax(var(--control-touch), 1fr));
-  min-inline-size: 560px;
+  min-inline-size: calc(var(--timeline-tick-size) + 10 * var(--control-touch));
 }
 .timeline__header {
   position: sticky;
@@ -98,7 +98,15 @@
 }
 .timeline__rows {
   position: relative;
-  min-inline-size: 560px;
+  min-inline-size: calc(var(--timeline-tick-size) + 10 * var(--control-touch));
+}
+.timeline--single .timeline__header,
+.timeline--single .timeline__row {
+  grid-template-columns: var(--timeline-tick-size) repeat(5, minmax(var(--control-touch), 1fr));
+  min-inline-size: 280px;
+}
+.timeline--single .timeline__rows {
+  min-inline-size: 280px;
 }
 .timeline__scroller {
   min-inline-size: 0;

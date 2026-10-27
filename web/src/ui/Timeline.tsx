@@ -14,6 +14,7 @@ import { TimelinePlayhead } from "./TimelinePlayhead.tsx"
 import type { AudioPlaybackController } from "./useAudioPlayback.ts"
 
 const laneIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const
+const singleLaneIndices = [0, 1, 2, 3, 4] as const
 const quantizeOptions = [1, 2, 4, 8] as const
 
 type TimelineProps = {
@@ -30,6 +31,7 @@ type TimelineProps = {
 }
 
 export function Timeline(props: TimelineProps) {
+  const playableLanes = props.ucsMode === "Single" ? singleLaneIndices : laneIndices
   const cellRefs = useRef(new Map<string, HTMLButtonElement>())
   const previousSelectedTick = useRef(props.selectedTick)
   const previousChart = useRef(props.chart)
@@ -70,14 +72,19 @@ export function Timeline(props: TimelineProps) {
       Math.max(props.selectedTick + tickDelta, 0),
       props.chart.span_ticks - 1,
     )
-    const nextLane = laneIndices[Math.min(Math.max(props.selectedLane + laneDelta, 0), 9)]
+    const nextLane =
+      playableLanes[Math.min(Math.max(props.selectedLane + laneDelta, 0), playableLanes.length - 1)]
     if (nextLane === undefined) return
     select(nextTick, nextLane)
     requestAnimationFrame(() => cellRefs.current.get(`${nextTick}:${nextLane}`)?.focus())
   }
 
   return (
-    <section className="timeline" id="chart-editor" aria-label="Ten-lane chart editor">
+    <section
+      className={`timeline timeline--${props.ucsMode.toLowerCase()}`}
+      id="chart-editor"
+      aria-label={`${playableLanes.length}-lane ${props.ucsMode} chart editor`}
+    >
       <div className="timeline__controls">
         <label>
           Quantize
@@ -137,9 +144,10 @@ export function Timeline(props: TimelineProps) {
           />
           Follow audio
         </label>
-        {props.ucsMode === "Single" ? (
-          <span className="badge badge--info">DCM 10 lanes · UCS Single uses left pad</span>
-        ) : null}
+        <span className="badge badge--info">
+          {props.ucsMode} · {playableLanes.length} lanes
+          {props.ucsMode === "Single" ? " · left pad" : " · two pads"}
+        </span>
         <TimelineClock
           music={props.music}
           playback={props.playback}
@@ -149,8 +157,8 @@ export function Timeline(props: TimelineProps) {
       <section className="timeline__scroller" aria-label="Scrollable chart lanes">
         <div className="timeline__header" aria-hidden="true">
           <span>Tick</span>
-          {laneLabels.map((label) => (
-            <span key={label}>{label}</span>
+          {playableLanes.map((lane) => (
+            <span key={laneLabels[lane]}>{laneLabels[lane]}</span>
           ))}
         </div>
         <div className="timeline__rows">
@@ -166,7 +174,7 @@ export function Timeline(props: TimelineProps) {
               key={rowTick}
             >
               <span className="mono timeline__tick">{rowTick}</span>
-              {laneIndices.map((panel) => {
+              {playableLanes.map((panel) => {
                 const state = cells.get(`${rowTick}:${panel}`) ?? "empty"
                 const selected = props.selectedTick === rowTick && props.selectedLane === panel
                 return (

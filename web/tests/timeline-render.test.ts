@@ -42,8 +42,8 @@ it.each([2, 4, 8])(
   },
 )
 
-it("shows how Single export preference maps onto the ten-lane DCM chart", async () => {
-  // Given a native ten-lane chart whose UCS preference is Single
+it("renders only the five playable lanes for a Single chart", async () => {
+  // Given a chart whose required mode is Single
   const demo = await loadDemo(repoRoot)
   const playback = new AudioPlaybackController(demo.document.project)
 
@@ -63,7 +63,8 @@ it("shows how Single export preference maps onto the ten-lane DCM chart", async 
     }),
   )
 
-  // Then preference context is explicit without hiding the right pad lanes
-  expect(markup).toContain("DCM 10 lanes · UCS Single uses left pad")
-  expect(markup).toContain("R DR")
+  // Then the editor and constraints expose one five-panel pad
+  expect(markup).toContain("Single · 5 lanes · left pad")
+  expect(markup).toContain("L DR")
+  expect(markup).not.toContain("R DR")
 })

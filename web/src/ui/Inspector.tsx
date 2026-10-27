@@ -6,6 +6,7 @@ import { laneLabels } from "./studio-types.ts"
 import { TimingEditor } from "./TimingEditor.tsx"
 
 const laneIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const
+const singleLaneIndices = [0, 1, 2, 3, 4] as const
 
 function finiteInputValue(input: HTMLInputElement, fallback: number): number {
   return Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : fallback
@@ -26,6 +27,7 @@ type InspectorProps = {
 }
 
 export function Inspector(props: InspectorProps) {
+  const playableLanes = props.project.ucs_mode === "Single" ? singleLaneIndices : laneIndices
   const selected = props.selectedDemand
   const selectedTick = selected?.tick ?? props.tick
   const selectedHoldTicks = selected?.hold_ticks ?? 0
@@ -72,13 +74,13 @@ export function Inspector(props: InspectorProps) {
           <select
             value={props.lane}
             onChange={(event) => {
-              const nextLane = laneIndices[event.currentTarget.selectedIndex] ?? props.lane
+              const nextLane = playableLanes[event.currentTarget.selectedIndex] ?? props.lane
               props.updateSelection(selectedTick, nextLane, selectedHoldTicks)
             }}
           >
-            {laneLabels.map((label, index) => (
-              <option key={label} value={index}>
-                {label}
+            {playableLanes.map((lane) => (
+              <option key={laneLabels[lane]} value={lane}>
+                {laneLabels[lane]}
               </option>
             ))}
           </select>
