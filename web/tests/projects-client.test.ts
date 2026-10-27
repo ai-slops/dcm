@@ -101,4 +101,31 @@ describe("projectsApi", () => {
       json: { type: "select_project", project_id: project.id },
     })
   })
+
+  it("loads the authoritative immutable song timing template", async () => {
+    // Given
+    const project = await projectFixture()
+    const template = {
+      schema_version: 1,
+      title: "Template",
+      artist: "Artist",
+      music: { ...project.timing, audio_sha256: Array.from({ length: 32 }, () => 0) },
+      chart: {
+        ticks_per_beat: project.timing.ticks_per_beat,
+        span_ticks: project.timing.duration_ticks,
+        notes: [],
+      },
+      evaluation_contract: project.evaluation_contract,
+      audio_asset: { format: "wav", byte_length: 0 },
+      ucs_mode: project.mode,
+    }
+    httpMock.get.mockResolvedValue(new Response(JSON.stringify(template)))
+
+    // When
+    const timing = await projectsApi.songTemplate(project.song_id)
+
+    // Then
+    expect(timing).toEqual(project.timing)
+    expect(httpMock.get).toHaveBeenCalledWith(`/api/v1/projects/song-template/${project.song_id}`)
+  })
 })
