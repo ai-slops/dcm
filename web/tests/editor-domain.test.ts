@@ -4,6 +4,8 @@ import {
   canApplyProposal,
   editPanelAtTick,
   findPanelDemand,
+  placePanelHold,
+  togglePanelAtTick,
   updatePanelDemand,
 } from "../src/domain/editor.ts"
 import { audioMicrosToTick, tickToAudioMicros } from "../src/domain/timing.ts"
@@ -73,6 +75,25 @@ describe("editPanelAtTick", () => {
     expect(edited.notes).toEqual([{ tick: 8, panel_mask: 2, hold_ticks: 4 }])
   })
 
+  it("treats the inclusive hold tail as the same removable demand", () => {
+    // Given a grouped hold whose tail occupies tick 12
+    const holdChart: NativeChart = {
+      ...chart,
+      notes: [{ tick: 8, panel_mask: 3, hold_ticks: 4 }],
+    }
+
+    // When one panel is erased by clicking the tail cell
+    const edited = editPanelAtTick(holdChart, {
+      tick: 12,
+      panel: 0,
+      holdTicks: 0,
+      action: "erase",
+    })
+
+    // Then the complete panel demand is deleted and its chord peer remains
+    expect(edited.notes).toEqual([{ tick: 8, panel_mask: 2, hold_ticks: 4 }])
+  })
+
   it("rejects placing a demand over an active hold", () => {
     // Given a hold occupying the panel through tick 11
     const holdChart: NativeChart = {
@@ -86,6 +107,45 @@ describe("editPanelAtTick", () => {
 
     // Then the invalid overlap is rejected
     expect(placeOverlap).toThrow("panel demands overlap")
+  })
+})
+
+describe("timeline gesture edits", () => {
+  it("toggles an occupied hold tail without quantizing the existing demand", () => {
+    // Given an off-grid grouped hold ending at tick 7
+    const holdChart: NativeChart = {
+      ...chart,
+      notes: [{ tick: 3, panel_mask: 3, hold_ticks: 4 }],
+    }
+
+    // When the first panel tail is clicked with a four-tick edit grid
+    const edited = togglePanelAtTick(holdChart, { tick: 7, panel: 0 }, 4)
+
+    // Then the exact off-grid demand is removed while its chord peer is preserved
+    expect(edited.notes).toEqual([{ tick: 3, panel_mask: 2, hold_ticks: 4 }])
+  })
+
+  it("creates a direction-independent inclusive hold and rejects overlap atomically", () => {
+    // Given an empty lane and a neighboring occupied onset
+    const occupied: NativeChart = {
+      ...chart,
+      notes: [{ tick: 12, panel_mask: 1, hold_ticks: 0 }],
+    }
+
+    // When dragging upward on an empty chart
+    const placed = placePanelHold(
+      { ...chart, notes: [] },
+      { startTick: 10, endTick: 6, panel: 0 },
+      2,
+    )
+
+    // Then the minimum snapped tick is the head and the maximum is the inclusive tail
+    expect(placed.notes).toEqual([{ tick: 6, panel_mask: 1, hold_ticks: 4 }])
+    // And a candidate whose tail reaches an occupied onset is rejected without changing the input
+    expect(() => placePanelHold(occupied, { startTick: 8, endTick: 12, panel: 0 }, 1)).toThrow(
+      "already contains",
+    )
+    expect(occupied.notes).toEqual([{ tick: 12, panel_mask: 1, hold_ticks: 0 }])
   })
 })
 
@@ -122,6 +182,19 @@ describe("selected panel demand editing", () => {
 
     // Then the hold head and duration are returned
     expect(selected).toEqual({ tick: 8, panel_mask: 1, hold_ticks: 4 })
+  })
+
+  it("finds a hold from its inclusive tail cell", () => {
+    const holdChart: NativeChart = {
+      ...chart,
+      notes: [{ tick: 8, panel_mask: 1, hold_ticks: 4 }],
+    }
+
+    expect(findPanelDemand(holdChart, 12, 0)).toEqual({
+      tick: 8,
+      panel_mask: 1,
+      hold_ticks: 4,
+    })
   })
 
   it("moves one panel out of a grouped hold while preserving the other panel", () => {
