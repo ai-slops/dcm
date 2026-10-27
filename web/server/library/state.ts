@@ -4,7 +4,6 @@ import { z } from "zod"
 
 import {
   ChartDocumentSchema,
-  CurrentDocumentSchema,
   normalizeChartDocument,
   RevisionSchema,
   StudioProjectV1Schema,
@@ -25,6 +24,7 @@ import {
   MAX_LIBRARY_SONGS,
   SongIdSchema,
 } from "../../shared/library.ts"
+import { chartSummary, hexDigest } from "./chart-summary.ts"
 import { PersistedProjectsSchema } from "./project-collection.ts"
 
 export const StoredChartSchema = LibraryChartSchema.unwrap()
@@ -147,7 +147,7 @@ export const PersistedStateV2Schema = z
 export const PersistedStateV3Schema = z
   .strictObject({
     version: z.literal(3),
-    document: CurrentDocumentSchema,
+    document: LegacyCurrentDocumentSchema,
     library: StoredLibrarySchema,
     projects: PersistedProjectsSchema,
   })
@@ -240,30 +240,4 @@ export function chartDocument(
   if (song === undefined) return undefined
   const { project, ...chart } = stored
   return { chart, song, project }
-}
-
-export function chartSummary(project: z.infer<typeof StudioProjectV1Schema>) {
-  return {
-    note_count: project.chart.notes.reduce((total, note) => total + bitCount(note.panel_mask), 0),
-    hold_count: project.chart.notes.reduce(
-      (total, note) => total + (note.hold_ticks > 0 ? bitCount(note.panel_mask) : 0),
-      0,
-    ),
-    ticks_per_beat: project.chart.ticks_per_beat,
-    duration_ticks: project.chart.span_ticks,
-  }
-}
-
-export function hexDigest(bytes: readonly number[]): string {
-  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("")
-}
-
-function bitCount(value: number): number {
-  let remaining = value
-  let count = 0
-  while (remaining !== 0) {
-    count += remaining & 1
-    remaining >>>= 1
-  }
-  return count
 }

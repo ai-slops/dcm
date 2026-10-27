@@ -12,10 +12,11 @@ import type { ChartId, LibraryChartDocument, LibrarySnapshot } from "../shared/l
 import type { ComponentId, GenerationProjectId } from "../shared/project-identities.ts"
 import { StudioError } from "./errors.ts"
 import { type AssetWrite, atomicState, readAsset, writeAsset } from "./library/assets.ts"
+import { hexDigest } from "./library/chart-summary.ts"
 import { replaceDocumentMutation, saveDocumentMutation } from "./library/document-mutations.ts"
+import { currentDocument } from "./library/document-view.ts"
 import { migrateV2ToV3 } from "./library/migration.ts"
 import {
-  hexDigest,
   initialState,
   LegacyCurrentDocumentSchema,
   PersistedStateV2Schema,
@@ -100,7 +101,7 @@ export class StudioStore {
   }
 
   document(): CurrentDocument {
-    return structuredClone(this.#state.document)
+    return structuredClone(currentDocument(this.#state))
   }
 
   library(): LibrarySnapshot {
