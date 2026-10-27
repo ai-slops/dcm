@@ -27,6 +27,7 @@ export function registerAgentRoutes(app: StudioApp, services: Services): void {
       document,
       request.prompt,
       request.model_id,
+      request.write_access,
     )
     return context.json(snapshot, 202)
   })

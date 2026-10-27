@@ -1,5 +1,6 @@
 import type {
   AgentRunSnapshot,
+  AgentWriteAccess,
   CurrentDocument,
   EvaluationResponse,
   NativeChart,
@@ -8,6 +9,7 @@ import { StudioError } from "../errors.ts"
 import type { StudioSession } from "../sessions.ts"
 import type { AudioRecord, StudioStore } from "../store.ts"
 import { createPartRuntime, type PartRuntimeFactory } from "./part-runtime.ts"
+import type { AgentProjectService } from "./project-tools.ts"
 import { RunRecord } from "./run-record.ts"
 
 const MAX_SESSION_RUNS = 32
@@ -48,6 +50,7 @@ export type AgentRunsDependencies = {
   readonly store: StudioStore
   readonly native: NativeOperations
   readonly createRuntime?: PartRuntimeFactory
+  readonly projects?: AgentProjectService
   readonly deadlineMs?: number
 }
 
@@ -59,7 +62,13 @@ export class AgentRuns {
     this.#dependencies = dependencies
   }
 
-  start(session: StudioSession, document: CurrentDocument, prompt: string, modelId?: string) {
+  start(
+    session: StudioSession,
+    document: CurrentDocument,
+    prompt: string,
+    modelId?: string,
+    writeAccess: AgentWriteAccess = "read_only",
+  ) {
     const configuration = this.#dependencies.configuration
     if (configuration === undefined && this.#dependencies.resolveConfiguration === undefined) {
       throw new StudioError(
@@ -80,6 +89,8 @@ export class AgentRuns {
       resolveConfiguration: this.#dependencies.resolveConfiguration,
       modelId,
       native: this.#dependencies.native,
+      projects: this.#dependencies.projects,
+      writeAccess,
       createRuntime: this.#dependencies.createRuntime ?? createPartRuntime,
       deadlineMs: this.#dependencies.deadlineMs ?? 120_000,
       onTerminal: () => this.#prune(session),

@@ -2,25 +2,19 @@ import {
   type AgentRunSnapshot,
   AgentRunSnapshotSchema,
   type AgentStreamEvent,
+  type AgentWriteAccess,
   type CurrentDocument,
-  MAX_SESSION_PROPOSALS,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import type { StudioSession } from "../sessions.ts"
 import type { AudioRecord } from "../store.ts"
-import type {
-  PartOutcome,
-  PartRun,
-  PartRuntime,
-  PartRuntimeFactory,
-  ProposalInput,
-} from "./part-runtime.ts"
-import { buildAgentProposal } from "./proposal.ts"
+import { buildAgentPrompt, selectedProjectContext } from "./agent-prompt.ts"
+import type { PartOutcome, PartRun, PartRuntime, PartRuntimeFactory } from "./part-runtime.ts"
+import { type AgentProjectService, ProjectAgentTools } from "./project-tools.ts"
 import { safeFailure, safeProviderCode, safeProviderMessage } from "./run-errors.ts"
 import { type EventPayload, RunEvents } from "./run-events.ts"
+import { RunProposalWriter } from "./run-proposals.ts"
 import type { AgentConfiguration, NativeOperations } from "./runs.ts"
-
-const MAX_PROPOSALS = 4
 
 type RunDependencies = {
   readonly session: StudioSession
@@ -31,6 +25,8 @@ type RunDependencies = {
   readonly resolveConfiguration?: ((modelId?: string) => Promise<AgentConfiguration>) | undefined
   readonly modelId?: string | undefined
   readonly native: NativeOperations
+  readonly projects?: AgentProjectService | undefined
+  readonly writeAccess: AgentWriteAccess
   readonly createRuntime: PartRuntimeFactory
   readonly deadlineMs: number
   readonly onTerminal: () => void
@@ -48,6 +44,7 @@ export class RunRecord {
   readonly #dependencies: RunDependencies
   readonly #abort = new AbortController()
   readonly #stream: RunEvents
+  readonly #proposals: RunProposalWriter
 
   constructor(dependencies: RunDependencies) {
     this.#dependencies = dependencies
@@ -59,8 +56,17 @@ export class RunRecord {
       status: "queued",
       prompt: dependencies.prompt,
       last_sequence: 0,
+      write_access: dependencies.writeAccess,
+      selected_project: selectedProjectContext(dependencies.projects),
     })
     this.#stream = new RunEvents(snapshot, (next) => this.session.runs.set(next.id, next))
+    this.#proposals = new RunProposalWriter({
+      session: this.session,
+      document: this.document,
+      runId: snapshot.id,
+      active: () => !this.#terminal,
+      publish: (proposal) => this.#publish({ type: "proposal", proposal }),
+    })
     this.#publish({ type: "status", status: "queued" })
   }
 
@@ -125,6 +131,16 @@ export class RunRecord {
         ...configuration,
         signal: this.#abort.signal,
         project: this.document.project,
+        ...(this.#dependencies.projects === undefined
+          ? {}
+          : {
+              projectTools: new ProjectAgentTools({
+                service: this.#dependencies.projects,
+                writeAccess: this.#dependencies.writeAccess,
+                signal: this.#abort.signal,
+                onMutation: () => this.#stream.markProjectMutation(),
+              }),
+            }),
         evaluateChart: (signal) =>
           this.#dependencies.native.evaluate(this.document.project, signal),
         generateVariant: (seed, signal) =>
@@ -141,7 +157,7 @@ export class RunRecord {
           }
           return validate(this.document.project, mode, signal)
         },
-        proposeChart: (proposal, signal) => this.#propose(proposal, signal),
+        proposeChart: (proposal, signal) => this.#proposals.create(proposal, signal),
         onToolState: (toolId, state, detail) => {
           if (!this.#terminal) this.#publish({ type: "tool", tool_id: toolId, state, ...detail })
         },
@@ -153,7 +169,7 @@ export class RunRecord {
       if (this.#terminal) return
       this.#setStatus("running")
       this.#publish({ type: "status", status: "running" })
-      const started = await runtime.start(this.snapshot.prompt)
+      const started = await runtime.start(buildAgentPrompt(this.snapshot))
       if (!started.ok) return this.#fail("agent_provider_request", "Agent provider request failed")
       this.#partRun = started.value
       if (this.#cancelRequested || this.#terminal) {
@@ -178,25 +194,6 @@ export class RunRecord {
     for await (const update of run.observe()) {
       if (!this.#terminal) this.#publish({ type: "delta", text: update.text })
     }
-  }
-
-  async #propose(input: ProposalInput, signal: AbortSignal) {
-    if (this.#terminal || signal.aborted)
-      throw new StudioError(409, "run_cancelled", "Run is no longer active")
-    await Promise.resolve()
-    if (this.#terminal || signal.aborted)
-      throw new StudioError(409, "run_cancelled", "Run is no longer active")
-    const owned = [...this.session.proposals.values()].filter(
-      (proposal) => proposal.source === "agent" && proposal.run_id === this.snapshot.id,
-    )
-    if (owned.length >= MAX_PROPOSALS)
-      throw new StudioError(409, "proposal_limit", "Run proposal limit reached")
-    if (this.session.proposals.size >= MAX_SESSION_PROPOSALS)
-      throw new StudioError(409, "proposal_limit", "Review pending proposals before creating more")
-    const proposal = buildAgentProposal(this.document, input, this.snapshot.id)
-    this.session.proposals.set(proposal.id, proposal)
-    this.#publish({ type: "proposal", proposal })
-    return { proposal_id: proposal.id }
   }
 
   #complete(text: string): void {
