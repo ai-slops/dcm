@@ -20,6 +20,7 @@ import type { EditorTool } from "./studio-types.ts"
 import { Transport } from "./Transport.tsx"
 import { useAudioPlayback } from "./useAudioPlayback.ts"
 import { useBeforeUnload } from "./useBeforeUnload.ts"
+import { useDocumentSave } from "./useDocumentSave.ts"
 import { useProposalOwner } from "./useProposalOwner.ts"
 import { useRefreshedBootstrap } from "./useRefreshedBootstrap.ts"
 
@@ -137,24 +138,17 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     }
   }
 
-  async function save() {
-    setStatus("Saving")
-    const savingProject = project
-    try {
-      const document = await studioApi.save(bootstrap.csrf_token, {
-        base_revision: revision,
-        project: savingProject,
-      })
-      setRevision(document.revision)
-      setPersistedProject(document.project)
-      if (projectRef.current === savingProject) setProject(document.project)
-      setValidationError("")
-      setStatus(projectRef.current === savingProject ? "Saved" : "Saved older draft")
-    } catch (error) {
-      setStatus("Save failed")
-      setValidationError(error instanceof Error ? error.message : "Save failed. Try again.")
-    }
-  }
+  const save = useDocumentSave({
+    csrfToken: bootstrap.csrf_token,
+    project,
+    projectRef,
+    revision,
+    onProject: setProject,
+    onPersistedProject: setPersistedProject,
+    onRevision: setRevision,
+    onStatus: setStatus,
+    onValidationError: setValidationError,
+  })
 
   async function applyProposal(proposal: ChartProposal) {
     const startedFromProject = projectRef.current
