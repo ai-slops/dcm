@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { ProjectWorkspaceSchema } from "../../shared/generation-projects.ts"
+import { automaticRegionViews } from "../../shared/generation-rules.ts"
 import { ChartIdSchema, LibraryRevisionSchema } from "../../shared/library.ts"
 import { ChartDocumentSchema } from "../../shared/project.ts"
 import {
@@ -8,8 +9,8 @@ import {
   ProjectMutationSchema,
 } from "../../shared/project-commands.ts"
 import { StudioError } from "../errors.ts"
+import { chartSummary } from "../library/chart-summary.ts"
 import { nativeMetadata } from "../library/project-factory.ts"
-import { chartSummary } from "../library/state.ts"
 import type { StudioStore } from "../store.ts"
 import { expectProjectRevision, requireProject } from "./mutations.ts"
 import type { ProjectNativeService } from "./service.ts"
@@ -92,6 +93,7 @@ export async function generateProject(
                 project_id: project.id,
                 project_revision: project.revision,
                 seed: command.seed,
+                automatic_regions: automaticRegionViews(project.generation_rules),
               },
               project: chartProject,
             },
