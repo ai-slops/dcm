@@ -1,13 +1,36 @@
-import type { NativeChart, NativeMusic } from "../../shared/index.ts"
+import type { AutomaticRegionView, NativeChart, NativeMusic } from "../../shared/index.ts"
+import {
+  TIMELINE_RUNWAY_CENTER_ROW,
+  timelineLogicalVisibleTick,
+} from "./timeline-scroll-geometry.ts"
 import { bpmAtTick, tickToAudioMicros } from "./timing.ts"
 
+export * from "./timeline-scroll-geometry.ts"
+
 export const TIMELINE_WINDOW_ROWS = 48
+export const TIMELINE_BUFFER_ROWS = 16
 
 export type TimelineCellState = "tap" | "hold-head" | "hold-body" | "hold-tail"
+export type LaneTone = "blue" | "red" | "yellow"
 
 type TimelineWindowInput = {
   readonly sourceTick: number
   readonly spanTicks: number
+}
+
+type TimelineVirtualWindowInput = {
+  readonly originTick: number
+  readonly scrollTop: number
+  readonly rowSize: number
+  readonly viewportSize: number
+  readonly spanTicks: number
+}
+
+export type TimelineVirtualWindow = {
+  readonly visibleTick: number
+  readonly startTick: number
+  readonly rows: readonly number[]
+  readonly offset: number
 }
 
 export type TimingContext = {
@@ -28,6 +51,38 @@ export function timelineWindowStart(input: TimelineWindowInput): number {
   const pageTicks = TIMELINE_WINDOW_ROWS
   const boundedTick = Math.min(Math.max(input.sourceTick, 0), Math.max(input.spanTicks - 1, 0))
   return Math.floor(boundedTick / pageTicks) * pageTicks
+}
+
+export function laneTone(lane: number): LaneTone {
+  const position = ((lane % 5) + 5) % 5
+  if (position === 2) return "yellow"
+  return position === 0 || position === 4 ? "blue" : "red"
+}
+
+export function timelineRangeIntersectsRegions(
+  startTick: number,
+  endTick: number,
+  regions: readonly AutomaticRegionView[],
+): boolean {
+  const first = Math.min(startTick, endTick)
+  const last = Math.max(startTick, endTick)
+  return regions.some((region) => region.start_tick <= last && region.end_tick > first)
+}
+
+export function timelineVirtualWindow(input: TimelineVirtualWindowInput): TimelineVirtualWindow {
+  const viewportRows = Math.max(1, Math.ceil(input.viewportSize / input.rowSize))
+  const visibleTick = timelineLogicalVisibleTick(input)
+  const startTick = Math.max(0, Math.floor(visibleTick) - TIMELINE_BUFFER_ROWS)
+  const endTick = Math.min(
+    input.spanTicks,
+    Math.ceil(visibleTick) + viewportRows + TIMELINE_BUFFER_ROWS,
+  )
+  return {
+    visibleTick,
+    startTick,
+    rows: Array.from({ length: endTick - startTick }, (_, index) => startTick + index),
+    offset: (TIMELINE_RUNWAY_CENTER_ROW + startTick - input.originTick) * input.rowSize,
+  }
 }
 
 export function buildVisibleCellIndex(
