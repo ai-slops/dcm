@@ -127,4 +127,59 @@ describe("studio HTTP API", () => {
     expect(foreign.status).toBe(403)
     expect(oversized.status).toBe(413)
   })
+
+  it("limits JSON routes by actual bytes without trusting content headers", async () => {
+    // Given
+    const root = await mkdtemp(join(tmpdir(), "pump-studio-json-limit-"))
+    roots.push(root)
+    const studio = await createStudioApp(
+      loadConfig({ STUDIO_DATA: root, STUDIO_REPO_ROOT: repoRoot }),
+    )
+    const bootstrapResponse = await studio.app.request("http://127.0.0.1:4173/api/v1/bootstrap")
+    const bootstrap = await bootstrapResponse.json()
+    const cookie = bootstrapResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? ""
+    const body = JSON.stringify({ padding: "x".repeat(8 * 1024 * 1024) })
+
+    // When
+    const response = await studio.app.request("http://127.0.0.1:4173/api/v1/document", {
+      method: "PUT",
+      headers: {
+        "content-type": "text/plain",
+        "content-length": "1",
+        cookie,
+        "x-csrf-token": bootstrap.csrf_token,
+      },
+      body,
+    })
+
+    // Then
+    expect(response.status).toBe(413)
+    expect(await response.json()).toMatchObject({ error: { code: "body_too_large" } })
+  })
+
+  it("keeps known archive multipart routes above the JSON request limit", async () => {
+    // Given
+    const root = await mkdtemp(join(tmpdir(), "pump-studio-multipart-limit-"))
+    roots.push(root)
+    const studio = await createStudioApp(
+      loadConfig({ STUDIO_DATA: root, STUDIO_REPO_ROOT: repoRoot }),
+    )
+    const bootstrapResponse = await studio.app.request("http://127.0.0.1:4173/api/v1/bootstrap")
+    const bootstrap = await bootstrapResponse.json()
+    const cookie = bootstrapResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? ""
+    const form = new FormData()
+    form.set("library_revision", "0")
+    form.set("file", new File([new Uint8Array(9 * 1024 * 1024)], "invalid.zip"))
+
+    // When
+    const response = await studio.app.request("http://127.0.0.1:4173/api/v1/library/archives", {
+      method: "POST",
+      headers: { cookie, "x-csrf-token": bootstrap.csrf_token },
+      body: form,
+    })
+
+    // Then
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { code: "archive_invalid" } })
+  })
 })
