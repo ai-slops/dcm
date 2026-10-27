@@ -19,6 +19,7 @@ import { ProjectNativeService } from "./native/project-rules.ts"
 import { NativeService } from "./native/service.ts"
 import { NativeUcsService } from "./native/ucs.ts"
 import { ProjectService } from "./projects/service.ts"
+import { SongTemplateService } from "./projects/song-template.ts"
 import { configurationForModel, resolveAgentProvider } from "./provider/resolve.ts"
 import { registerAgentRoutes } from "./routes/agent.ts"
 import { registerDocumentRoutes } from "./routes/document.ts"
@@ -42,6 +43,7 @@ export async function createStudioApp(
   const projectNative = new ProjectNativeService(config.repoRoot)
   const projects = new ProjectService(store, projectNative)
   const ucs = new NativeUcsService(config.repoRoot)
+  const songTemplates = new SongTemplateService(store, ucs)
   const provider = await resolveAgentProvider(config)
   const library = new LibraryService(store)
   const archives = new LibraryArchives(store, ucs)
@@ -66,6 +68,7 @@ export async function createStudioApp(
     native,
     projectNative,
     projects,
+    songTemplates,
     library,
     archives,
     runs,

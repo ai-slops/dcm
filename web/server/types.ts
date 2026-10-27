@@ -6,6 +6,7 @@ import type { LibraryService } from "./library/service.ts"
 import type { ProjectNativeService } from "./native/project-rules.ts"
 import type { NativeService } from "./native/service.ts"
 import type { ProjectService } from "./projects/service.ts"
+import type { SongTemplateService } from "./projects/song-template.ts"
 import type { SessionStore, StudioSession } from "./sessions.ts"
 import type { StudioStore } from "./store.ts"
 
@@ -18,6 +19,7 @@ export type Services = {
   readonly native: NativeService
   readonly projectNative: ProjectNativeService
   readonly projects: ProjectService
+  readonly songTemplates: SongTemplateService
   readonly library: LibraryService
   readonly archives: LibraryArchives
   readonly runs: AgentRuns

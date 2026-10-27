@@ -1,3 +1,4 @@
+import { SongIdSchema } from "../../shared/library.ts"
 import { ProjectCommandSchema } from "../../shared/project-commands.ts"
 import { ComponentIdSchema, GenerationProjectIdSchema } from "../../shared/project-identities.ts"
 import { parseJson } from "../http.ts"
@@ -10,6 +11,11 @@ export function registerProjectRoutes(app: StudioApp, services: Services): void 
   )
   app.get("/api/v1/components/:id", (context) =>
     context.json(services.projects.component(ComponentIdSchema.parse(context.req.param("id")))),
+  )
+  app.get("/api/v1/projects/song-template/:songId", async (context) =>
+    context.json(
+      await services.songTemplates.read(SongIdSchema.parse(context.req.param("songId"))),
+    ),
   )
   app.post("/api/v1/projects/actions", async (context) => {
     const command = await parseJson(context, ProjectCommandSchema)
