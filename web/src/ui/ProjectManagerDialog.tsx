@@ -198,7 +198,6 @@ export function ProjectManagerDialog(props: ProjectManagerDialogProps) {
               project={project}
               projectLoading={projectLoading}
               rulesDirty={ruleDirty}
-              charts={library?.charts ?? []}
               songs={library?.songs ?? []}
               workspace={workspace}
               onNew={() => requestRuleNavigation({ kind: "new" })}

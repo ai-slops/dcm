@@ -76,6 +76,11 @@ function LibraryChartRow(
         >
           Duplicate
         </Button>
+        {props.busy || props.chart.generated_from === undefined ? null : (
+          <a className="button" href={`/projects/${props.chart.generated_from.project_id}/edit`}>
+            Edit grid
+          </a>
+        )}
         <Button
           variant="danger"
           disabled={props.busy || props.library.charts.length === 1}

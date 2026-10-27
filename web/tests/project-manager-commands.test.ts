@@ -100,3 +100,19 @@ it("rejects a project load response after a newer navigation generation starts",
   expect(projectLoadIsCurrent(4, 4)).toBe(true)
   expect(projectLoadIsCurrent(4, 5)).toBe(false)
 })
+
+it("defaults a new project to empty visual hybrid rules", async () => {
+  // Given
+  const demo = await loadDemo(repoRoot)
+
+  // When
+  const json = initialProjectJson(demo.document.project)
+
+  // Then
+  expect(JSON.parse(json.rules)).toEqual({
+    schema_version: 2,
+    algorithm: "hybrid_regions_v1",
+    fixed_notes: [],
+    regions: [],
+  })
+})

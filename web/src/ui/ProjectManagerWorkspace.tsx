@@ -5,14 +5,14 @@ import type {
   ReusableComponentSummary,
 } from "../../shared/generation-projects.ts"
 import type { StudioProjectV1 } from "../../shared/index.ts"
-import type { LibraryChart, LibrarySong, SongId } from "../../shared/library.ts"
+import type { LibrarySong, SongId } from "../../shared/library.ts"
 import type { ProjectCommand, ProjectGenerationResult } from "../../shared/project-commands.ts"
 import type {
   ComponentId,
   ComponentKind,
   GenerationProjectId,
 } from "../../shared/project-identities.ts"
-import { libraryApi } from "../api/library-client.ts"
+import { projectsApi } from "../api/projects-client.ts"
 import { ProjectComponentLibrary } from "./ProjectComponentLibrary.tsx"
 import { ProjectEditorForm } from "./ProjectEditorForm.tsx"
 import { ProjectOperations } from "./ProjectOperations.tsx"
@@ -21,7 +21,6 @@ import type { parseProjectForm } from "./project-form.ts"
 
 type ProjectManagerWorkspaceProps = {
   readonly busy: boolean
-  readonly charts: readonly LibraryChart[]
   readonly creating: boolean
   readonly currentChart: StudioProjectV1
   readonly generation: ProjectGenerationResult | null
@@ -54,6 +53,7 @@ export function ProjectManagerWorkspace(props: ProjectManagerWorkspaceProps) {
         busy={disabled}
         workspace={props.workspace}
         inspectedId={props.project?.id ?? null}
+        rulesDirty={props.rulesDirty}
         onNew={props.onNew}
         onInspect={props.onInspect}
         onSelect={props.onSelect}
@@ -80,10 +80,7 @@ export function ProjectManagerWorkspace(props: ProjectManagerWorkspaceProps) {
             project={props.creating ? null : props.project}
             songs={props.songs}
             onDirtyChange={props.onDirtyChange}
-            onLoadSongProject={async (songId) => {
-              const chart = props.charts.find((candidate) => candidate.song_id === songId)
-              return chart === undefined ? null : (await libraryApi.chart(chart.id)).project
-            }}
+            onLoadSongTiming={(songId) => projectsApi.songTemplate(songId)}
             onCreate={props.onCreate}
             onWrite={props.onWrite}
           />

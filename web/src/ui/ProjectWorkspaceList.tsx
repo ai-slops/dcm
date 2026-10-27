@@ -9,6 +9,7 @@ type ProjectWorkspaceListProps = {
   readonly busy: boolean
   readonly workspace: ProjectWorkspace
   readonly inspectedId: GenerationProjectId | null
+  readonly rulesDirty: boolean
   readonly onInspect: (id: GenerationProjectId) => void
   readonly onSelect: (project: GenerationProjectSummary) => void
   readonly onDelete: (project: GenerationProjectSummary) => void
@@ -51,6 +52,11 @@ export function ProjectWorkspaceList(props: ProjectWorkspaceListProps) {
                   <Button disabled={props.busy || selected} onClick={() => props.onSelect(project)}>
                     Select
                   </Button>
+                  {props.busy || props.rulesDirty ? null : (
+                    <a className="button" href={`/projects/${project.id}/edit`}>
+                      Edit grid
+                    </a>
+                  )}
                   <Button
                     variant="danger"
                     disabled={props.busy}
