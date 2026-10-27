@@ -1,0 +1,181 @@
+.preview-gallery {
+  block-size: 100dvb;
+  overflow: auto;
+  padding: var(--space-6);
+  background: var(--surface-canvas);
+}
+
+.preview-gallery__header,
+.preview-gallery__selectors,
+.preview-gallery__meta,
+.preview-gallery__views,
+.preview-gallery__player,
+.preview-gallery > .transport,
+.preview-gallery__missing,
+.preview-gallery__error {
+  max-inline-size: 1200px;
+  margin-inline: auto;
+}
+
+.preview-gallery__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: var(--space-5);
+}
+
+.preview-gallery__header h1 {
+  margin: var(--space-1) 0;
+  font-size: var(--type-title);
+  line-height: var(--type-title-line);
+}
+
+.preview-gallery__header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-body);
+  line-height: var(--type-body-line);
+}
+
+.preview-gallery__eyebrow {
+  color: var(--cyan-primary);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+}
+
+.preview-gallery__selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.preview-gallery__selectors label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+}
+
+.preview-gallery__selectors select {
+  min-block-size: var(--control-touch);
+  min-inline-size: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  padding-inline: var(--space-3);
+}
+
+.preview-gallery__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  font-size: var(--type-body);
+  line-height: var(--type-body-line);
+}
+
+.preview-gallery__meta > div,
+.preview-gallery__meta > div span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.preview-gallery__meta > div span {
+  align-items: start;
+  flex-direction: column;
+  gap: 0;
+}
+
+.preview-gallery__meta small,
+.preview-gallery__meta > span:not(.badge) {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+}
+
+.preview-gallery__provenance {
+  flex: 1 1 24ch;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--cyan-high);
+  overflow-wrap: anywhere;
+}
+
+.preview-gallery__missing,
+.preview-gallery__error {
+  margin-block: var(--space-3);
+  color: var(--status-warning);
+}
+
+.preview-gallery__error {
+  color: var(--status-error);
+}
+
+.preview-gallery__missing a {
+  color: var(--cyan-high);
+}
+
+.preview-gallery__views {
+  display: flex;
+  gap: var(--space-2);
+  margin-block: var(--space-4) var(--space-2);
+}
+
+.preview-gallery__player .panel__body {
+  min-block-size: var(--preview-field-height-compact);
+}
+
+.preview-gallery > .transport {
+  min-block-size: var(--transport-height);
+  margin-block-start: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--depth-panel);
+}
+
+.preview-gallery__timeline {
+  block-size: var(--preview-field-height);
+  min-inline-size: 0;
+}
+
+.preview-gallery__player .primitive-state-harness {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview-gallery__player > .panel__body > .transport {
+  min-block-size: var(--transport-height);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 767px) {
+  .preview-gallery {
+    padding: var(--space-4);
+  }
+  .preview-gallery__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .preview-gallery__selectors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .preview-gallery__views {
+    overflow-inline: auto;
+  }
+  .preview-gallery__player .primitive-state-harness {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .preview-gallery > .transport {
+    overflow: visible;
+  }
+}
