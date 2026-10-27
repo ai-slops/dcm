@@ -37,6 +37,9 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
   saves, audio-clock preview, and portable project/audio import.
 - Native finite-model evaluation, review-only deterministic generation, and edited SSC ZIP export
   that explicitly carries no verified-bundle certification.
+- Durable song/chart library with Studio-owned public Pump Pro+ catalogue search/download,
+  original-ZIP retention, guarded chart management, shared per-song audio, and saved-song ZIP export.
+  Production `/previews` exercises stored charts with actual music and reusable component views.
 - Native Format 1 UCS import/export preserves actual taps, chords, holds, exact section timing,
   and signed offsets for the documented Single/Double profile. The same audio-clock visualizer
   uses a bounded, synchronized timeline. UCS transfers remain uncertified drafts, with no video

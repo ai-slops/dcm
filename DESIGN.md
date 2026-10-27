@@ -135,6 +135,8 @@ Coral is the product action accent. Cyan is a data identity for the second five-
 | `--type-mono-lg` | `18px / 22px` | 600 | `0.02em` | Main transport time and BPM |
 | `--type-mono` | `13px / 18px` | 550 | `0.02em` | Tick, duration, offset, counts |
 | `--type-mono-sm` | `11px / 15px` | 500 | `0.04em` | Ruler labels and candidate fragments |
+| `--type-support` | `12px / 18px` | 500 | `0` | Dialog helper and operation-result copy |
+| `--type-dense-copy` | `12px / 17px` | 500 | `0` | Dense proposal descriptions |
 
 ### Typography rules
 
@@ -173,15 +175,22 @@ All visual spacing maps to this 4px scale. Intrinsic CSS mechanics such as `auto
 | `--timeline-row-touch` | `44px` | Tablet, mobile, and coarse-pointer timeline row |
 | `--toolbar-height` | `56px` | Desktop document toolbar |
 | `--transport-height` | `64px` | Desktop bottom transport |
+| `--transport-height-mobile` | `112px` | Two-row compact-mobile transport retaining every control |
+| `--transport-height-phone` | `160px` | Three-row phone transport with full-width Volume control |
 | `--mobile-tabs-height` | `52px` | Mobile Editor/Preview/Agent tabs |
 | `--inspector-width` | `264px` | Desktop left rail |
 | `--agent-width` | `360px` | Desktop right rail |
 | `--preview-width` | `288px` | Desktop playfield preview pane |
+| `--preview-field-height` | `360px` | Default scrolling chart approach field |
+| `--preview-field-height-compact` | `240px` | Short preview pane at constrained desktop/tablet heights |
+| `--preview-field-height-dense` | `192px` | Dense stacked Studio preview between 1200px and 1439px |
+| `--preview-receptor-size` | `28px` | Dense fixed receptor and moving note head |
 | `--radius-xs` | `3px` | Grid notes and keycaps |
 | `--radius-sm` | `6px` | Inputs, buttons, chips |
 | `--radius-md` | `10px` | Panels, menus, proposal rows |
 | `--radius-lg` | `14px` | Modals and floating surfaces |
 | `--radius-pill` | `999px` | Status badges only |
+| `--stroke-hairline` | `1px` | Dividers, control borders, and visually hidden input geometry |
 
 ### Breakpoints
 
@@ -346,15 +355,34 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 - **Motion:** contact state crossfades; no arcade flashes, bounce, or particles.
 - **Layout:** `frame` within preview panel; scales without changing panel geometry.
 
+### ScrollingChartPreview
+
+- **Structure:** fixed ten-lane receptor row in native order (`L DL UL C UR DR`, then `R DL UL C UR DR`), bounded approach field, moving tap heads and hold head/body/tail geometry, exact audio-second/chart-tick readout, overflow disclosure, and the standard Transport controls.
+- **Projection:** note onset and hold tail positions derive only from the selected chart's piecewise `tickToAudioMicros` mapping and the shared HTML audio element's `currentTime`. No logical clock, beat-only approximation, or unrelated active-document audio is permitted.
+- **Windowing:** render only contacts intersecting the configured past/lookahead audio-time window. Cap visible contacts deterministically and state the omitted count rather than silently dropping dense chart data. Never create one DOM row per native tick or update every chart note per animation frame.
+- **Variants:** library audio loading, ready, playing, paused, ended, missing audio, and playback error. Missing audio disables Play, names the missing asset, and links to the Studio Library workflow; it does not advance a silent preview clock.
+- **Controls:** expose scroll speed/lookahead, seek/scrubber, play/pause, stop, playback rate, volume, loop, and Segment. Labels distinguish audio seconds from chart ticks and beats.
+- **Accessibility:** receptors and visible contacts have lane/type/timing labels; chords remain separate lane contacts with a shared onset; holds expose onset and exclusive tail. A concise live summary announces playback state, not every frame. Keyboard and touch users retain the same transport actions at 375px, 768px, and 1280px.
+- **Motion:** contact travel uses compositor transforms derived from the media clock. Reduced motion keeps discrete position updates and removes decorative interpolation; it never substitutes a fake clock.
+- **Layout:** the Studio Preview tab and `/previews` gallery reuse this exact component. The gallery may add song/chart selectors and provenance, but must not fork a second renderer or mutable editor.
+
+### PreviewGallery
+
+- **Structure:** production `/previews` route behind the existing bootstrap/auth boundary; factual heading, song and chart selects sourced from the stored Library snapshot, audio/provenance metadata, view switcher (`Player`, `Timeline`, `Pads`, `Transport`, `Primitives`), reusable preview surface, and a link back to Studio Library actions.
+- **Selection:** optional `?chart=<ChartId>` initializes the selected stored chart when present. Changing gallery selection loads read-only library data and never mutates the active Studio document.
+- **States:** bootstrap loading/error, empty library, chart loading/error, audio loading/ready/missing/error. No sample chart, private coordinate, local file path, archive bytes, or fabricated metadata may be committed as fallback content.
+- **Responsive behavior:** controls wrap intrinsically; Player and Transport essentials remain visible at 375px; metadata and secondary views reflow beneath the player at 768px; 1280px may use a two-column player/evidence composition.
+
 ### Transport
 
-- **Structure:** previous/step, play/pause, stop, mono time/beat, scrubber, one visible `Segment` action, full-song loop, tempo context, zoom, and audio/runtime state. `Segment` opens the standard ActionDialog for audio-second start/end and segment-loop controls; these fields never crowd the fixed transport.
-- **Variants:** desktop full, tablet reduced, mobile essential.
-- **Spacing:** fixed shell row `--transport-height`; groups separated by `--space-4` and internal gap `--space-2`.
+- **Structure:** play/pause, stop, complete mono chart-tick readout, chart-position scrubber, one visible `Segment` action, full-song loop, playback speed, volume, and audio state. `Segment` opens the standard ActionDialog for audio-second start/end and segment-loop controls; these fields never crowd the fixed transport.
+- **Ownership:** previous/next navigation, exact go-to-tick input, quantization, and beat/BPM context belong to Timeline. Configurable lookahead and exact audio-second/chart-tick context belong to ScrollingChartPreview. The shared preview/timeline timing context supplies audio seconds, beat, and BPM; Transport does not duplicate those controls or invent step/zoom behavior.
+- **Variants:** desktop one-row, tablet two-row, and phone three-row with Volume spanning the final row. Every variant retains every control.
+- **Spacing:** desktop uses `--transport-height`, tablet uses `--transport-height-mobile`, and phone uses `--transport-height-phone`; internal targets remain at least `--control-touch` below desktop.
 - **States:** stopped, playing, seeking, loop active, no audio, audio loading, and playback error.
 - **Accessibility:** play/pause label reflects action; scrubber exposes min/max/current text; Space shortcut is active only when focus is not in an editable field.
 - **Motion:** playhead transform follows time; play/pause icon crossfades. No waveform or fake spectrum when audio data is unavailable.
-- **Layout:** fixed `cluster`; lower-priority groups enter overflow before essentials disappear.
+- **Layout:** fixed shell row with bounded responsive groups; controls wrap into the declared rows rather than clipping, overflowing, or disappearing.
 
 ### SegmentPlaybackDialog
 
@@ -401,9 +429,19 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 - **Motion:** center scale/opacity for desktop, bottom-sheet transform for mobile; opacity-only reduced motion.
 - **Layout:** `imposter` above scrim; body is the only scroll owner.
 
+### LibraryDialog
+
+- **Structure:** standard ActionDialog with a song list, the selected song's chart/actions region, new-song form, and original-archive region. The dialog owns vertical scrolling; each region uses flat divided rows rather than nested cards.
+- **Song/chart state:** the active chart and its song carry an explicit `Active` Badge. Selecting a song only changes library inspection; `Open` is the explicit document-switch action. Rename, duplicate, audio replacement, UCS import, and destructive confirmations stay adjacent to the selected item.
+- **Dirty guard:** any operation that may replace the active document presents `Save and continue`, `Discard changes`, and `Cancel`. Save continuation uses the revision returned by the completed save, never the revision captured when the dialog opened. Library-only mutations refresh library state without replacing the visible draft when the returned document revision is unchanged.
+- **Archives:** a compact metadata-only public Pump Pro search lists code, title, artist, and BPM with one `Download` action per result; it never changes the current document. Direct CS-code download remains available as a fallback and defaults to `CS839`. Both paths identify the source as public Pump Pro, not official PUMP. Uploaded/downloaded ZIPs remain staged until the user explicitly chooses one bundled audio file and one or more charts. Multiple audio choices never auto-select; compatible charts default selected. Original ZIP download and generated saved-song ZIP download are separate actions.
+- **States:** loading, ready, empty, mutating, download staging, selection required, confirmation, and inline error. Cancellation is shown only for operations with real cancellation support.
+- **Responsive:** one column at all supported widths. Dense row action clusters wrap before overflow; form groups collapse intrinsically and every file/action target reaches `--control-touch` below tablet width.
+- **Accessibility:** song/chart/archive groups use headings and lists; active state is textual; file fields retain visible labels; destructive confirmation names the exact item; mutation/error status uses a polite live region.
+
 ### Primitive showcase gate
 
-Before composing the studio screen, implementation must render Button, IconButton, Field, Panel, Tab, Badge, ToolChip, TimelineCell, PlayfieldPreview, Transport, ProposalRow, AgentRail, and Modal in every applicable state at 375px, 768px, and 1280px. Product-screen implementation starts only after this state harness passes visual and keyboard review.
+The reusable state harness renders Button, IconButton, Field, Panel, Badge, and ToolChip in their applicable default, selected, disabled, busy, read-only, and invalid states. The production `/previews` route reuses the real ScrollingChartPreview, Timeline, PlayfieldPreview, and Transport rather than fabricating chart data. Context-heavy ProposalRow, AgentRail, Tab, and Modal behavior is reviewed in the live Studio surfaces that own their real state; the component harness must not invent agent messages, proposals, charts, or runtime results.
 
 ## 6. Motion & Interaction
 

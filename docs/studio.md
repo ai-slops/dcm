@@ -164,6 +164,58 @@ in the same cell. Titles/artists are printable ASCII within the current exporter
 charts produce an error instead of silent rounding. See [StepMania setup](stepmania.md) to play
 the resulting songs in a real engine.
 
+## Songs, charts, and retained archives
+
+Open **Songs and library** in the toolbar. This is the Studio's durable song manager, not a
+requirement to arrange downloads or files manually outside the app:
+
+- Search the public **Pump Pro+** catalogue by title, artist, or CS code, then **Download** a
+  result. This is a third-party source, not the official PIU service. A direct CS-code download
+  is also available. Requests accept only fixed public source URLs and never forward Studio
+  credentials. Network/source failures are reported without changing the open chart.
+- Select a retained original ZIP, choose its chart(s) and music, and **Import as song**. This
+  creates a separate library song without replacing the open project. Original ZIPs can be
+  downloaded again or removed independently of the imported song.
+- Select a song to create Single/Double charts, import another UCS against that song's music,
+  open, duplicate, rename, or delete charts. Create song starts a new blank chart with optional
+  audio. Audio replacement updates all charts belonging to that song, not unrelated songs.
+- **Download saved song ZIP** exports its saved UCS charts, shared music, and library metadata.
+  It does not include unsaved editor changes or confer certification. The last song and a song's
+  only chart are protected; delete the song instead of leaving it without charts.
+- Switching the open chart or replacing its audio offers **Save and continue**, discard, or
+  cancel when the editor has unsaved changes. Metadata-only management does not replace the
+  browser draft. Revision conflicts preserve that draft and require refreshing the library.
+
+**Chart previews** opens `/previews`. Choose a stored song and chart to exercise the reusable
+scrolling player, physical pads, read-only timeline, transport, and UI primitives. The player uses
+that song's actual stored audio, tempo map, offset, taps, and holds. **First note** seeks without
+autoplay. A song without audio explicitly disables playback; no silent substitute is supplied.
+`/previews?chart=<chart-id>` links directly to a stored chart without switching the Studio's active
+project. Native timing is retained even when the real audio is shorter than the chart's blank tail.
+
+The library is bounded to 64 songs, 128 charts, and 32 retained archives. ZIP decompression uses
+the same limits described below. Private imported examples, music, ZIPs, recovery data, and browser
+evidence stay in ignored local storage and are not repository fixtures or redistributed assets.
+
+### Library browser verification
+
+With the managed preview running, from `web/`:
+
+```sh
+node --experimental-transform-types tests/browser/library-workflows.mjs
+STUDIO_LIBRARY_CHART_ID=<stored-chart-id> node --experimental-transform-types tests/browser/library-preview.mjs
+STUDIO_LIVE_LIBRARY=1 STUDIO_SAMPLE_UCS_FILE=/absolute/path/to/private-example.ucs \
+  node --experimental-transform-types tests/browser/library-live-source.mjs
+```
+
+The first creates and removes only a temporary song and restores the prior active chart. Do not
+edit the shared Studio concurrently. The second checks real audio/first-note/hold behavior and all
+five component views at desktop, tablet, and phone widths without changing the active project.
+The opt-in public-source check downloads CS839 and retains its imported song and supplied private
+example as separate charts for inspection. It verifies the downloaded package/music hashes and
+native chart/timing equality. It does not bundle or commit the example or music. Browser evidence
+is ignored under `web/artifacts/`; credentials and CSRF tokens are never printed.
+
 ## UCS transfer and visualization
 
 Use **UCS transfer** in the toolbar to download the saved chart as real Format 1 UCS or import a
@@ -323,10 +375,14 @@ project concurrently. Private recovery copies and redacted receipts/screenshots 
 
 ## State and local trust boundary
 
-- One durable project is shared by this local server instance. Revisions prevent browser tabs or
-  agent proposals from silently overwriting newer saves; a conflict preserves the browser draft.
-- Audio is stored by SHA-256 under `.pump-studio/audio/`; stored content is checked on reload.
-  Keep this directory private and back it up if the saved project matters. Do not run multiple
+- One durable song/chart library and its active project are shared by this local server instance.
+  Separate library/document revisions prevent browser tabs or agent proposals from silently
+  overwriting newer saves; a conflict preserves the browser draft. Existing single-project data
+  migrates to the version-2 library envelope while preserving its project and audio.
+- Audio and original ZIPs are stored by SHA-256 under `.pump-studio/audio/` and
+  `.pump-studio/archives/`; content is checked before use. Metadata and the active project publish
+  together through one atomic `document.json` replacement after asset validation.
+  Keep this directory private and back it up if the saved songs matter. Do not run multiple
   independent studio server processes against the same data directory.
 - Browser sessions, run history, and proposals are in memory and disappear when the server restarts.
   Saved project/audio persist. Refreshing a page does not restart a provider request.

@@ -30,6 +30,13 @@ browser with bounded streaming and checksum checks; the existing native import c
 Use the transport's **Segment** action to play or loop a chosen audio-second interval while the same
 chart clock/visualizer follows it. See [ZIP limits and segment controls](studio.md#downloaded-ucs-zip-with-bundled-music).
 
+For Studio-owned search, download, original-ZIP retention, and multiple songs/charts, use **Songs
+and library** instead. Importing a retained archive creates a separate song; importing another UCS
+into it explicitly binds that song's stored music. **Chart previews** renders any saved chart with
+its actual music without replacing the active editor project. See [library workflows and browser
+verification](studio.md#songs-charts-and-retained-archives). Public Pump Pro+ downloads are a
+third-party source, not official PIU distribution or proof of chart provenance.
+
 ## Supported Format 1 profile
 
 - Header: `:Format=1`, then an explicit `:Mode=Single` or `:Mode=Double` before timing data.
