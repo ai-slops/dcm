@@ -1,0 +1,184 @@
+.chart-preview {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.chart-preview__toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.chart-preview__toolbar > div,
+.chart-preview__toolbar label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.chart-preview__toolbar span,
+.chart-preview__toolbar label,
+.chart-preview__overflow {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+}
+
+.chart-preview__toolbar select {
+  min-block-size: var(--control-compact);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.chart-preview__field {
+  position: relative;
+  block-size: var(--preview-field-height);
+  min-inline-size: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  box-shadow: var(--depth-panel);
+}
+
+.chart-preview__lanes,
+.chart-preview__sides,
+.chart-preview__receptors,
+.chart-preview__contacts {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+.chart-preview__sides {
+  z-index: var(--layer-sticky);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  block-size: var(--control-compact);
+  pointer-events: none;
+}
+
+.chart-preview__sides span {
+  padding: var(--space-1) var(--space-2);
+  color: var(--coral-high);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+  font-weight: 700;
+}
+
+.chart-preview__sides span:last-child {
+  color: var(--cyan-high);
+  text-align: end;
+}
+
+.chart-preview__lanes span {
+  border-inline-end: 1px solid var(--grid-subdivision);
+  background: color-mix(in srgb, var(--surface-sunken), var(--coral-low) 8%);
+}
+
+.chart-preview__lanes span.is-right {
+  background: color-mix(in srgb, var(--surface-sunken), var(--cyan-low) 8%);
+}
+
+.chart-preview__lanes span:nth-child(5) {
+  border-inline-end-color: var(--border-strong);
+}
+
+.chart-preview__receptors {
+  block-size: 100%;
+  z-index: var(--layer-sticky);
+  pointer-events: none;
+  transform: translate3d(0, 12.5%, 0);
+}
+
+.chart-preview__receptors span {
+  place-self: start center;
+  inline-size: min(var(--preview-receptor-size), 82%);
+  block-size: var(--preview-receptor-size);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--coral-high);
+  border-radius: var(--radius-xs);
+  background: var(--coral-low);
+  color: var(--coral-high);
+  font-size: var(--type-caption);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--surface-sunken);
+}
+
+.chart-preview__receptors span.is-right {
+  border-color: var(--cyan-high);
+  background: var(--cyan-low);
+  color: var(--cyan-high);
+}
+
+.chart-preview__contacts {
+  pointer-events: none;
+}
+
+.chart-contact {
+  position: relative;
+  grid-row: 1;
+  block-size: 100%;
+  will-change: transform;
+}
+
+.chart-contact__head,
+.chart-contact__tail::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: min(var(--preview-receptor-size), 76%);
+  block-size: calc(var(--preview-receptor-size) / 2);
+  border: 1px solid var(--coral-high);
+  border-radius: var(--radius-xs);
+  background: var(--coral-primary);
+  box-shadow: var(--depth-control);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.chart-contact.is-right .chart-contact__head,
+.chart-contact.is-right .chart-contact__tail::before {
+  border-color: var(--cyan-high);
+  background: var(--cyan-primary);
+}
+
+.chart-contact__hold,
+.chart-contact__tail {
+  position: absolute;
+  inset: 0;
+  transform-origin: top;
+}
+
+.chart-contact__hold {
+  inline-size: 38%;
+  margin-inline: auto;
+  background: var(--hold-fill);
+  border-inline: 1px solid var(--coral-high);
+}
+
+.chart-contact.is-right .chart-contact__hold {
+  border-inline-color: var(--cyan-high);
+}
+
+.chart-preview__overflow {
+  min-block-size: 15px;
+  margin: 0;
+}
+
+@media (max-height: 760px), (max-width: 1199px) {
+  .chart-preview__field {
+    block-size: var(--preview-field-height-compact);
+  }
+}
+
+@media (max-width: 599px) {
+  .chart-preview__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
