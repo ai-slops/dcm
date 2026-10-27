@@ -1,9 +1,14 @@
 # PUMP Chart Studio
 
-Chart Studio is a local web editor for the ten-panel PUMP model. It combines direct tap/hold
-editing, audio-clock playback, native assessment and SSC export, and an approval-gated agent
+Chart Studio authors Single/Double generation-rule projects and their chart outputs. It combines
+mode-aware tap/hold editing, audio-clock playback, native assessment and export, and a scoped agent
 implemented with `@slop-lab/part` and `@slop-lab/part-plugins`, both pinned to `0.1.0`.
 There is no Docker requirement for the normal workflow.
+
+Use the [terminology reference](terminology.md): a **song** supplies background audio, a **project**
+holds generation rules, a **chart** is an individual note result, and the **library** holds reusable
+project components. The older `StudioProjectV1`/`project.json` wire format is a **chart document**,
+not a generation-rule project.
 
 ## Start the studio
 
@@ -105,8 +110,10 @@ correct `package.json` rather than a global default.
 
 ## Edit and preview
 
-- Choose **Tap**, **Hold**, **Select**, or **Erase**. The ten lanes are left `DL UL C UR DR`, then
-  right `DL UL C UR DR`. Multiple panels on the same tick are represented by a shared bit mask.
+- Choose **Tap**, **Hold**, **Select**, or **Erase**. Single has five lanes `DL UL C UR DR`;
+  Double adds the same five lanes on the right pad. Multiple panels on the same tick are represented
+  by a shared bit mask. Mode is required and fixed, not an export preference; Single rejects
+  right-pad notes at the write boundary as well as hiding unavailable editing lanes.
 - Set the hold tool's duration before placement. Select a note to edit its tick, panel, or duration;
   duration zero is a tap. Invalid overlap/bounds changes are rejected without deleting other notes.
 - Use quantization, previous/next pages, and **Go to tick** to navigate. Arrow keys move the grid
@@ -133,14 +140,66 @@ The existing offset/tempo projection continues to drive the chart and playfield.
 chart seeking, or **Clear segment** exits interval mode; replacing/reloading audio resets it.
 The Segment dialog is also available from the mobile Preview tab.
 
-## Audio, projects, and export
+**Preview lookahead** controls the visible future audio-time window, not a generation algorithm.
+Use the numeric field or slider for 0.1–12 seconds in 0.05-second steps, including 0.25 or 0.5
+seconds. Temporary invalid text does not replace the last valid projection with a broken clock.
+
+## Rule projects and the component library
+
+Open **Projects and library** to create a real rule project. Select a background song and explicitly
+choose **Single** or **Double**; leaving mode unselected cannot create a project. That song and mode
+are immutable for the project. Use another project when either must change.
+
+Projects store editable timing, an evaluation contract, and bounded generation rules. The
+`weighted_cycle_v1` rule repeats a pattern of weighted choices on a tick grid between an inclusive
+start and exclusive end. A choice contains a panel mask, hold duration, and positive weight; mask
+zero is a rest and cannot have hold duration. These are real inputs to the native generator, not
+a descriptive prompt or a copy of the current chart.
+
+Save rules with their project revision, then generate using a 64-character lowercase hexadecimal
+seed. Generation materializes the selected song's current audio binding, generates actual notes,
+runs the native finite assessment, and checks UCS representability. It creates a **new chart
+result** without replacing the open editor chart. Inspect the result and explicitly open it.
+An assessment rejection is displayed honestly; generated drafts carry no verified-bundle
+certificate and are not official difficulty ratings or safety guarantees.
+
+Publish a project's **timing**, **evaluation**, or **generator** component into the library, then
+apply that component to another project. Applying copies its payload and records its source
+project/component revisions. It does not create a hidden mutable link: later source edits do not
+rewrite another project or an already generated chart. Incompatible timing or Single/Double masks
+are rejected rather than clamped or truncated. Imported existing charts remain result documents;
+migration never invents generation rules from their note arrays.
+
+Projects and library components have stable IDs and revision-checked writes. Conflicts require
+rereading the current record instead of silently overwriting it. The song/chart/archive catalog
+remains available separately under **Songs and charts**.
+
+### Verify project authoring and agent writes
+
+With the managed preview running, from `web/`:
+
+```sh
+STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/projects-api.mjs
+node --experimental-transform-types tests/browser/projects-ui.mjs
+STUDIO_LIVE_AGENT=1 node --experimental-transform-types tests/browser/project-agent-live.mjs
+```
+
+These checks use temporary rule projects, components, and generated charts, preserve the original
+active chart, and remove only their own temporary records. Do not edit the shared workspace
+concurrently. The API check covers required mode, stale writes, component compatibility, and actual
+native Single/Double generation. The UI check covers result opening, five/ten lanes, small exact
+lookahead, unsaved-rule cancellation, reuse, and phone layouts. The opt-in agent check spends real
+model calls and verifies `list_songs`, `read_chart`, `read_project`, a permitted `write_project`, and
+readback of the persisted rule change. Evidence remains ignored under `web/artifacts/`.
+
+## Audio, chart documents, and export
 
 The file dialog accepts WAV, OGG, or MP3 audio up to 32 MiB. Browser codec support still determines
 whether it can play a particular file; the native pipeline binds audio bytes but does not decode
 or certify their codec. Replacing audio does not silently invent a new tempo map or rewrite notes.
 
-Project JSON contains chart, timing, read-only evaluation contract, and the expected audio digest.
-To import a project, select both its JSON and the matching audio. The server validates their digest
+Legacy chart-document JSON contains notes, timing, an evaluation contract, mode, and the expected audio digest.
+To import a chart document, select both its JSON and the matching audio. The server validates their digest
 and commits them together. Replacement imports/audio are disabled while a local draft is dirty.
 JSON export can preserve the current draft, including edits that have not yet been saved.
 
@@ -166,7 +225,7 @@ the resulting songs in a real engine.
 
 ## Songs, charts, and retained archives
 
-Open **Songs and library** in the toolbar. This is the Studio's durable song manager, not a
+Open **Songs and charts** in the toolbar. This is the Studio's durable song manager, not a
 requirement to arrange downloads or files manually outside the app:
 
 - Search the public **Pump Pro+** catalogue by title, artist, or CS code, then **Download** a
@@ -193,7 +252,7 @@ autoplay. A song without audio explicitly disables playback; no silent substitut
 `/previews?chart=<chart-id>` links directly to a stored chart without switching the Studio's active
 project. Native timing is retained even when the real audio is shorter than the chart's blank tail.
 
-The library is bounded to 64 songs, 128 charts, and 32 retained archives. ZIP decompression uses
+The song/chart catalog is bounded to 64 songs, 128 charts, and 32 retained archives. ZIP decompression uses
 the same limits described below. Private imported examples, music, ZIPs, recovery data, and browser
 evidence stay in ignored local storage and are not repository fixtures or redistributed assets.
 
@@ -219,15 +278,15 @@ is ignored under `web/artifacts/`; credentials and CSRF tokens are never printed
 ## UCS transfer and visualization
 
 Use **UCS transfer** in the toolbar to download the saved chart as real Format 1 UCS or import a
-UCS file. Choose **Single** (left five lanes) or **Double** (all ten) explicitly. Single export rejects
-right-pad notes rather than dropping them. Save or undo local edits first; exports never silently
+UCS file. Export uses the chart's fixed **Single** or **Double** mode; it cannot change that mode.
+Single rejects right-pad notes rather than dropping them. Save or undo local edits first; exports never silently
 omit visible unsaved notes.
 
 Import accepts optional replacement audio. Omitting it keeps current project audio; this is not a
 claim that an arbitrary song matches that audio. Import commits chart/timing and audio atomically,
 with revision protection. It preserves title, artist, and the current evaluation contract, rejecting
-incompatible contract bounds rather than changing them silently. Mode is a persisted export preference.
-Changing mode creates a draft edit: close the dialog, Save, and reopen it before downloading.
+incompatible contract bounds rather than changing them silently. An imported chart cannot silently
+change the current chart's mode; use the song's chart-import workflow for a separate result.
 
 The same grid, physical pads, and media transport visualize imported UCS. **Follow audio** pages
 the bounded timeline from the real audio clock without moving the editing cursor. Selecting or
@@ -260,11 +319,14 @@ Assessment runs the existing Rust finite execution/intent/difficulty model. Acce
 relative to that declared contract, **not an official PUMP rating or a guarantee of human safety**.
 Assessment and export use the saved revision; save local edits first.
 
-Seed generation runs the real author/runtime WASM pipeline and returns a proposal. It does not
-replace the project automatically. The bundled generator is compatible only with the demo's music
+The older demo seed generator runs the real author/runtime WASM pipeline and returns a proposal.
+It does not replace the chart automatically. That bundled generator is compatible only with the demo's music
 profile; replacing audio or changing that profile can return `profile_mismatch`. Manual editing,
 assessment, agent chart proposals, and edited SSC export remain available for other projects.
-The demo has two retained variants, not an unlimited music generator.
+The demo has two retained variants, not an unlimited music generator. Rule-project generation is
+the separate native `generate-rules` path described above; it works from the project's declared
+timing/rules for the selected song and does not claim exhaustive bundle certification. The existing
+SSC renderer is Double-only; Single charts use UCS rather than being mislabeled as `pump-double`.
 
 If the native CLI/components are missing, the studio can still open and edit its source-backed
 demo. Native operations show unavailable status. Run `just build` and restart the studio to use
@@ -330,8 +392,19 @@ of the saved document and has these scoped tools:
 - `propose_chart`: create a validated replacement chart and optional complete timing/music object
   for human review, preserving audio identity.
 
-There are no shell, arbitrary filesystem, repository, or provider-configuration tools. Agent tools
-never directly change the saved document. **Apply** is an explicit user action, and revision checks
+The agent also has actual project/component tools: `list_projects`, `read_project`,
+`create_project`, `write_project`, `generate_project`, `list_components`, `read_component`,
+`publish_component`, and `apply_component`. `list_songs` discovers actual background-song IDs and
+`read_chart` inspects an existing or newly generated result. Reads use real saved records rather than a frozen
+chart disguised as a project. Select **Allow project and library writes** before starting a run
+to grant `projects_and_components` access for that run; older clients and unchecked runs default
+to read-only. The model cannot grant itself access. Writes persist typed rule/component data with
+revision checks, and generation creates a separate result chart. Tool receipts name actual IDs
+and revisions; natural-language claims alone are not evidence of a saved change.
+
+There are no shell, arbitrary filesystem, repository, or provider-configuration tools. Authorized
+project-rule writes do not implicitly replace the saved chart document. **Apply** for chart proposals
+remains an explicit user action, and revision checks
 reject stale proposals. Undo after applying produces a new local draft; save it to restore that
 version on the server. Reject removes only the proposal, without saving the document. The panel
 shows note/timing change summaries and retains apply/reject decisions for the run. A failed action
@@ -375,10 +448,12 @@ project concurrently. Private recovery copies and redacted receipts/screenshots 
 
 ## State and local trust boundary
 
-- One durable song/chart library and its active project are shared by this local server instance.
-  Separate library/document revisions prevent browser tabs or agent proposals from silently
-  overwriting newer saves; a conflict preserves the browser draft. Existing single-project data
-  migrates to the version-2 library envelope while preserving its project and audio.
+- One durable workspace holds the song/chart catalog, active chart document, generation projects,
+  and reusable component library. Project revisions protect rule writes independently from the
+  active document/catalog revisions; a conflict preserves the browser draft. Older documents and
+  version-2 catalogs migrate to the version-3 envelope while preserving IDs, notes, timing, and audio.
+  Missing legacy mode is normalized explicitly at migration/import, never silently defaulted when
+  creating a new rule project. No rules are synthesized from imported note data.
 - Audio and original ZIPs are stored by SHA-256 under `.pump-studio/audio/` and
   `.pump-studio/archives/`; content is checked before use. Metadata and the active project publish
   together through one atomic `document.json` replacement after asset validation.

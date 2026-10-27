@@ -13,9 +13,9 @@ Use the Studio's UCS transfer controls to download a saved chart or import UCS w
 audio file or the current project's audio. Save local edits before importing or exporting. Import
 replaces the chart/timing only on explicit confirmation and commits chart/audio together with a
 revision check. Existing title, artist, and evaluation contract are retained. An incompatible
-contract is rejected, not silently rewritten. The mode is retained as an explicit export preference.
-Changing that preference is an ordinary draft edit: close the dialog, Save, then reopen it to
-download. The chosen mode survives reload. Editing quantization snaps future placements down to
+contract is rejected, not silently rewritten. Single/Double is a required, fixed chart mode, not
+an export preference. Imports cannot silently change an existing chart's mode; import into the
+song catalog as a separate chart when modes differ. Editing quantization snaps future placements down to
 the chosen grid; display always retains every native row and existing note.
 
 The same editor, audio element, tempo functions, transport, playhead, and physical-pad preview render
@@ -31,7 +31,7 @@ Use the transport's **Segment** action to play or loop a chosen audio-second int
 chart clock/visualizer follows it. See [ZIP limits and segment controls](studio.md#downloaded-ucs-zip-with-bundled-music).
 
 For Studio-owned search, download, original-ZIP retention, and multiple songs/charts, use **Songs
-and library** instead. Importing a retained archive creates a separate song; importing another UCS
+and charts** instead. Importing a retained archive creates a separate song; importing another UCS
 into it explicitly binds that song's stored music. **Chart previews** renders any saved chart with
 its actual music without replacing the active editor project. See [library workflows and browser
 verification](studio.md#songs-charts-and-retained-archives). Public Pump Pro+ downloads are a
@@ -118,7 +118,7 @@ reparse, UCS upload, tempo/hold/offset playback, errors, and reload persistence.
 DCM metronome audio, restores the prior saved chart/audio, and refuses to restore over concurrent
 edits. An owner-only recovery directory containing the original project JSON and audio is retained
 under the ignored evidence directory, including if the browser test fails or is interrupted.
-Do not run it while another author is editing this single-project Studio.
+Do not run it while another author is switching or editing the shared active chart.
 
 ```sh
 just studio-install
