@@ -1,20 +1,28 @@
 use anyhow::{Context, Result, ensure};
+use pump_chart::Note;
 use serde::{Deserialize, Serialize};
 
 use crate::chart_cli::UcsModeArg;
 use crate::chart_rule_generate::RuleGenerationRequest;
 
-const MAX_TICK: u64 = 1_000_000;
-const MAX_SLOTS: u64 = 10_000;
-const MAX_PATTERN_FRAMES: usize = 128;
-const MAX_CHOICES: usize = 8;
-const SINGLE_MASK: u16 = 0x001f;
+pub(crate) const MAX_TICK: u64 = 1_000_000;
+pub(crate) const MAX_SLOTS: u64 = 10_000;
+pub(crate) const MAX_PATTERN_FRAMES: usize = 128;
+pub(crate) const MAX_CHOICES: usize = 8;
+pub(crate) const SINGLE_MASK: u16 = 0x001f;
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum GenerationRules {
+    WeightedCycleV1(WeightedCycleRules),
+    HybridRegionsV1(HybridRules),
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct GenerationRules {
+pub struct WeightedCycleRules {
     pub(crate) schema_version: u8,
-    algorithm: Algorithm,
+    algorithm: WeightedCycleAlgorithm,
     pub(crate) start_tick: u64,
     pub(crate) end_tick: u64,
     pub(crate) step_ticks: u64,
@@ -22,9 +30,41 @@ pub struct GenerationRules {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-enum Algorithm {
+enum WeightedCycleAlgorithm {
     #[serde(rename = "weighted_cycle_v1")]
     WeightedCycleV1,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct HybridRules {
+    pub(crate) schema_version: u8,
+    algorithm: HybridAlgorithm,
+    pub(crate) fixed_notes: Vec<Note>,
+    pub(crate) regions: Vec<AutomaticRegion>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+enum HybridAlgorithm {
+    #[serde(rename = "hybrid_regions_v1")]
+    HybridRegionsV1,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct AutomaticRegion {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) rules: CycleRules,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CycleRules {
+    pub(crate) start_tick: u64,
+    pub(crate) end_tick: u64,
+    pub(crate) step_ticks: u64,
+    pub(crate) pattern: Vec<PatternFrame>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -41,8 +81,10 @@ pub(crate) struct RuleChoice {
     pub(crate) weight: u64,
 }
 
-pub(crate) fn validate_request(request: &RuleGenerationRequest<'_>) -> Result<u64> {
-    let rules = request.rules;
+pub(crate) fn validate_weighted_request(
+    request: &RuleGenerationRequest<'_>,
+    rules: &WeightedCycleRules,
+) -> Result<u64> {
     ensure!(
         rules.schema_version == 1,
         "generation rules schema_version must be 1"
@@ -85,14 +127,15 @@ pub(crate) fn validate_request(request: &RuleGenerationRequest<'_>) -> Result<u6
             "pattern frame {index} exceeds 8 choices"
         );
         for choice in &frame.choices {
-            validate_choice(request, slots, index, choice)?;
+            validate_weighted_choice(request, rules, slots, index, choice)?;
         }
     }
     Ok(slots)
 }
 
-fn validate_choice(
+fn validate_weighted_choice(
     request: &RuleGenerationRequest<'_>,
+    rules: &WeightedCycleRules,
     slots: u64,
     pattern_index: usize,
     choice: &RuleChoice,
@@ -115,14 +158,13 @@ fn validate_choice(
     if choice.hold_ticks == 0 || index >= slots {
         return Ok(());
     }
-    let period = u64::try_from(request.rules.pattern.len()).context("pattern length conversion")?;
+    let period = u64::try_from(rules.pattern.len()).context("pattern length conversion")?;
     let last_slot = index + ((slots - 1 - index) / period) * period;
-    let tail = request
-        .rules
+    let tail = rules
         .start_tick
         .checked_add(
             last_slot
-                .checked_mul(request.rules.step_ticks)
+                .checked_mul(rules.step_ticks)
                 .context("slot tick overflow")?,
         )
         .and_then(|tick| tick.checked_add(choice.hold_ticks))
