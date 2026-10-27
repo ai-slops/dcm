@@ -10,7 +10,7 @@ type NewSongDraft = {
   readonly chartName: string
   readonly bpm: number
   readonly beats: number
-  readonly mode: UcsMode
+  readonly mode: UcsMode | ""
   readonly audio?: File
 }
 
@@ -28,7 +28,7 @@ export function LibraryNewSongForm(props: NewSongFormProps) {
     chartName: "New chart",
     bpm: 120,
     beats: 128,
-    mode: "Double",
+    mode: "",
   })
 
   return (
@@ -41,6 +41,7 @@ export function LibraryNewSongForm(props: NewSongFormProps) {
         className="library-form"
         onSubmit={(event) => {
           event.preventDefault()
+          if (draft.mode === "") return
           props.onCreate(
             {
               library_revision: props.libraryRevision,
@@ -84,13 +85,16 @@ export function LibraryNewSongForm(props: NewSongFormProps) {
           <label>
             Mode
             <select
+              required
               value={draft.mode}
-              onChange={(event) =>
-                setDraft({ ...draft, mode: event.target.value === "Single" ? "Single" : "Double" })
-              }
+              onChange={(event) => {
+                if (event.target.value === "Single") setDraft({ ...draft, mode: "Single" })
+                if (event.target.value === "Double") setDraft({ ...draft, mode: "Double" })
+              }}
             >
-              <option>Double</option>
-              <option>Single</option>
+              <option value="">Choose mode</option>
+              <option value="Single">Single · 5 lanes</option>
+              <option value="Double">Double · 10 lanes</option>
             </select>
           </label>
           <label>

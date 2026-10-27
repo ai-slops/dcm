@@ -40,7 +40,7 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
   const [title, setTitle] = useState("")
   const [artist, setArtist] = useState("")
   const [chartName, setChartName] = useState("New chart")
-  const [chartMode, setChartMode] = useState<UcsMode>("Double")
+  const [chartMode, setChartMode] = useState<UcsMode | "">("")
   const [importName, setImportName] = useState("Imported UCS")
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
 
@@ -163,6 +163,7 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
             className="library-inline-form"
             onSubmit={(event) => {
               event.preventDefault()
+              if (chartMode === "") return
               props.onCommand({
                 type: "new_chart",
                 library_revision: props.library.revision,
@@ -181,13 +182,16 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
             />
             <select
               aria-label="New chart mode"
+              required
               value={chartMode}
-              onChange={(event) =>
-                setChartMode(event.target.value === "Single" ? "Single" : "Double")
-              }
+              onChange={(event) => {
+                if (event.target.value === "Single") setChartMode("Single")
+                if (event.target.value === "Double") setChartMode("Double")
+              }}
             >
-              <option>Double</option>
-              <option>Single</option>
+              <option value="">Choose mode</option>
+              <option value="Single">Single · 5 lanes</option>
+              <option value="Double">Double · 10 lanes</option>
             </select>
             <Button type="submit" icon={<FilePlus2 size={15} />} disabled={props.busy}>
               New chart
