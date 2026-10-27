@@ -2,9 +2,12 @@ import { build } from "esbuild"
 
 await build({
   bundle: true,
-  entryPoints: ["server/index.ts"],
+  entryPoints: {
+    "archive-worker": "server/library/archive-worker.ts",
+    server: "server/index.ts",
+  },
   format: "esm",
-  outfile: "dist/server.js",
+  outdir: "dist",
   packages: "external",
   platform: "node",
   sourcemap: true,
