@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationProject, MusicTiming } from "../../shared/generation-projects.ts"
 import type { LibrarySong, SongId } from "../../shared/library.ts"
 import type { StudioProjectV1, UcsMode } from "../../shared/project.ts"
 import { Button } from "./primitives.tsx"
-import { initialProjectJson, ProjectFormError, parseProjectForm } from "./project-form.ts"
+import {
+  emptyHybridRulesJson,
+  initialProjectJson,
+  ProjectFormError,
+  parseProjectForm,
+  projectTimingJson,
+} from "./project-form.ts"
 
 type ProjectEditorFormProps = {
   readonly busy: boolean
@@ -12,7 +17,7 @@ type ProjectEditorFormProps = {
   readonly project: GenerationProject | null
   readonly songs: readonly LibrarySong[]
   readonly onDirtyChange: (dirty: boolean) => void
-  readonly onLoadSongProject: (songId: SongId) => Promise<StudioProjectV1 | null>
+  readonly onLoadSongTiming: (songId: SongId) => Promise<MusicTiming>
   readonly onCreate: (
     input: ReturnType<typeof parseProjectForm> & { readonly songId: SongId },
   ) => void
@@ -117,17 +122,12 @@ export function ProjectEditorForm(props: ProjectEditorFormProps) {
                 setSongTimingReady(false)
                 setError("")
                 void props
-                  .onLoadSongProject(song.id)
+                  .onLoadSongTiming(song.id)
                   .then(
-                    (songProject) => {
+                    (songTiming) => {
                       if (request !== songLoadGeneration.current) return
-                      if (songProject === null) {
-                        setError("The selected song has no saved chart timing to use.")
-                        return
-                      }
-                      const next = initialProjectJson(songProject)
-                      setTiming(next.timing)
-                      setRules(next.rules)
+                      setTiming(projectTimingJson(songTiming))
+                      setRules(emptyHybridRulesJson())
                       setSongTimingReady(true)
                     },
                     (caught: unknown) => {

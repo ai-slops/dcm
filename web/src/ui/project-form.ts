@@ -29,17 +29,23 @@ export function initialProjectJson(project: GenerationProject | StudioProjectV1)
   }
   const { audio_sha256: _audio, ...timing } = project.music
   return {
-    timing: pretty(timing),
+    timing: projectTimingJson(timing),
     evaluation: pretty(project.evaluation_contract),
-    rules: pretty({
-      schema_version: 1,
-      algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: timing.duration_ticks,
-      step_ticks: timing.ticks_per_beat,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
-    }),
+    rules: emptyHybridRulesJson(),
   }
+}
+
+export function projectTimingJson(timing: MusicTiming): string {
+  return pretty(timing)
+}
+
+export function emptyHybridRulesJson(): string {
+  return pretty({
+    schema_version: 2,
+    algorithm: "hybrid_regions_v1",
+    fixed_notes: [],
+    regions: [],
+  })
 }
 
 export function parseProjectForm(input: {
