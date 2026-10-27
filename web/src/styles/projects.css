@@ -1,0 +1,117 @@
+.project-manager,
+.project-workspace-list,
+.project-editor-section,
+.project-editor,
+.project-operations,
+.project-component-library,
+.project-generation-result {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.project-editor__fields {
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.project-manager > section + section {
+  padding-block-start: var(--space-6);
+  border-block-start: var(--stroke-hairline) solid var(--border-subtle);
+}
+
+.project-list small,
+.project-component-list small,
+.project-generation-result span {
+  color: var(--text-muted);
+}
+
+.project-section-heading,
+.project-section-heading > div,
+.project-list__inspect,
+.project-component-list > li > span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.project-section-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.project-list,
+.project-component-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-list > li,
+.project-component-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-block-start: var(--stroke-hairline) solid var(--border-subtle);
+}
+
+.project-list > li[data-active="true"] {
+  background: var(--surface-raised);
+  box-shadow: var(--depth-panel);
+}
+
+.project-list__inspect {
+  min-block-size: var(--control-touch);
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: start;
+  cursor: pointer;
+}
+
+.project-editor__identity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.project-editor label,
+.project-operations label,
+.project-component-library label,
+.project-json-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.project-json-field textarea {
+  min-block-size: calc(var(--control-touch) * 3);
+  resize: vertical;
+}
+
+.project-generation-result {
+  padding: var(--space-3);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+@media (max-width: 767px) {
+  .project-section-heading,
+  .project-editor__identity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-list > li,
+  .project-component-list > li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
