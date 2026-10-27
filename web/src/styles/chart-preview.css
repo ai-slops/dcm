@@ -17,6 +17,24 @@
   gap: var(--space-1);
 }
 
+.chart-preview__lookahead {
+  grid-template-columns: minmax(0, 1fr) minmax(var(--control-touch), calc(var(--space-10) * 2));
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.chart-preview__lookahead label {
+  align-self: end;
+}
+
+.chart-preview__lookahead input[type="number"] {
+  min-inline-size: 0;
+}
+
+.chart-preview__lookahead .field-error {
+  grid-column: 1 / -1;
+}
+
 .chart-preview__toolbar span,
 .chart-preview__toolbar label,
 .chart-preview__overflow {
@@ -117,6 +135,16 @@
 
 .chart-preview__contacts {
   pointer-events: none;
+}
+
+.chart-preview--single .chart-preview__lanes,
+.chart-preview--single .chart-preview__receptors,
+.chart-preview--single .chart-preview__contacts {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.chart-preview--single .chart-preview__sides {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .chart-contact {

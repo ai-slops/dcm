@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 
-import type { NativeChart, NativeMusic } from "../../shared/index.ts"
+import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
 import { buildChartPreviewIndex, projectVisibleContacts } from "../domain/chart-preview.ts"
 import { tickToAudioMicros } from "../domain/timing.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
@@ -8,13 +8,14 @@ import { laneLabels } from "./studio-types.ts"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
 const laneIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const
-const lookaheadOptions = [2, 4, 6] as const
+const singleLaneIndices = [0, 1, 2, 3, 4] as const
 const pastMicros = 400_000
 const contactCap = 160
 
 type ScrollingChartPreviewProps = {
   readonly chart: NativeChart
   readonly music: NativeMusic
+  readonly mode?: UcsMode
   readonly playback: AudioPlaybackController
   readonly selectedTick: number
   readonly controls?: boolean
@@ -23,12 +24,19 @@ type ScrollingChartPreviewProps = {
 export function ScrollingChartPreview({
   chart,
   music,
+  mode = "Double",
   playback,
   selectedTick,
   controls = true,
 }: ScrollingChartPreviewProps) {
   const snapshot = usePlaybackSnapshot(playback)
+  const lookaheadId = useId()
+  const exactLookaheadId = useId()
+  const lookaheadErrorId = useId()
+  const visibleLanes = mode === "Single" ? singleLaneIndices : laneIndices
   const [lookaheadSeconds, setLookaheadSeconds] = useState(4)
+  const [lookaheadDraft, setLookaheadDraft] = useState("4")
+  const [lookaheadError, setLookaheadError] = useState("")
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
   const audioMicros = usesClock ? snapshot.audioMicros : tickToAudioMicros(music, selectedTick)
   const lookaheadMicros = lookaheadSeconds * 1_000_000
@@ -44,10 +52,16 @@ export function ScrollingChartPreview({
       }),
     [audioMicros, index, lookaheadMicros],
   )
+  const contacts = projection.contacts.filter((contact) => contact.lane < visibleLanes.length)
+  const hiddenContactCount =
+    projection.hiddenContactCount + projection.contacts.length - contacts.length
   const receptorPosition = pastMicros / (pastMicros + lookaheadMicros)
 
   return (
-    <section className="chart-preview" aria-label="Scrolling ten-lane chart preview">
+    <section
+      className={`chart-preview chart-preview--${mode.toLowerCase()}`}
+      aria-label={`Scrolling ${visibleLanes.length}-lane ${mode} chart preview`}
+    >
       <header className="chart-preview__toolbar">
         <div>
           <strong>Approach field</strong>
@@ -57,41 +71,72 @@ export function ScrollingChartPreview({
           </span>
         </div>
         {controls ? (
-          <label>
-            Lookahead
-            <select
-              aria-label="Preview lookahead"
+          <div className="chart-preview__lookahead">
+            <label htmlFor={lookaheadId}>Lookahead range</label>
+            <input
+              id={lookaheadId}
+              aria-label="Preview lookahead range"
+              type="range"
+              min="0.1"
+              max="12"
+              step="0.05"
               value={lookaheadSeconds}
-              onChange={(event) => setLookaheadSeconds(Number(event.currentTarget.value))}
-            >
-              {lookaheadOptions.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {seconds} sec
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(event) => {
+                const next = event.currentTarget.valueAsNumber
+                setLookaheadSeconds(next)
+                setLookaheadDraft(String(next))
+                setLookaheadError("")
+              }}
+            />
+            <label htmlFor={exactLookaheadId}>Exact seconds</label>
+            <input
+              id={exactLookaheadId}
+              className="mono"
+              aria-label="Exact preview lookahead seconds"
+              aria-describedby={lookaheadError === "" ? undefined : lookaheadErrorId}
+              aria-invalid={lookaheadError === "" ? undefined : true}
+              type="number"
+              min="0.1"
+              max="12"
+              step="0.05"
+              value={lookaheadDraft}
+              onChange={(event) => {
+                const draft = event.currentTarget.value
+                setLookaheadDraft(draft)
+                const parsed = parseLookaheadDraft(draft)
+                if (parsed.kind === "valid") {
+                  setLookaheadSeconds(parsed.value)
+                  setLookaheadError("")
+                } else setLookaheadError(parsed.message)
+              }}
+            />
+            {lookaheadError === "" ? null : (
+              <span className="field-error" id={lookaheadErrorId} role="alert">
+                {lookaheadError}
+              </span>
+            )}
+          </div>
         ) : null}
       </header>
       <div className="chart-preview__field">
         <div className="chart-preview__sides" aria-hidden="true">
           <span>Left pad · L</span>
-          <span>Right pad · R</span>
+          {mode === "Double" ? <span>Right pad · R</span> : null}
         </div>
         <div className="chart-preview__lanes" aria-hidden="true">
-          {laneIndices.map((lane) => (
+          {visibleLanes.map((lane) => (
             <span className={lane < 5 ? "is-left" : "is-right"} key={laneLabels[lane]} />
           ))}
         </div>
         <div className="chart-preview__receptors" aria-hidden="true">
-          {laneIndices.map((lane) => (
+          {visibleLanes.map((lane) => (
             <span className={lane < 5 ? "is-left" : "is-right"} key={laneLabels[lane]}>
               {laneLabels[lane].slice(2)}
             </span>
           ))}
         </div>
         <div className="chart-preview__contacts">
-          {projection.contacts.map((contact) => (
+          {contacts.map((contact) => (
             <div
               aria-label={`${laneLabels[contact.lane]}, ${contact.kind}, tick ${contact.tick}${contact.kind === "hold" ? `, tail tick ${contact.tick + contact.holdTicks}` : ""}`}
               className={`chart-contact chart-contact--${contact.kind} ${contact.lane < 5 ? "is-left" : "is-right"}`}
@@ -132,12 +177,27 @@ export function ScrollingChartPreview({
         </div>
       </div>
       <p className="chart-preview__overflow" aria-live="polite">
-        {projection.hiddenContactCount > 0
-          ? `${projection.hiddenContactCount} additional visible contacts omitted by the rendering cap.`
-          : `${projection.contacts.length} contacts in the visible audio-time window.`}
+        {hiddenContactCount > 0
+          ? `${hiddenContactCount} additional visible contacts omitted by mode or rendering cap.`
+          : `${contacts.length} contacts in the visible audio-time window.`}
       </p>
     </section>
   )
+}
+
+export function parseLookaheadDraft(
+  draft: string,
+):
+  | { readonly kind: "valid"; readonly value: number }
+  | { readonly kind: "invalid"; readonly message: string } {
+  if (draft.trim() === "") return { kind: "invalid", message: "Enter lookahead seconds." }
+  const value = Number(draft)
+  if (!Number.isFinite(value) || value < 0.1 || value > 12)
+    return { kind: "invalid", message: "Use a finite value from 0.1 to 12 seconds." }
+  const nearestStep = 0.1 + Math.round((value - 0.1) / 0.05) * 0.05
+  if (Math.abs(nearestStep - value) > 1e-9)
+    return { kind: "invalid", message: "Use increments of 0.05 seconds." }
+  return { kind: "valid", value }
 }
 
 function selectedTickLabel(
