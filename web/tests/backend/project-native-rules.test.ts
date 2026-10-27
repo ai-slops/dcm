@@ -59,9 +59,16 @@ async function fixture(): Promise<{
 
 describe("ProjectNativeService", () => {
   it("rejects a native mode mismatch before accepting the remaining payload", () => {
-    expect(() => parseNativeRuleGeneration('{"mode":"Double"}', "Single")).toThrowError(
-      "Native rule generator returned mode Double for Single project",
-    )
+    expect(() =>
+      parseNativeRuleGeneration('{"mode":"Double"}', "Single", {
+        schema_version: 1,
+        algorithm: "weighted_cycle_v1",
+        start_tick: 0,
+        end_tick: 4,
+        step_ticks: 4,
+        pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      }),
+    ).toThrowError("Native rule generator returned mode Double for Single project")
   })
 
   it("binds reusable timing to the selected background audio digest", async () => {
@@ -90,5 +97,79 @@ describe("ProjectNativeService", () => {
       status: "none",
       reason: "not_generated_from_verified_bundle",
     })
+  })
+
+  it("composes fixed notes with named automatic regions through the actual native CLI", async () => {
+    const { project, audio } = await fixture()
+    const hybrid = GenerationProjectSchema.parse({
+      ...project,
+      generation_rules: {
+        schema_version: 2,
+        algorithm: "hybrid_regions_v1",
+        fixed_notes: [{ tick: 2, panel_mask: 16, hold_ticks: 0 }],
+        regions: [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "Verse",
+            rules: {
+              start_tick: 4,
+              end_tick: 12,
+              step_ticks: 4,
+              pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+            },
+          },
+        ],
+      },
+    })
+    const native = new ProjectNativeService(repoRoot)
+
+    const generated = await native.generate(hybrid, audio, "07".repeat(32))
+
+    expect(generated.chart.notes).toEqual([
+      { tick: 2, panel_mask: 16, hold_ticks: 0 },
+      { tick: 4, panel_mask: 1, hold_ticks: 0 },
+      { tick: 8, panel_mask: 1, hold_ticks: 0 },
+    ])
+    expect(generated.ucs_validation.valid).toBe(true)
+  })
+
+  it("rejects UCS-tail collisions from a hybrid native response", async () => {
+    const { project, audio } = await fixture()
+    const native = new ProjectNativeService(repoRoot)
+    const generated = await native.generate(project, audio, "07".repeat(32))
+    const hybridRules = GenerationProjectSchema.parse({
+      ...project,
+      generation_rules: {
+        schema_version: 2,
+        algorithm: "hybrid_regions_v1",
+        fixed_notes: [],
+        regions: [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "Verse",
+            rules: {
+              start_tick: 0,
+              end_tick: 12,
+              step_ticks: 4,
+              pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+            },
+          },
+        ],
+      },
+    }).generation_rules
+    const encoded = JSON.stringify({
+      ...generated,
+      chart: {
+        ...generated.chart,
+        notes: [
+          { tick: 0, panel_mask: 1, hold_ticks: 4 },
+          { tick: 4, panel_mask: 1, hold_ticks: 0 },
+        ],
+      },
+    })
+
+    expect(() => parseNativeRuleGeneration(encoded, "Single", hybridRules)).toThrowError(
+      "already contains a note or hold tail",
+    )
   })
 })

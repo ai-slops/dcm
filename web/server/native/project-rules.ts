@@ -5,12 +5,14 @@ import { resolve } from "node:path"
 import { z } from "zod"
 
 import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationRules } from "../../shared/generation-rules.ts"
 import { type NativeMusic, NativeMusicSchema } from "../../shared/native.ts"
 import { type UcsMode, UcsModeSchema } from "../../shared/project.ts"
 import {
   type NativeRuleGeneration,
   NativeRuleGenerationSchema,
 } from "../../shared/project-commands.ts"
+import { assertUcsCellExclusive, UcsCellConflictError } from "../../shared/ucs-cells.ts"
 import { StudioError } from "../errors.ts"
 import type { AudioRecord } from "../store.ts"
 import { ProcessPool } from "./process.ts"
@@ -84,7 +86,7 @@ export class ProjectNativeService {
         ],
         signal,
       )
-      return parseNativeRuleGeneration(encoded, project.mode)
+      return parseNativeRuleGeneration(encoded, project.mode, project.generation_rules)
     })
   }
 
@@ -107,6 +109,7 @@ export function materializeNativeMusic(
 export function parseNativeRuleGeneration(
   encoded: string,
   expectedMode: UcsMode,
+  rules: GenerationRules,
 ): NativeRuleGeneration {
   const decoded: unknown = JSON.parse(encoded)
   const nativeMode = NativeModeEnvelopeSchema.parse(decoded).mode
@@ -116,7 +119,67 @@ export function parseNativeRuleGeneration(
       "native_mode_mismatch",
       `Native rule generator returned mode ${nativeMode} for ${expectedMode} project`,
     )
-  return NativeRuleGenerationSchema.parse(decoded)
+  const generation = NativeRuleGenerationSchema.parse(decoded)
+  const allowedMask = expectedMode === "Single" ? 0x001f : 0x03ff
+  if (generation.chart.notes.some((note) => (note.panel_mask & ~allowedMask) !== 0))
+    throw new StudioError(
+      500,
+      "native_mask_mismatch",
+      `Native rule generator returned lanes outside ${expectedMode} mode`,
+    )
+  if (rules.schema_version === 1) return generation
+  validateHybridGeneration(generation, rules)
+  return generation
+}
+
+function validateHybridGeneration(
+  generation: NativeRuleGeneration,
+  rules: Extract<GenerationRules, { readonly schema_version: 2 }>,
+): void {
+  if (!generation.ucs_validation.valid)
+    throw new StudioError(
+      500,
+      "native_ucs_invalid",
+      "Native hybrid generation did not pass UCS validation",
+    )
+  try {
+    assertUcsCellExclusive(generation.chart)
+  } catch (error) {
+    if (!(error instanceof UcsCellConflictError)) throw error
+    throw new StudioError(500, "native_ucs_invalid", error.message)
+  }
+  const fixed = new Set(rules.fixed_notes.map(noteKey))
+  const returned = new Set(generation.chart.notes.map(noteKey))
+  if (rules.fixed_notes.some((note) => !returned.has(noteKey(note))))
+    throw new StudioError(
+      500,
+      "native_fixed_note_mismatch",
+      "Native hybrid generation omitted a fixed note",
+    )
+  for (const note of generation.chart.notes) {
+    if (fixed.has(noteKey(note))) continue
+    const region = rules.regions.find(
+      ({ rules: cycle }) => cycle.start_tick <= note.tick && note.tick < cycle.end_tick,
+    )
+    if (
+      region === undefined ||
+      (note.tick - region.rules.start_tick) % region.rules.step_ticks !== 0 ||
+      note.tick + note.hold_ticks >= region.rules.end_tick
+    )
+      throw new StudioError(
+        500,
+        "native_region_mismatch",
+        "Native hybrid generation returned a note outside its automatic region",
+      )
+  }
+}
+
+function noteKey(note: {
+  readonly tick: number
+  readonly panel_mask: number
+  readonly hold_ticks: number
+}): string {
+  return `${note.tick}:${note.panel_mask}:${note.hold_ticks}`
 }
 
 async function withPrivateWorkspace<T>(operation: (root: string) => Promise<T>): Promise<T> {
