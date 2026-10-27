@@ -221,11 +221,11 @@ function deleteArchive(
       throw new StudioError(404, "archive_not_found", "Archive was not found")
     const next = bumpLibrary(state, {
       archives: state.library.archives.filter((archive) => archive.id !== archiveId),
-      songs: state.library.songs.map((song) =>
-        song.archive_id === archiveId
-          ? { id: song.id, title: song.title, artist: song.artist, audio: song.audio }
-          : song,
-      ),
+      songs: state.library.songs.map((song) => {
+        if (song.archive_id !== archiveId) return song
+        const { archive_id: _archiveId, ...retained } = song
+        return retained
+      }),
     })
     return { state: next, result: mutation(next) }
   })
