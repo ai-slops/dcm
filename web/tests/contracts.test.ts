@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
 import {
+  AgentRunRequestSchema,
   AgentRunSnapshotSchema,
   AgentStreamEventSchema,
   BootstrapSchema,
@@ -116,6 +117,35 @@ describe("EvalContractSchema", () => {
 })
 
 describe("agent recovery contracts", () => {
+  it("defaults legacy run requests to read-only project access", () => {
+    // Given
+    const request = { base_revision: 3, prompt: "Inspect" }
+
+    // When
+    const parsed = AgentRunRequestSchema.parse(request)
+
+    // Then
+    expect(parsed.write_access).toBe("read_only")
+  })
+
+  it("retains explicit project write access in a run snapshot", () => {
+    // Given
+    const snapshot = {
+      id: "run-1",
+      base_revision: 3,
+      status: "running",
+      prompt: "Update project rules",
+      last_sequence: 2,
+      write_access: "projects_and_components",
+    }
+
+    // When
+    const parsed = AgentRunSnapshotSchema.parse(snapshot)
+
+    // Then
+    expect(parsed.write_access).toBe("projects_and_components")
+  })
+
   it("parses bounded canonical tool state and proposal decisions", () => {
     // Given
     const snapshot = {

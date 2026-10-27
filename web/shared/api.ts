@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { EvaluationResponseSchema } from "./assessment.ts"
 import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
 import { StudioProjectV1Schema } from "./project.ts"
+import { GenerationProjectIdSchema, ProjectRevisionSchema } from "./project-identities.ts"
 import { AgentProviderStatusSchema, ProviderApiSchema } from "./provider.ts"
 import { MAX_AGENT_DELTA_BYTES, MAX_AGENT_TEXT_BYTES } from "./text.ts"
 
@@ -13,6 +14,9 @@ export const SessionIdSchema = z.string().min(1).brand("SessionId")
 export const ProposalIdSchema = z.string().min(1).brand("ProposalId")
 export const AgentRunIdSchema = z.string().min(1).brand("AgentRunId")
 export const MAX_SESSION_PROPOSALS = 16
+export const AgentWriteAccessSchema = z
+  .enum(["read_only", "projects_and_components"])
+  .default("read_only")
 
 const AgentTextSchema = z
   .string()
@@ -89,6 +93,16 @@ export const AgentRunSnapshotSchema = z
     text_truncated: z.boolean().optional(),
     model: z.string().min(1).max(200).optional(),
     api: ProviderApiSchema.optional(),
+    write_access: AgentWriteAccessSchema,
+    selected_project: z
+      .strictObject({
+        id: GenerationProjectIdSchema,
+        revision: ProjectRevisionSchema,
+      })
+      .readonly()
+      .nullable()
+      .optional(),
+    project_mutated: z.boolean().default(false),
     error: AgentToolErrorSchema.optional(),
     tool_calls: z.array(AgentToolCallSchema).max(64).readonly().optional(),
     proposal_decisions: z.array(ProposalDecisionSchema).max(16).readonly().optional(),
@@ -154,6 +168,7 @@ export const AgentRunRequestSchema = z
     base_revision: RevisionSchema,
     prompt: z.string().trim().min(1).max(16_384),
     model_id: z.string().min(1).max(200).optional(),
+    write_access: AgentWriteAccessSchema,
   })
   .readonly()
 
@@ -231,3 +246,4 @@ export type BaseRevisionRequest = z.infer<typeof BaseRevisionRequestSchema>
 export type PutDocumentRequest = z.infer<typeof PutDocumentRequestSchema>
 export type GenerationRequest = z.infer<typeof GenerationRequestSchema>
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>
+export type AgentWriteAccess = z.infer<typeof AgentWriteAccessSchema>

@@ -42,6 +42,7 @@ export async function loadDemo(repoRoot: string): Promise<DemoState> {
         },
         evaluation_contract: evaluationContract,
         audio_asset: { format: "wav", byte_length: audio.byteLength },
+        ucs_mode: "Double",
       }),
     },
     audio,
