@@ -1,54 +1,46 @@
 import { useMemo, useState } from "react"
-
-import type { GenerationProject, MusicTiming } from "../../shared/generation-projects.ts"
-import { automaticRegionViews, type HybridRules } from "../../shared/generation-rules.ts"
+import type { Beat } from "../../shared/beat.ts"
+import type { BeatReusableComponent, GenerationProjectV2 } from "../../shared/beat-projects.ts"
+import { BeatHybridRulesSchema } from "../../shared/beat-rules.ts"
 import type { LibrarySong } from "../../shared/library.ts"
 import type { ProjectGenerationResult } from "../../shared/project-commands.ts"
+import type { ComponentId } from "../../shared/project-identities.ts"
 import { libraryApi } from "../api/library-client.ts"
-import type { PanelIndex } from "../domain/editor.ts"
+import { placeBeatHold, toggleBeatPanel } from "../domain/beat-editor.ts"
+import { validateRowsPerMeasureChange } from "../domain/beat-timeline.ts"
 import {
-  editPanelAtTick,
-  findPanelDemand,
-  placePanelHold,
-  togglePanelAtTick,
-} from "../domain/editor.ts"
-import {
-  fixedChartForProject,
-  playbackProjectFor,
-  replaceHybridRules,
-  tickIsAutomatic,
+  beatPlaybackProjectFor,
+  projectAutomaticExtent,
+  replaceBeatHybridRules,
+  timingWithProjectInformation,
 } from "../domain/project-grid.ts"
 import { AutomaticRegionsEditor } from "./AutomaticRegionsEditor.tsx"
 import { browserAudioPlaybackEnvironmentFor } from "./audioPlaybackEnvironment.ts"
+import { ProjectFragmentLibrary } from "./ProjectFragmentLibrary.tsx"
 import { ProjectGeneratePanel } from "./ProjectGeneratePanel.tsx"
+import { ProjectInformationEditor } from "./ProjectInformationEditor.tsx"
 import { ProjectRuleConversion } from "./ProjectRuleConversion.tsx"
-import { ProjectTailEditor } from "./ProjectTailEditor.tsx"
-import { Badge, Button, Field, ToolChip } from "./primitives.tsx"
+import { Badge, Button } from "./primitives.tsx"
 import { Timeline } from "./Timeline.tsx"
 import { Transport } from "./Transport.tsx"
 import { useAudioPlaybackSource } from "./useAudioPlayback.ts"
 
-type GridTool = "tap" | "hold" | "select" | "erase"
-
 export function ProjectGridEditor(props: {
   readonly busy: boolean
+  readonly components: readonly BeatReusableComponent[]
   readonly dirty: boolean
   readonly generation: ProjectGenerationResult | null
-  readonly project: GenerationProject
+  readonly project: GenerationProjectV2
   readonly song: LibrarySong
-  readonly timingTemplate: MusicTiming
+  readonly onApplyFragment: (componentId: ComponentId, anchor: Beat) => void
   readonly onGenerate: (name: string, seed: string) => void
-  readonly onProject: (project: GenerationProject) => void
+  readonly onProject: (project: GenerationProjectV2) => void
+  readonly onPublishFragment: (name: string, start: Beat, end: Beat) => void
   readonly onSave: () => void
 }) {
-  const [tool, setTool] = useState<GridTool>("tap")
-  const [selectedTick, setSelectedTick] = useState(0)
-  const [selectedLane, setSelectedLane] = useState<PanelIndex>(0)
-  const [quantize, setQuantize] = useState(1)
-  const [holdTicks, setHoldTicks] = useState(String(props.project.timing.ticks_per_beat))
   const [error, setError] = useState("")
   const playbackProject = useMemo(
-    () => playbackProjectFor(props.project, props.song),
+    () => beatPlaybackProjectFor(props.project, props.song),
     [props.project, props.song],
   )
   const environment = useMemo(
@@ -60,69 +52,37 @@ export function ProjectGridEditor(props: {
     environment,
     hasAudio: props.song.audio.byte_length > 0,
   })
-  const chart = fixedChartForProject(props.project)
   const hybrid = props.project.generation_rules.schema_version === 2
+  const rules = hybrid ? BeatHybridRulesSchema.parse(props.project.generation_rules) : null
+  const notes = rules?.fixed_notes ?? []
 
-  function updateRules(rules: HybridRules): void {
+  function updateRules(nextRules: typeof rules): void {
+    if (nextRules === null) return
     try {
-      props.onProject(replaceHybridRules(props.project, rules))
+      props.onProject(replaceBeatHybridRules(props.project, nextRules))
       setError("")
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The project rules are invalid")
     }
   }
 
-  function editCell(tick: number, lane: PanelIndex): void {
-    setSelectedTick(tick)
-    setSelectedLane(lane)
-    if (props.busy || !hybrid || tool === "select") return
-    if (tickIsAutomatic(props.project.generation_rules, tick)) {
-      setError("Fixed notes cannot be edited inside an automatic region.")
-      return
-    }
-    const duration = Number(holdTicks)
-    if (tool === "hold" && (!Number.isSafeInteger(duration) || duration <= 0)) {
-      setError("Hold duration must be a positive whole-number tick count.")
-      return
-    }
+  function updateNotes(nextNotes: typeof notes): void {
+    if (rules !== null) updateRules({ ...rules, fixed_notes: nextNotes })
+  }
+
+  function edit(action: () => void): void {
+    if (props.busy || rules === null) return
     try {
-      const existing = findPanelDemand(chart, tick, lane)
-      const nextChart =
-        tool === "erase" || existing !== undefined
-          ? editPanelAtTick(chart, { tick, panel: lane, holdTicks: 0, action: "erase" })
-          : tool === "hold"
-            ? editPanelAtTick(chart, { tick, panel: lane, holdTicks: duration, action: "place" })
-            : togglePanelAtTick(chart, { tick, panel: lane }, quantize)
-      updateRules({ ...props.project.generation_rules, fixed_notes: nextChart.notes })
+      action()
+      setError("")
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The fixed note edit is invalid")
     }
   }
 
-  function editHold(startTick: number, endTick: number, lane: PanelIndex): void {
-    if (props.busy || !hybrid || tool === "select" || tool === "erase") return
-    const first = Math.min(startTick, endTick)
-    const last = Math.max(startTick, endTick)
-    const overlapsRegion = props.project.generation_rules.regions.some(
-      (region) => first < region.rules.end_tick && last >= region.rules.start_tick,
-    )
-    if (overlapsRegion) {
-      setError("A fixed hold and its tail cannot enter an automatic region.")
-      return
-    }
-    try {
-      const nextChart = placePanelHold(chart, { startTick, endTick, panel: lane }, quantize)
-      updateRules({ ...props.project.generation_rules, fixed_notes: nextChart.notes })
-      setSelectedTick(first)
-      setSelectedLane(lane)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The fixed hold is invalid")
-    }
-  }
-
   return (
     <section className="project-grid-editor">
-      <section className="project-grid-toolbar" aria-label="Project grid tools">
+      <section className="project-grid-toolbar" aria-label="Project save status">
         <div className="project-grid-toolbar__identity">
           <strong>{props.project.name}</strong>
           <span>
@@ -132,34 +92,13 @@ export function ProjectGridEditor(props: {
         <Badge tone={props.dirty ? "warning" : "success"}>
           {props.dirty ? "Unsaved project draft" : `Saved revision ${props.project.revision}`}
         </Badge>
-        <div className="cluster">
-          {(["tap", "hold", "select", "erase"] as const).map((candidate) => (
-            <ToolChip
-              type="button"
-              key={candidate}
-              pressed={tool === candidate}
-              disabled={!hybrid || props.busy}
-              onClick={() => setTool(candidate)}
-            >
-              {candidate[0]?.toUpperCase()}
-              {candidate.slice(1)}
-            </ToolChip>
-          ))}
-        </div>
-        <Field label="Hold duration ticks">
-          <input
-            className="mono project-grid-toolbar__hold"
-            disabled={!hybrid || props.busy || tool !== "hold"}
-            inputMode="numeric"
-            value={holdTicks}
-            onChange={(event) => setHoldTicks(event.currentTarget.value)}
-          />
-        </Field>
         <Button variant="primary" disabled={props.busy || !props.dirty} onClick={props.onSave}>
           {props.busy ? "Saving project" : "Save project"}
         </Button>
       </section>
-      {hybrid ? (
+      {rules === null ? (
+        <ProjectRuleConversion project={props.project} onProject={props.onProject} />
+      ) : (
         <div className="project-grid-workspace">
           <div className="project-grid-canvas project-grid-timeline">
             {props.project.mode === "Double" ? (
@@ -168,38 +107,65 @@ export function ProjectGridEditor(props: {
               </p>
             ) : null}
             <Timeline
-              chart={chart}
-              music={playbackProject.music}
-              ucsMode={props.project.mode}
+              notes={notes}
+              timing={props.project.timing}
+              mode={props.project.mode}
               playback={playback}
-              selectedTick={selectedTick}
-              selectedLane={selectedLane}
-              quantize={quantize}
-              onQuantize={setQuantize}
-              onCell={editCell}
-              onHold={editHold}
-              onSelect={(tick, lane) => {
-                setSelectedTick(tick)
-                setSelectedLane(lane)
-              }}
-              automaticRegions={automaticRegionViews(props.project.generation_rules)}
+              onToggleTap={(at, lane) =>
+                edit(() => updateNotes(toggleBeatPanel(notes, props.project.timing, at, lane)))
+              }
+              onPlaceHold={(head, tail, lane) =>
+                edit(() =>
+                  updateNotes(placeBeatHold(notes, props.project.timing, head, tail, lane)),
+                )
+              }
+              onRowsPerMeasureChange={(at, rowsPerMeasure) =>
+                edit(() => {
+                  const result = validateRowsPerMeasureChange(
+                    props.project.timing,
+                    notes,
+                    at,
+                    rowsPerMeasure,
+                  )
+                  if (result.kind === "error") throw new ProjectGridInputError(result.message)
+                  props.onProject(
+                    timingWithProjectInformation(props.project, {
+                      chartArtist: props.project.chart_artist,
+                      timing: result.timing,
+                    }),
+                  )
+                })
+              }
+              automaticRegions={rules.regions.map((region) => ({
+                id: region.id,
+                name: region.name,
+                start: region.rules.start,
+                end: region.rules.end,
+              }))}
               regionsReadOnly
             />
           </div>
           <aside
             className="project-grid-inspector"
-            aria-label="Automatic region and timing controls"
+            aria-label="Project information, automatic regions, and fragment controls"
           >
-            <AutomaticRegionsEditor
+            <ProjectInformationEditor
+              automaticExtent={projectAutomaticExtent(props.project)}
+              chartArtist={props.project.chart_artist}
               disabled={props.busy}
-              rules={props.project.generation_rules}
-              onChange={updateRules}
+              notes={notes}
+              songArtist={props.song.artist}
+              timing={props.project.timing}
+              onChange={(change) =>
+                edit(() => props.onProject(timingWithProjectInformation(props.project, change)))
+              }
             />
-            <ProjectTailEditor
-              disabled={props.busy}
-              project={props.project}
-              template={props.timingTemplate}
-              onChange={props.onProject}
+            <AutomaticRegionsEditor disabled={props.busy} rules={rules} onChange={updateRules} />
+            <ProjectFragmentLibrary
+              busy={props.busy || props.dirty}
+              components={props.components}
+              onPublish={(input) => props.onPublishFragment(input.name, input.start, input.end)}
+              onApply={props.onApplyFragment}
             />
             <ProjectGeneratePanel
               busy={props.busy}
@@ -209,20 +175,17 @@ export function ProjectGridEditor(props: {
             />
           </aside>
         </div>
-      ) : (
-        <ProjectRuleConversion project={props.project} onProject={props.onProject} />
       )}
       {error === "" ? null : (
         <p className="operation-result operation-result--error" role="alert">
           {error}
         </p>
       )}
-      <Transport
-        project={playbackProject}
-        selectedTick={selectedTick}
-        onSeekSelection={setSelectedTick}
-        playback={playback}
-      />
+      <Transport project={playbackProject} playback={playback} />
     </section>
   )
+}
+
+class ProjectGridInputError extends Error {
+  override readonly name = "ProjectGridInputError"
 }

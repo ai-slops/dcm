@@ -88,13 +88,15 @@ export function ProjectEditPage(props: {
       ) : null}
       <ProjectGridEditor
         busy={editor.busy}
+        components={editor.loaded.components}
         dirty={editor.dirty}
         generation={editor.generation}
         project={editor.draft}
         song={editor.loaded.song}
-        timingTemplate={editor.loaded.timingTemplate}
+        onApplyFragment={(componentId, anchor) => void editor.applyFragment(componentId, anchor)}
         onGenerate={(name, seed) => void editor.generate(name, seed)}
         onProject={editor.setDraft}
+        onPublishFragment={(name, start, end) => void editor.publishFragment(name, start, end)}
         onSave={() => void editor.save()}
       />
       {editor.error === "" ? null : (

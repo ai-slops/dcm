@@ -130,9 +130,12 @@
 }
 
 .project-regions,
+.project-information,
+.project-fragments,
 .project-tail,
 .project-grid-generate,
 .project-region-form,
+.project-fragment-form,
 .project-grid-generate form,
 .project-tail form,
 .project-conversion {
@@ -140,12 +143,65 @@
   gap: var(--space-3);
 }
 
+.project-information + .project-regions,
 .project-regions + .project-tail,
+.project-regions + .project-fragments,
+.project-fragments + .project-grid-generate,
 .project-tail + .project-grid-generate,
 .project-region-form + .project-region-form {
   margin-block-start: var(--space-6);
   padding-block-start: var(--space-6);
   border-block-start: var(--stroke-hairline) solid var(--border-subtle);
+}
+
+.project-conversion p {
+  max-inline-size: 68ch;
+  color: var(--text-secondary);
+}
+
+.project-information > header,
+.project-fragments > header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.project-information h2,
+.project-information p,
+.project-fragments h2,
+.project-fragments p {
+  margin: 0;
+}
+
+.project-information > header p,
+.project-fragments > header p {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+}
+
+.project-information__grid,
+.project-fragment-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.project-fragment-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-fragment-list > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-block-start: var(--stroke-hairline) solid var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .project-region-form__grid {
@@ -182,11 +238,6 @@
   background: var(--surface-panel);
 }
 
-.project-conversion p {
-  max-inline-size: 68ch;
-  color: var(--text-secondary);
-}
-
 @media (max-width: 1199px) {
   .project-grid-workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -199,6 +250,7 @@
 
   .project-grid-inspector {
     overflow: visible;
+    padding-block-end: var(--space-8);
     border-inline-start: 0;
     border-block-start: var(--stroke-hairline) solid var(--border-default);
   }

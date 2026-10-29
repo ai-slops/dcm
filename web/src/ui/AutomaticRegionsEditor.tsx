@@ -1,53 +1,63 @@
 import { useEffect, useState } from "react"
+import type { z } from "zod"
 
-import {
-  type AutomaticRegion,
-  AutomaticRegionSchema,
-  type HybridRules,
-  HybridRulesSchema,
-} from "../../shared/generation-rules.ts"
+import { BeatAutomaticRegionSchema, BeatHybridRulesSchema } from "../../shared/beat-rules.ts"
+import { formatBeat, parseBeatDraft } from "../domain/beat-input.ts"
 import { Button, Field } from "./primitives.tsx"
 
 const defaultPattern = JSON.stringify(
-  [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+  [
+    {
+      choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }],
+    },
+  ],
   null,
   2,
 )
 
 type RegionDraft = {
   readonly name: string
-  readonly startTick: string
-  readonly endTick: string
-  readonly stepTicks: string
+  readonly start: string
+  readonly end: string
+  readonly step: string
   readonly pattern: string
 }
 
 const emptyDraft: RegionDraft = {
   name: "",
-  startTick: "0",
-  endTick: "",
-  stepTicks: "1",
+  start: "0",
+  end: "",
+  step: "1",
   pattern: defaultPattern,
 }
+
+type AutomaticRegion = z.infer<typeof BeatAutomaticRegionSchema>
 
 function draftFor(region: AutomaticRegion): RegionDraft {
   return {
     name: region.name,
-    startTick: String(region.rules.start_tick),
-    endTick: String(region.rules.end_tick),
-    stepTicks: String(region.rules.step_ticks),
+    start: formatBeat(region.rules.start),
+    end: formatBeat(region.rules.end),
+    step: formatBeat(region.rules.step),
     pattern: JSON.stringify(region.rules.pattern, null, 2),
   }
 }
 
 function parseRegion(id: string, draft: RegionDraft): AutomaticRegion {
-  return AutomaticRegionSchema.parse({
+  const start = parseBeatDraft(draft.start)
+  const end = parseBeatDraft(draft.end)
+  const step = parseBeatDraft(draft.step)
+  const invalid = [start, end, step].find((result) => result.kind === "error")
+  if (invalid?.kind === "error") throw new RegionDraftError(invalid.message)
+  if (start.kind !== "success" || end.kind !== "success" || step.kind !== "success")
+    throw new RegionDraftError("Enter exact region beats")
+  return BeatAutomaticRegionSchema.parse({
     id,
     name: draft.name,
     rules: {
-      start_tick: Number(draft.startTick),
-      end_tick: Number(draft.endTick),
-      step_ticks: Number(draft.stepTicks),
+      start: start.beat,
+      end: end.beat,
+      step: step.beat,
       pattern: JSON.parse(draft.pattern),
     },
   })
@@ -62,11 +72,8 @@ function RegionForm(props: {
   readonly onClear?: () => void
 }) {
   const [draft, setDraft] = useState(props.initial)
-  const { name, startTick, endTick, stepTicks, pattern } = props.initial
-  useEffect(
-    () => setDraft({ name, startTick, endTick, stepTicks, pattern }),
-    [endTick, name, pattern, startTick, stepTicks],
-  )
+  const { name, start, end, step, pattern } = props.initial
+  useEffect(() => setDraft({ name, start, end, step, pattern }), [end, name, pattern, start, step])
   return (
     <form
       className="project-region-form"
@@ -85,34 +92,34 @@ function RegionForm(props: {
             onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
           />
         </Field>
-        <Field label="Start tick">
+        <Field label="Start beat">
           <input
             className="mono"
             disabled={props.disabled}
             inputMode="numeric"
             required
-            value={draft.startTick}
-            onChange={(event) => setDraft({ ...draft, startTick: event.currentTarget.value })}
+            value={draft.start}
+            onChange={(event) => setDraft({ ...draft, start: event.currentTarget.value })}
           />
         </Field>
-        <Field label="End tick">
+        <Field label="End beat (exclusive)">
           <input
             className="mono"
             disabled={props.disabled}
             inputMode="numeric"
             required
-            value={draft.endTick}
-            onChange={(event) => setDraft({ ...draft, endTick: event.currentTarget.value })}
+            value={draft.end}
+            onChange={(event) => setDraft({ ...draft, end: event.currentTarget.value })}
           />
         </Field>
-        <Field label="Step ticks">
+        <Field label="Step beat">
           <input
             className="mono"
             disabled={props.disabled}
             inputMode="numeric"
             required
-            value={draft.stepTicks}
-            onChange={(event) => setDraft({ ...draft, stepTicks: event.currentTarget.value })}
+            value={draft.step}
+            onChange={(event) => setDraft({ ...draft, step: event.currentTarget.value })}
           />
         </Field>
       </div>
@@ -145,13 +152,13 @@ function RegionForm(props: {
 
 export function AutomaticRegionsEditor(props: {
   readonly disabled: boolean
-  readonly rules: HybridRules
-  readonly onChange: (rules: HybridRules) => void
+  readonly rules: z.infer<typeof BeatHybridRulesSchema>
+  readonly onChange: (rules: z.infer<typeof BeatHybridRulesSchema>) => void
 }) {
   const [error, setError] = useState("")
 
   function commit(regions: readonly AutomaticRegion[]): void {
-    const parsed = HybridRulesSchema.safeParse({ ...props.rules, regions })
+    const parsed = BeatHybridRulesSchema.safeParse({ ...props.rules, regions })
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "The automatic regions are invalid")
       return
@@ -213,4 +220,8 @@ export function AutomaticRegionsEditor(props: {
       )}
     </section>
   )
+}
+
+class RegionDraftError extends Error {
+  override readonly name = "RegionDraftError"
 }

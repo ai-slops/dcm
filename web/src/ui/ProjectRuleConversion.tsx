@@ -1,12 +1,12 @@
 import { useState } from "react"
 
-import type { GenerationProject } from "../../shared/generation-projects.ts"
-import { convertWeightedCycleToHybrid } from "../domain/project-grid.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
+import { convertBeatWeightedCycleToHybrid } from "../domain/project-grid.ts"
 import { Button, Field } from "./primitives.tsx"
 
 export function ProjectRuleConversion(props: {
-  readonly project: GenerationProject
-  readonly onProject: (project: GenerationProject) => void
+  readonly project: GenerationProjectV2
+  readonly onProject: (project: GenerationProjectV2) => void
 }) {
   const [name, setName] = useState("Imported cycle")
   const [confirming, setConfirming] = useState(false)
@@ -24,7 +24,7 @@ export function ProjectRuleConversion(props: {
             if (props.project.generation_rules.schema_version !== 1) return
             props.onProject({
               ...props.project,
-              generation_rules: convertWeightedCycleToHybrid(props.project.generation_rules, {
+              generation_rules: convertBeatWeightedCycleToHybrid(props.project.generation_rules, {
                 id: crypto.randomUUID(),
                 name,
               }),
