@@ -4,6 +4,7 @@ import { resolve } from "node:path"
 
 import { z } from "zod"
 
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { GenerationProject } from "../../shared/generation-projects.ts"
 import type { GenerationRules } from "../../shared/generation-rules.ts"
 import { type NativeMusic, NativeMusicSchema } from "../../shared/native.ts"
@@ -15,6 +16,10 @@ import {
 import { assertUcsCellExclusive, UcsCellConflictError } from "../../shared/ucs-cells.ts"
 import { StudioError } from "../errors.ts"
 import type { AudioRecord } from "../store.ts"
+import {
+  type BeatProjectNativeCapability,
+  projectBeatGenerationNative,
+} from "./beat-project-adapter.ts"
 import { ProcessPool } from "./process.ts"
 import { nativeExecutable } from "./service.ts"
 
@@ -51,21 +56,25 @@ export class ProjectNativeService {
   }
 
   async generate(
-    project: GenerationProject,
+    project: GenerationProjectV2 | GenerationProject,
     audio: AudioRecord,
     seed: string,
     signal?: AbortSignal,
   ): Promise<NativeRuleGeneration> {
     await this.#requireReady()
     const parsedSeed = SeedSchema.parse(seed)
+    const nativeProject =
+      project.schema_version === 1
+        ? project
+        : requireNativeProject(projectBeatGenerationNative(project))
     return withPrivateWorkspace(async (root) => {
       const rules = resolve(root, "rules.json")
       const music = resolve(root, "music.json")
       const contract = resolve(root, "contract.json")
       await Promise.all([
-        writeFile(rules, JSON.stringify(project.generation_rules)),
-        writeFile(music, JSON.stringify(materializeNativeMusic(project, audio))),
-        writeFile(contract, JSON.stringify(project.evaluation_contract)),
+        writeFile(rules, JSON.stringify(nativeProject.generation_rules)),
+        writeFile(music, JSON.stringify(materializeNativeMusic(nativeProject, audio))),
+        writeFile(contract, JSON.stringify(nativeProject.evaluation_contract)),
       ])
       const encoded = await this.#pool.run(
         this.#pump,
@@ -78,7 +87,7 @@ export class ProjectNativeService {
           "--contract",
           contract,
           "--mode",
-          project.mode,
+          nativeProject.mode,
           "--seed",
           parsedSeed,
           "--format",
@@ -86,13 +95,43 @@ export class ProjectNativeService {
         ],
         signal,
       )
-      return parseNativeRuleGeneration(encoded, project.mode, project.generation_rules)
+      return parseNativeRuleGeneration(encoded, nativeProject.mode, nativeProject.generation_rules)
     })
   }
 
   async #requireReady(): Promise<void> {
     if (!(await this.readiness()).ready)
       throw new StudioError(503, "native_unavailable", "Native rule generator is unavailable")
+  }
+}
+
+function requireNativeProject(
+  projection: ReturnType<typeof projectBeatGenerationNative>,
+): GenerationProject {
+  if (projection.kind === "unsupported") throw nativeCapabilityError(projection.capability)
+  return projection.project
+}
+
+function nativeCapabilityError(capability: BeatProjectNativeCapability): StudioError {
+  switch (capability.code) {
+    case "native_duration_unresolved":
+      return new StudioError(
+        422,
+        capability.code,
+        "Native generation requires a concrete output extent",
+      )
+    case "native_grid_unsupported":
+      return new StudioError(
+        422,
+        capability.code,
+        `Exact native generation requires ${capability.required_tpb} ticks per beat; limit ${capability.limit}`,
+      )
+    case "native_limit_unsupported":
+      return new StudioError(
+        422,
+        capability.code,
+        `Exact native ${capability.field} ${capability.value} exceeds limit ${capability.limit}`,
+      )
   }
 }
 
