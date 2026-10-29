@@ -6,6 +6,7 @@ import { expect, it } from "vitest"
 
 import { createStudioApp } from "../../server/app.ts"
 import { loadConfig } from "../../server/config.ts"
+import { nativeDocumentFor } from "../../server/native/beat-document.ts"
 import { AgentRunSnapshotSchema, BootstrapSchema, ChartProposalSchema } from "../../shared/index.ts"
 import { repoRoot } from "../support/paths.ts"
 
@@ -39,8 +40,8 @@ it.each([false, true])(
         source: "agent",
         summary: "Remove the last note",
         chart: {
-          ...boot.document.project.chart,
-          notes: boot.document.project.chart.notes.slice(0, -1),
+          ...nativeDocumentFor(boot.document.project).chart,
+          notes: nativeDocumentFor(boot.document.project).chart.notes.slice(0, -1),
         },
       })
       session.proposals.set(proposal.id, proposal)
@@ -57,7 +58,7 @@ it.each([false, true])(
         },
       )
       expect(applied.status).toBe(200)
-      expect(studio.store.document().project.chart).toEqual(proposal.chart)
+      expect(nativeDocumentFor(studio.store.document().project).chart).toEqual(proposal.chart)
       if (retainSnapshot)
         expect(session.runs.get("evicted-run")?.proposal_decisions).toEqual([
           {

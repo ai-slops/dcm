@@ -122,7 +122,7 @@ describe("RunRecord lifecycle", () => {
     const current = harness.store.document()
     await harness.store.replace(
       current.revision,
-      { ...current.project, music: { ...current.project.music, audio_sha256: [...digest] } },
+      { ...current.project, audio_sha256: digest.toString("hex") },
       replacement,
     )
 

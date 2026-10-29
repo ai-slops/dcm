@@ -1,12 +1,11 @@
 import { isJsonObject, schema } from "@slop-lab/part/contracts/index.js"
 import type { Contracts } from "@slop-lab/part/reference/index.js"
 import { z } from "zod"
-
+import { BeatChartDocumentSchema } from "../../shared/beat-projects.ts"
 import {
   EvaluationResponseSchema,
   NativeChartSchema,
   NativeMusicSchema,
-  StudioProjectV1Schema,
 } from "../../shared/index.ts"
 
 export const EmptySchema = schema<Readonly<Record<string, never>>>(
@@ -14,7 +13,7 @@ export const EmptySchema = schema<Readonly<Record<string, never>>>(
   (value): value is Readonly<Record<string, never>> =>
     isJsonObject(value) && Object.keys(value).length === 0,
 )
-export const ProjectSchema = partSchema("pump-studio/project", StudioProjectV1Schema)
+export const ProjectSchema = partSchema("pump-studio/project", BeatChartDocumentSchema)
 export const EvaluationSchema = partSchema("pump-studio/evaluation", EvaluationResponseSchema)
 export const ChartSchema = partSchema("pump-studio/chart", NativeChartSchema)
 export const SeedInput = z.strictObject({ seed: z.string().regex(/^[0-9a-f]{64}$/) }).readonly()

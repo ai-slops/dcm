@@ -1,8 +1,8 @@
 import { createServer, type Server } from "node:http"
 
 import { z } from "zod"
-
-import { canonicalizeChart, StudioProjectV1Schema } from "../../shared/index.ts"
+import { nativeDocumentFor } from "../../server/native/beat-document.ts"
+import { BeatChartDocumentSchema, canonicalizeChart } from "../../shared/index.ts"
 
 const RequestSchema = z.object({
   messages: z.array(z.object({ role: z.string(), content: z.unknown() })),
@@ -59,7 +59,7 @@ function nextAfterTool(messages: readonly { readonly role: string; readonly cont
   if (proposed) return completion({ content: "Proposal ready." }, "stop")
   const last = messages.at(-1)
   const project = typeof last?.content === "string" ? JSON.parse(last.content) : undefined
-  const parsed = StudioProjectV1Schema.parse(project)
+  const parsed = nativeDocumentFor(BeatChartDocumentSchema.parse(project))
   const notes =
     parsed.chart.notes.length === 0
       ? [{ tick: 0, panel_mask: 1, hold_ticks: 0 }]

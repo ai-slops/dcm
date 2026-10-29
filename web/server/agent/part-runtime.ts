@@ -4,12 +4,8 @@ import type { Contracts, Model, Runtime } from "@slop-lab/part/reference/index.j
 import { functionTool } from "@slop-lab/part/tools.js"
 import { createAgent } from "@slop-lab/part-plugins/agent/index.js"
 import { createOpenAICompatibleAdapter } from "@slop-lab/part-plugins/providers/openai-compatible/index.js"
-import type {
-  EvaluationResponse,
-  NativeChart,
-  NativeMusic,
-  StudioProjectV1,
-} from "../../shared/index.ts"
+import type { BeatChartDocument } from "../../shared/beat-projects.ts"
+import type { EvaluationResponse, NativeChart, NativeMusic } from "../../shared/index.ts"
 import {
   ChartSchema,
   EmptySchema,
@@ -35,7 +31,7 @@ export type PartRuntimeOptions = {
   readonly apiKey?: string
   readonly api?: "chat" | "responses"
   readonly signal: AbortSignal
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly projectTools?: ProjectAgentTools
   readonly evaluateChart: (signal: AbortSignal) => Promise<EvaluationResponse>
   readonly generateVariant: (seed: string, signal: AbortSignal) => Promise<NativeChart>

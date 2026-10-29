@@ -3,7 +3,7 @@ import { createServer } from "node:http"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createPartRuntime } from "../server/agent/part-runtime.ts"
-import type { StudioProjectV1 } from "../shared/index.ts"
+import type { BeatChartDocument } from "../shared/beat-projects.ts"
 
 const servers = new Set<ReturnType<typeof createServer>>()
 
@@ -152,20 +152,28 @@ describe("createPartRuntime", () => {
   })
 })
 
-function fixtureProject(): StudioProjectV1 {
+function fixtureProject(): BeatChartDocument {
   return {
     schema_version: 1,
     title: "Fixture",
     artist: "PUMP",
-    music: {
-      duration_ticks: 32,
-      ticks_per_beat: 4,
+    chart_artist: null,
+    mode: "Double",
+    audio_sha256: "0".repeat(64),
+    notes: [],
+    timing: {
+      schema_version: 1,
+      duration: { numerator: 8, denominator: 1 },
+      grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 16 }],
       offset_micros: 0,
-      tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
-      audio_sha256: Array.from({ length: 32 }, () => 0),
+      tempo: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          micros_per_beat: { numerator: 500_000, denominator: 1 },
+        },
+      ],
       reference_accents: [],
     },
-    chart: { ticks_per_beat: 4, span_ticks: 32, notes: [] },
     evaluation_contract: {
       schema_version: 2,
       history_policy: { recent_window: 0, max_request_history: 0 },

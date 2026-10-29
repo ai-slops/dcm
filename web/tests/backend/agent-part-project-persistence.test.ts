@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import { createStudioApp } from "../../server/app.ts"
 import { loadConfig } from "../../server/config.ts"
-import { loadDemo } from "../../server/demo.ts"
 import { AgentRunSnapshotSchema, BootstrapSchema } from "../../shared/index.ts"
 import { repoRoot } from "../support/paths.ts"
 
@@ -91,23 +90,29 @@ async function harness() {
       PART_MODEL: "fixture-model",
     }),
   )
-  const demo = await loadDemo(repoRoot)
   const songId = studio.store.library().songs[0]?.id
   if (songId === undefined) throw new TypeError("Fixture song missing")
-  const { audio_sha256: _digest, ...timing } = demo.document.project.music
+  const source = studio.store.document().project
   toolArguments = {
     song_id: songId,
     mode: "Double",
     name: "Part fixture rules",
-    timing,
-    evaluation_contract: demo.document.project.evaluation_contract,
+    chart_artist: "Part fixture author",
+    base_ucs_ref: {
+      source: "saved_chart",
+      chart_id: studio.store.library().active_chart_id,
+    },
+    timing: source.timing,
+    evaluation_contract: source.evaluation_contract,
     generation_rules: {
       schema_version: 1,
       algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: timing.duration_ticks,
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      start: { numerator: 0, denominator: 1 },
+      end: { numerator: 8, denominator: 1 },
+      step: { numerator: 12, denominator: 1 },
+      pattern: [
+        { choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }] },
+      ],
     },
   }
   const bootResponse = await studio.app.request("http://127.0.0.1:4173/api/v1/bootstrap")

@@ -5,7 +5,8 @@ import { afterEach, expect, it } from "vitest"
 import { createPartRuntime } from "../server/agent/part-runtime.ts"
 import { ProjectAgentTools } from "../server/agent/project-tools.ts"
 import { loadDemo } from "../server/demo.ts"
-import { ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
+import { BeatProjectWorkspaceSchema } from "../shared/beat-projects.ts"
 import { ChartIdSchema, SongIdSchema } from "../shared/library.ts"
 import { repoRoot } from "./support/paths.ts"
 
@@ -67,34 +68,36 @@ it("executes a project tool through the real Responses adapter loop", async () =
   if (address === null || typeof address === "string")
     throw new TypeError("Provider address missing")
   const demo = await loadDemo(repoRoot)
+  const source = migrateLegacyChart(demo.document.project)
   let toolCalls = 0
   const runtime = createPartRuntime({
     endpoint: new URL(`http://127.0.0.1:${address.port}/v1/responses`),
     model: "fixture-model",
     api: "responses",
     signal: new AbortController().signal,
-    project: demo.document.project,
+    project: source,
     projectTools: new ProjectAgentTools({
       service: {
         list: () =>
-          ProjectWorkspaceSchema.parse({
+          BeatProjectWorkspaceSchema.parse({
             revision: 0,
             selected_project_id: null,
             projects: [],
             components: [],
           }),
         songs: () => [],
+        baseSources: () => [],
         chart: () => ({
           chart: {
             id: CHART_ID,
             song_id: SONG_ID,
             name: "Main",
-            mode: demo.document.project.ucs_mode ?? "Double",
+            mode: source.mode,
             note_count: demo.document.project.chart.notes.length,
             hold_count: demo.document.project.chart.notes.filter((note) => note.hold_ticks > 0)
               .length,
-            ticks_per_beat: demo.document.project.chart.ticks_per_beat,
-            duration_ticks: demo.document.project.chart.span_ticks,
+            duration: source.timing.duration,
+            chart_artist: source.chart_artist,
           },
           song: {
             id: SONG_ID,
@@ -105,7 +108,7 @@ it("executes a project tool through the real Responses adapter loop", async () =
               sha256: Buffer.from(demo.document.project.music.audio_sha256).toString("hex"),
             },
           },
-          project: demo.document.project,
+          project: source,
         }),
         read: () => {
           throw new TypeError("not expected")

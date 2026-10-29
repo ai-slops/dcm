@@ -7,6 +7,7 @@ import { afterEach, expect, it } from "vitest"
 
 import { AgentRuns } from "../../server/agent/runs.ts"
 import { loadDemo } from "../../server/demo.ts"
+import { nativeDocumentFor } from "../../server/native/beat-document.ts"
 import { SessionStore } from "../../server/sessions.ts"
 import { StudioStore } from "../../server/store.ts"
 import { MAX_SESSION_PROPOSALS } from "../../shared/api.ts"
@@ -35,7 +36,7 @@ async function harness() {
         async start() {
           for (let index = 0; index < 4; index += 1)
             await options.proposeChart(
-              { chart: options.project.chart, summary: `Proposal ${index}` },
+              { chart: nativeDocumentFor(options.project).chart, summary: `Proposal ${index}` },
               options.signal,
             )
           return ok({
