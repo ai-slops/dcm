@@ -1,13 +1,10 @@
 import { createHash, randomUUID } from "node:crypto"
 
-import { strToU8, zipSync } from "fflate"
-
-import { ChartDocumentSchema, type UcsChart } from "../../shared/index.ts"
+import { type BeatChartCore, BeatChartDocumentSchema } from "../../shared/index.ts"
 import {
   ArchiveIdSchema,
   ChartIdSchema,
   type LibraryMutation,
-  LibraryMutationSchema,
   LibraryRevisionSchema,
   MAX_LIBRARY_ARCHIVES,
   MAX_LIBRARY_CHARTS,
@@ -18,16 +15,16 @@ import {
 import type { DownloadArchive, LibraryCommand } from "../../shared/library-commands.ts"
 import { type UcsArchiveEntry, UcsArchiveError } from "../../src/domain/archive-policy.ts"
 import { StudioError } from "../errors.ts"
-import type { NativeUcsService } from "../native/ucs.ts"
+import type { NativeBeatUcsService } from "../native/beat-ucs.ts"
 import type { AudioRecord, StudioStore } from "../store.ts"
-import { archiveAudioFormat, archiveLabel, chartFilename } from "./archive-names.ts"
+import { exportSongArchive } from "./archive-export.ts"
+import { archiveAudioFormat, archiveLabel } from "./archive-names.ts"
 import { parseArchiveInWorker } from "./archive-resource.ts"
 import { archiveSource } from "./archive-source.ts"
-import { chartSummary } from "./chart-summary.ts"
-import { currentDocument } from "./document-view.ts"
 import { downloadUcsPackage } from "./download.ts"
-import { bindingFor, nativeMetadata } from "./project-factory.ts"
-import { type PersistedStateV3, snapshot } from "./state.ts"
+import { mutation } from "./mutation-helpers.ts"
+import { bindingFor, compatibleEvaluationContract } from "./project-factory.ts"
+import { beatChartSummary } from "./state-v4.ts"
 
 type StageMetadata = {
   readonly name: string
@@ -39,7 +36,7 @@ type StageMetadata = {
 export class LibraryArchives {
   constructor(
     readonly store: StudioStore,
-    readonly ucs: NativeUcsService,
+    readonly ucs: NativeBeatUcsService,
   ) {}
 
   async stage(
@@ -80,18 +77,27 @@ export class LibraryArchives {
     )
     const format = archiveAudioFormat(audioEntry.name)
     const audio = audioRecord(audioEntry.data, format)
-    const imported: UcsChart[] = []
+    const imported: BeatChartCore[] = []
     for (const entry of chartEntries) imported.push(await this.ucs.import(entry.data, audio))
     const template = this.store.document().project
     const projects = imported.map((ucsChart) => {
-      const parsed = ChartDocumentSchema.safeParse({
+      if (ucsChart.timing.duration === null)
+        throw new StudioError(
+          422,
+          "ucs_duration_unresolved",
+          "Imported UCS must have an explicit duration",
+        )
+      const parsed = BeatChartDocumentSchema.safeParse({
         ...template,
-        title: nativeMetadata(command.title),
-        artist: nativeMetadata(command.artist),
-        chart: ucsChart.chart,
-        music: ucsChart.music,
+        title: command.title,
+        artist: command.artist,
+        chart_artist: null,
+        mode: ucsChart.mode,
+        timing: ucsChart.timing,
+        notes: ucsChart.notes,
+        audio_sha256: audio.digest,
+        evaluation_contract: compatibleEvaluationContract(template, ucsChart.timing.duration),
         audio_asset: { format, byte_length: audio.bytes.byteLength },
-        ucs_mode: ucsChart.mode,
       })
       if (!parsed.success)
         throw new StudioError(
@@ -118,8 +124,7 @@ export class LibraryArchives {
         id: ChartIdSchema.parse(randomUUID()),
         song_id: songId,
         name: chartEntries[index]?.name ?? `Chart ${index + 1}`,
-        mode: imported[index]?.mode ?? "Double",
-        ...chartSummary(project),
+        ...beatChartSummary(project),
         project,
       }))
       const next = {
@@ -152,28 +157,7 @@ export class LibraryArchives {
   }
 
   async exportSong(songId: SongId, signal?: AbortSignal): Promise<Uint8Array> {
-    const library = this.store.library()
-    const song = library.songs.find((candidate) => candidate.id === songId)
-    if (song === undefined) throw new StudioError(404, "song_not_found", "Song was not found")
-    const charts = library.charts.filter((chart) => chart.song_id === song.id)
-    const documents = charts.map((chart) => this.store.chartDocument(chart.id))
-    const audio = await this.store.songAudio(song.id)
-    const ucsFiles = await Promise.all(
-      documents.map((document) => this.ucs.export(document.project, document.chart.mode, signal)),
-    )
-    const files: Record<string, Uint8Array> = {}
-    for (const [index, chart] of charts.entries())
-      files[chartFilename(files, chart.name, index)] = ucsFiles[index] ?? new Uint8Array()
-    files[`music.${audio.format}`] = audio.bytes
-    files["pump-library.json"] = strToU8(
-      JSON.stringify({
-        version: 1,
-        title: song.title,
-        artist: song.artist,
-        charts: charts.map((chart) => chart.name),
-      }),
-    )
-    return zipSync(files, { level: 6 })
+    return exportSongArchive(this.store, this.ucs, songId, signal)
   }
 
   async #stageBytes(
@@ -248,10 +232,6 @@ function requireEntry(
       `Selected ${kind} is not in the staged archive`,
     )
   return entry
-}
-
-function mutation(state: PersistedStateV3): LibraryMutation {
-  return LibraryMutationSchema.parse({ document: currentDocument(state), library: snapshot(state) })
 }
 
 function audioRecord(bytes: Uint8Array, format: AudioRecord["format"]): AudioRecord {

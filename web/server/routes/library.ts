@@ -18,14 +18,14 @@ import {
   UCS_LIMIT,
 } from "../http.ts"
 import { searchUcsCatalog } from "../library/catalog.ts"
-import type { NativeUcsService } from "../native/ucs.ts"
+import type { NativeBeatUcsService } from "../native/beat-ucs.ts"
 import type { AudioRecord } from "../store.ts"
 import type { Services, StudioApp } from "../types.ts"
 
 export function registerLibraryRoutes(
   app: StudioApp,
   services: Services,
-  ucs: NativeUcsService,
+  ucs: NativeBeatUcsService,
 ): void {
   app.get("/api/v1/library", (context) => context.json(services.store.library()))
   app.get("/api/v1/library/catalog", async (context) =>

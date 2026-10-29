@@ -9,7 +9,7 @@ import { expect, it, vi } from "vitest"
 import { loadDemo } from "../../server/demo.ts"
 import { LibraryArchives } from "../../server/library/archives.ts"
 import { LibraryService } from "../../server/library/service.ts"
-import { NativeUcsService } from "../../server/native/ucs.ts"
+import { NativeBeatUcsService } from "../../server/native/beat-ucs.ts"
 import { StudioStore } from "../../server/store.ts"
 import { repoRoot } from "../support/paths.ts"
 
@@ -22,14 +22,15 @@ it("exports one chart/audio snapshot when the song changes during native convers
     const song = store.library().songs[0]
     expect(song).toBeDefined()
     if (song === undefined) throw new Error("Expected initial song")
-    const ucs = new NativeUcsService(repoRoot)
+    const original = store.document().project
+    const ucs = new NativeBeatUcsService(repoRoot)
     const convert = ucs.export.bind(ucs)
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
-    vi.spyOn(ucs, "export").mockImplementation(async (project, mode, signal) => {
+    vi.spyOn(ucs, "export").mockImplementation(async (project, signal) => {
       entered.resolve()
       await resume.promise
-      return convert(project, mode, signal)
+      return convert(project, signal)
     })
     const exported = new LibraryArchives(store, ucs).exportSong(song.id)
     await entered.promise
@@ -39,8 +40,8 @@ it("exports one chart/audio snapshot when the song changes during native convers
     // When
     try {
       await store.save(store.document().revision, {
-        ...demo.document.project,
-        chart: { ...demo.document.project.chart, notes: [] },
+        ...store.document().project,
+        notes: [],
       })
       await new LibraryService(store).rebindAudio(
         song.id,
@@ -60,7 +61,13 @@ it("exports one chart/audio snapshot when the song changes during native convers
     // Then
     expect(files["music.wav"]).toEqual(Uint8Array.from(demo.audio))
     expect(files["Main.ucs"]).toEqual(
-      Uint8Array.from(await convert(demo.document.project, "Double")),
+      Uint8Array.from(
+        await convert({
+          timing: original.timing,
+          notes: original.notes,
+          mode: original.mode,
+        }),
+      ),
     )
   } finally {
     await rm(root, { recursive: true, force: true })
