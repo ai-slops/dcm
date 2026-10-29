@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
-import type { GenerationProject, ProjectWorkspace } from "../../shared/generation-projects.ts"
-import type { CurrentDocument, Revision, StudioProjectV1 } from "../../shared/index.ts"
+import type { BeatProjectWorkspace, GenerationProjectV2 } from "../../shared/beat-projects.ts"
+import type { CurrentDocument, Revision } from "../../shared/index.ts"
 import type { ProjectCommand, ProjectGenerationResult } from "../../shared/project-commands.ts"
 import { libraryApi } from "../api/library-client.ts"
 import { projectsApi } from "../api/projects-client.ts"
@@ -24,7 +24,6 @@ import { useProjectLoader } from "./useProjectLoader.ts"
 
 type ProjectManagerDialogProps = {
   readonly csrfToken: string
-  readonly currentChart: StudioProjectV1
   readonly dirty: boolean
   readonly open: boolean
   readonly revision: Revision
@@ -35,8 +34,8 @@ type ProjectManagerDialogProps = {
 }
 
 export function ProjectManagerDialog(props: ProjectManagerDialogProps) {
-  const [workspace, setWorkspace] = useState<ProjectWorkspace | null>(null)
-  const [project, setProject] = useState<GenerationProject | null>(null)
+  const [workspace, setWorkspace] = useState<BeatProjectWorkspace | null>(null)
+  const [project, setProject] = useState<GenerationProjectV2 | null>(null)
   const [library, setLibrary] = useState<Awaited<ReturnType<typeof libraryApi.list>> | null>(null)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -160,7 +159,7 @@ export function ProjectManagerDialog(props: ProjectManagerDialogProps) {
     }
   }
 
-  function currentProject(): GenerationProject | null {
+  function currentProject(): GenerationProjectV2 | null {
     if (project === null) setError("Choose a rule project first")
     return project
   }
@@ -180,7 +179,7 @@ export function ProjectManagerDialog(props: ProjectManagerDialogProps) {
             onDiscard={generatedOpen.discardAndOpen}
             onCancel={generatedOpen.cancel}
           />
-        ) : workspace === null ? (
+        ) : workspace === null || library === null ? (
           <p className="status-copy" role="status">
             {error || "Loading rule projects..."}
           </p>
@@ -193,12 +192,11 @@ export function ProjectManagerDialog(props: ProjectManagerDialogProps) {
             <ProjectManagerWorkspace
               busy={busy}
               creating={creating}
-              currentChart={props.currentChart}
               generation={generation}
+              library={library}
               project={project}
               projectLoading={projectLoading}
               rulesDirty={ruleDirty}
-              songs={library?.songs ?? []}
               workspace={workspace}
               onNew={() => requestRuleNavigation({ kind: "new" })}
               onInspect={(id) => requestRuleNavigation({ kind: "inspect", projectId: id })}

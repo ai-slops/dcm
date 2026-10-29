@@ -1,17 +1,17 @@
 import { useState } from "react"
 
-import type { ProjectWorkspace } from "../../shared/generation-projects.ts"
+import type { BeatProjectWorkspace } from "../../shared/beat-projects.ts"
 import type { ComponentKind, GenerationProjectId } from "../../shared/project-identities.ts"
 import { Button } from "./primitives.tsx"
 
 type ProjectComponentLibraryProps = {
   readonly busy: boolean
   readonly rulesDirty: boolean
-  readonly workspace: ProjectWorkspace
+  readonly workspace: BeatProjectWorkspace
   readonly selectedProjectId: GenerationProjectId | null
   readonly onPublish: (kind: ComponentKind, name: string) => void
-  readonly onApply: (componentId: ProjectWorkspace["components"][number]["id"]) => void
-  readonly onDelete: (component: ProjectWorkspace["components"][number]) => void
+  readonly onApply: (componentId: BeatProjectWorkspace["components"][number]["id"]) => void
+  readonly onDelete: (component: BeatProjectWorkspace["components"][number]) => void
 }
 
 export function ProjectComponentLibrary(props: ProjectComponentLibraryProps) {
@@ -73,7 +73,13 @@ export function ProjectComponentLibrary(props: ProjectComponentLibraryProps) {
               </span>
               <div className="cluster">
                 <Button
-                  disabled={props.busy || props.selectedProjectId === null || props.rulesDirty}
+                  disabled={
+                    props.busy ||
+                    props.selectedProjectId === null ||
+                    props.rulesDirty ||
+                    component.kind === "legacy_unresolved" ||
+                    component.kind === "note_fragment"
+                  }
                   onClick={() => props.onApply(component.id)}
                 >
                   Apply

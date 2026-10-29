@@ -1,13 +1,13 @@
 import { useState } from "react"
 
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { ProjectCommand, ProjectGenerationResult } from "../../shared/project-commands.ts"
 import { Button } from "./primitives.tsx"
 
 type ProjectOperationsProps = {
   readonly busy: boolean
   readonly rulesDirty: boolean
-  readonly project: GenerationProject | null
+  readonly project: GenerationProjectV2 | null
   readonly generation: ProjectGenerationResult | null
   readonly onCommand: (command: ProjectCommand) => void
   readonly onOpen: () => void

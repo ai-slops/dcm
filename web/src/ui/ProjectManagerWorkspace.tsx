@@ -1,48 +1,51 @@
+import type { BaseUcsRef } from "../../shared/beat.ts"
 import type {
-  GenerationProject,
-  GenerationProjectSummary,
-  ProjectWorkspace,
-  ReusableComponentSummary,
-} from "../../shared/generation-projects.ts"
-import type { StudioProjectV1 } from "../../shared/index.ts"
-import type { LibrarySong, SongId } from "../../shared/library.ts"
+  BeatChartDocument,
+  BeatProjectWorkspace,
+  BeatReusableComponent,
+  GenerationProjectV2,
+} from "../../shared/beat-projects.ts"
+import type { LibrarySnapshot, SongId } from "../../shared/library.ts"
 import type { ProjectCommand, ProjectGenerationResult } from "../../shared/project-commands.ts"
 import type {
   ComponentId,
   ComponentKind,
   GenerationProjectId,
 } from "../../shared/project-identities.ts"
+import { libraryApi } from "../api/library-client.ts"
 import { projectsApi } from "../api/projects-client.ts"
 import { ProjectComponentLibrary } from "./ProjectComponentLibrary.tsx"
 import { ProjectEditorForm } from "./ProjectEditorForm.tsx"
 import { ProjectOperations } from "./ProjectOperations.tsx"
 import { ProjectWorkspaceList } from "./ProjectWorkspaceList.tsx"
-import type { parseProjectForm } from "./project-form.ts"
+import type { parseBeatProjectForm } from "./project-form.ts"
 
 type ProjectManagerWorkspaceProps = {
   readonly busy: boolean
   readonly creating: boolean
-  readonly currentChart: StudioProjectV1
   readonly generation: ProjectGenerationResult | null
-  readonly project: GenerationProject | null
+  readonly project: GenerationProjectV2 | null
   readonly projectLoading: boolean
   readonly rulesDirty: boolean
-  readonly songs: readonly LibrarySong[]
-  readonly workspace: ProjectWorkspace
+  readonly library: LibrarySnapshot
+  readonly workspace: BeatProjectWorkspace
   readonly onApply: (componentId: ComponentId) => void
   readonly onCreate: (
-    value: ReturnType<typeof parseProjectForm> & { readonly songId: SongId },
+    value: ReturnType<typeof parseBeatProjectForm> & {
+      readonly songId: SongId
+      readonly baseUcsRef: BaseUcsRef
+    },
   ) => void
-  readonly onDeleteComponent: (component: ReusableComponentSummary) => void
-  readonly onDeleteProject: (project: GenerationProjectSummary) => void
+  readonly onDeleteComponent: (component: BeatReusableComponent) => void
+  readonly onDeleteProject: (project: BeatProjectWorkspace["projects"][number]) => void
   readonly onDirtyChange: (dirty: boolean) => void
   readonly onGenerate: (command: ProjectCommand) => void
   readonly onInspect: (id: GenerationProjectId) => void
   readonly onNew: () => void
   readonly onOpenGenerated: () => void
   readonly onPublish: (kind: ComponentKind, name: string) => void
-  readonly onSelect: (project: GenerationProjectSummary) => void
-  readonly onWrite: (value: ReturnType<typeof parseProjectForm>) => void
+  readonly onSelect: (project: BeatProjectWorkspace["projects"][number]) => void
+  readonly onWrite: (value: ReturnType<typeof parseBeatProjectForm>) => void
 }
 
 export function ProjectManagerWorkspace(props: ProjectManagerWorkspaceProps) {
@@ -76,11 +79,11 @@ export function ProjectManagerWorkspace(props: ProjectManagerWorkspaceProps) {
           <ProjectEditorForm
             key={props.project?.id ?? "new"}
             busy={props.busy}
-            currentChart={props.currentChart}
+            library={props.library}
             project={props.creating ? null : props.project}
-            songs={props.songs}
             onDirtyChange={props.onDirtyChange}
-            onLoadSongTiming={(songId) => projectsApi.songTemplate(songId)}
+            onLoadBase={loadProjectBase}
+            onLoadBaseSources={(songId) => projectsApi.baseSources(songId)}
             onCreate={props.onCreate}
             onWrite={props.onWrite}
           />
@@ -105,4 +108,18 @@ export function ProjectManagerWorkspace(props: ProjectManagerWorkspaceProps) {
       />
     </>
   )
+}
+
+function loadProjectBase(songId: SongId, source: BaseUcsRef): Promise<BeatChartDocument> {
+  switch (source.source) {
+    case "saved_chart":
+      return libraryApi.chart(source.chart_id).then((document) => document.project)
+    case "archive_entry":
+    case "retained_timing":
+      return projectsApi.songTemplate(songId)
+    default: {
+      const exhaustive: never = source
+      return exhaustive
+    }
+  }
 }

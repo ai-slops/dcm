@@ -2,13 +2,11 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
 
-import { loadDemo } from "../server/demo.ts"
-import { GenerationProjectSchema, ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
+import { BeatProjectWorkspaceSchema, GenerationProjectV2Schema } from "../shared/beat-projects.ts"
 import { ProjectComponentLibrary } from "../src/ui/ProjectComponentLibrary.tsx"
 import { ProjectOperations } from "../src/ui/ProjectOperations.tsx"
 import { ProjectRuleDirtyGuard } from "../src/ui/ProjectRuleDirtyGuard.tsx"
 import { ProjectRuleNavigationSurface } from "../src/ui/ProjectRuleNavigationSurface.tsx"
-import { repoRoot } from "./support/paths.ts"
 
 it("requires explicit discard or cancel before leaving authored rule edits", () => {
   // Given / When
@@ -44,26 +42,67 @@ it("keeps the exact unsaved rule draft mounted while navigation confirmation is 
   expect(markup).toMatch(/<div hidden=""><textarea>.*step_ticks.*2.*<\/textarea><\/div>/)
 })
 
-it("disables generation, publishing, and applying while visible rules are unsaved", async () => {
+it("disables generation, publishing, and applying while visible rules are unsaved", () => {
   // Given
-  const demo = await loadDemo(repoRoot)
-  const { audio_sha256: _audio, ...timing } = demo.document.project.music
-  const project = GenerationProjectSchema.parse({
-    schema_version: 1,
+  const project = GenerationProjectV2Schema.parse({
+    schema_version: 2,
     id: "00000000-0000-4000-8000-000000000001",
     revision: 3,
     name: "Authored rules",
     song_id: "00000000-0000-4000-8000-000000000002",
     mode: "Double",
-    timing,
-    evaluation_contract: demo.document.project.evaluation_contract,
+    chart_artist: "Stepper",
+    base_ucs_ref: null,
+    timing: {
+      schema_version: 1,
+      offset_micros: 0,
+      tempo: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          micros_per_beat: { numerator: 500_000, denominator: 1 },
+        },
+      ],
+      grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 16 }],
+      duration: { numerator: 4, denominator: 1 },
+      reference_accents: [],
+    },
+    evaluation_contract: {
+      schema_version: 2,
+      history_policy: { recent_window: 0, max_request_history: 0 },
+      foot_model: {
+        version: 1,
+        micros_per_panel_unit: 100_000,
+        bracket_setup_micros: 100_000,
+        crossover_penalty: 2,
+        bracket_penalty: 3,
+      },
+      difficulty: {
+        label: "fixture",
+        density: { minimum: 0, maximum: 100 },
+        movement: { minimum: 0, maximum: 100 },
+        brackets: { minimum: 0, maximum: 100 },
+        hold_occupancy: { minimum: 0, maximum: 100 },
+        local_load: { minimum: 0, maximum: 100 },
+        total: { minimum: 0, maximum: 100 },
+        local_windows: [],
+      },
+      intents: [],
+      budgets: {
+        max_notes: 10_000,
+        max_frames: 10_000,
+        max_dp_work: 1_000_000,
+        max_matching_work: 1_000_000,
+      },
+    },
     generation_rules: {
       schema_version: 1,
       algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: timing.duration_ticks,
-      step_ticks: timing.ticks_per_beat,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      start: { numerator: 0, denominator: 1 },
+      end: { numerator: 4, denominator: 1 },
+      step: { numerator: 1, denominator: 1 },
+      pattern: [
+        { choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }] },
+      ],
     },
     applied_components: {},
   })
@@ -73,7 +112,7 @@ it("disables generation, publishing, and applying while visible rules are unsave
     generation_rules: _projectRules,
     ...projectSummary
   } = project
-  const workspace = ProjectWorkspaceSchema.parse({
+  const workspace = BeatProjectWorkspaceSchema.parse({
     revision: 0,
     selected_project_id: project.id,
     projects: [projectSummary],

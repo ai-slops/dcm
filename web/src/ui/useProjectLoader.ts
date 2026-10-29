@@ -1,13 +1,13 @@
 import { useCallback, useRef, useState } from "react"
 
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { GenerationProjectId } from "../../shared/project-identities.ts"
 import { projectsApi } from "../api/projects-client.ts"
 import { errorMessage } from "./action-utils.ts"
 import { projectLoadIsCurrent } from "./project-manager-commands.ts"
 
 type ProjectLoaderInput = {
-  readonly onProject: (project: GenerationProject) => void
+  readonly onProject: (project: GenerationProjectV2) => void
   readonly onError: (message: string) => void
 }
 

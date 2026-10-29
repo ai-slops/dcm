@@ -1,18 +1,15 @@
-import type {
-  GenerationProjectSummary,
-  ProjectWorkspace,
-} from "../../shared/generation-projects.ts"
+import type { BeatProjectWorkspace } from "../../shared/beat-projects.ts"
 import type { GenerationProjectId } from "../../shared/project-identities.ts"
 import { Badge, Button } from "./primitives.tsx"
 
 type ProjectWorkspaceListProps = {
   readonly busy: boolean
-  readonly workspace: ProjectWorkspace
+  readonly workspace: BeatProjectWorkspace
   readonly inspectedId: GenerationProjectId | null
   readonly rulesDirty: boolean
   readonly onInspect: (id: GenerationProjectId) => void
-  readonly onSelect: (project: GenerationProjectSummary) => void
-  readonly onDelete: (project: GenerationProjectSummary) => void
+  readonly onSelect: (project: BeatProjectWorkspace["projects"][number]) => void
+  readonly onDelete: (project: BeatProjectWorkspace["projects"][number]) => void
   readonly onNew: () => void
 }
 
