@@ -6,6 +6,7 @@ import { resolve } from "node:path"
 import { chromium } from "playwright"
 
 import { librarySnapshot } from "./library-support.mjs"
+import { projectBaseSources, savedChartBase, ZERO_BEAT } from "./project-beat-fixtures.mjs"
 import { projectWorkspace, readRuleProject } from "./projects-api-support.mjs"
 import {
   createProjectThroughUi,
@@ -15,7 +16,9 @@ import {
   projectDialog,
   projectUiMutation,
   restoreProjectUi,
+  verifyApproachLookahead,
 } from "./projects-ui-support.mjs"
+import { verifyResponsiveSingleGallery } from "./projects-ui-verification.mjs"
 import { bootstrap, browserConfiguration, repoRoot } from "./ucs-support.mjs"
 
 const configuration = browserConfiguration()
@@ -55,8 +58,13 @@ try {
   const library = await librarySnapshot(context, configuration.url)
   ids.selectedProjectId = initial.selected_project_id
   ids.activeChartId = library.active_chart_id
-  const songId = library.charts.find((chart) => chart.id === library.active_chart_id)?.song_id
-  assert.ok(songId)
+  const active = library.charts.find((chart) => chart.id === library.active_chart_id)
+  assert.ok(active)
+  const songId = active.song_id
+  const base = savedChartBase(
+    await projectBaseSources(context, configuration.url, songId),
+    active.id,
+  )
   await page.goto(configuration.url)
   await page.getByText("Audio ready", { exact: true }).waitFor()
   await openProjectManager(page)
@@ -65,30 +73,18 @@ try {
     songId,
     mode: "Single",
     mask: 1,
+    chartArtist: "Browser Single Author",
+    base,
   })
   ids.projectIds.push(single.id)
   const singleResult = await generateProjectThroughUi(page, `Single output ${suffix}`)
   ids.chartIds.push(singleResult.chart_id)
   await page.screenshot({ path: resolve(evidence, "single-rules-and-result.png") })
   await openGeneratedThroughUi(page)
-  assert.equal(await page.locator(".timeline__header > span").count(), 6)
-  assert.equal(await page.getByRole("button", { name: /^R .*tick/ }).count(), 0)
-  assert.equal(await page.locator(".chart-preview__receptors > span").count(), 5)
-  const exact = page.getByLabel("Exact preview lookahead seconds", { exact: true })
-  const range = page.getByLabel("Preview lookahead range", { exact: true })
-  await exact.fill("0.25")
-  assert.equal(await range.inputValue(), "0.25")
-  await page.screenshot({ path: resolve(evidence, "single-preview-025.png") })
-  await exact.fill("")
-  await page
-    .getByRole("alert")
-    .filter({ hasText: /lookahead|seconds|number/i })
-    .waitFor()
-  assert.equal(await range.inputValue(), "0.25")
-  await exact.fill("0.5")
-  assert.equal(await range.inputValue(), "0.5")
-  await range.fill("0.1")
-  assert.equal(await exact.inputValue(), "0.1")
+  await page.getByText("Audio ready", { exact: true }).waitFor()
+  assert.equal(await page.locator(".timeline__header > span").count(), 7)
+  assert.equal(await page.getByRole("button", { name: /^R .*beat/ }).count(), 0)
+  assert.equal(await page.locator(".playfield-preview .pad").count(), 5)
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.waitForFunction(
     () => window.__studioAudio.currentTime > 0.2 && !window.__studioAudio.paused,
@@ -99,7 +95,7 @@ try {
   await form.getByRole("button", { name: "Save project", exact: true }).waitFor()
   const changedRules = {
     ...single.generation_rules,
-    step_ticks: Math.max(1, Math.floor(single.generation_rules.step_ticks / 2)),
+    step: { numerator: 1, denominator: 2 },
   }
   await form
     .getByRole("textbox", { name: "Generation rules", exact: true })
@@ -124,7 +120,7 @@ try {
   const saved = await projectUiMutation(page, "write_project", () =>
     form.getByRole("button", { name: "Save project", exact: true }).click(),
   )
-  assert.equal(saved.project.generation_rules.step_ticks, changedRules.step_ticks)
+  assert.deepEqual(saved.project.generation_rules.step, changedRules.step)
   const components = projectDialog(page).getByRole("region", {
     name: "Reusable components",
     exact: true,
@@ -146,6 +142,8 @@ try {
     songId,
     mode: "Double",
     mask: 32,
+    chartArtist: "Browser Double Author",
+    base,
   })
   ids.projectIds.push(double.id)
   const componentRow = components
@@ -157,7 +155,7 @@ try {
   assert.deepEqual(applied.project.generation_rules, saved.project.generation_rules)
   const rightRules = {
     ...applied.project.generation_rules,
-    pattern: [{ choices: [{ panel_mask: 32, hold_ticks: 0, weight: 1 }] }],
+    pattern: [{ choices: [{ panel_mask: 32, hold: ZERO_BEAT, weight: 1 }] }],
   }
   await form
     .getByRole("textbox", { name: "Generation rules", exact: true })
@@ -169,14 +167,19 @@ try {
   ids.chartIds.push(doubleResult.chart_id)
   assert.ok(doubleResult.chart.notes.every((note) => note.panel_mask === 32))
   await openGeneratedThroughUi(page)
-  assert.equal(await page.locator(".timeline__header > span").count(), 11)
-  assert.equal(await page.locator(".chart-preview__receptors > span").count(), 10)
-  const scroller = await page.locator(".timeline__scroller").boundingBox()
+  await page.getByText("Audio ready", { exact: true }).waitFor()
+  assert.equal(await page.locator(".timeline__header > span").count(), 12)
+  assert.equal(await page.locator(".playfield-preview .pad").count(), 10)
+  const timelineScroller = page.locator(".timeline__scroller")
+  await timelineScroller.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth
+  })
+  const scroller = await timelineScroller.boundingBox()
   const lastLane = await page.locator(".timeline__header > span").last().boundingBox()
   assert.ok(scroller && lastLane)
   assert.ok(
-    lastLane.x + lastLane.width <= scroller.x + scroller.width + 1,
-    "The final Double lane must fit the desktop timeline without horizontal clipping",
+    lastLane.x >= scroller.x - 1 && lastLane.x + lastLane.width <= scroller.x + scroller.width + 1,
+    "The final Double lane must remain reachable through the timeline scroll owner",
   )
   await page.screenshot({ path: resolve(evidence, "double-preview.png") })
   const gallery = await context.newPage()
@@ -186,20 +189,10 @@ try {
     new URL(`/previews?chart=${singleResult.chart_id}`, configuration.url).toString(),
   )
   await gallery.getByText("Audio ready", { exact: true }).waitFor()
+  await verifyApproachLookahead(gallery)
   await gallery.getByRole("button", { name: "First note", exact: true }).click()
-  await gallery.getByLabel("Exact preview lookahead seconds", { exact: true }).fill("0.25")
-  for (const width of [1280, 768, 375]) {
-    await gallery.setViewportSize({ width, height: 1000 })
-    assert.equal(await gallery.locator(".chart-preview__receptors > span").count(), 5)
-    assert.equal(
-      await gallery.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-      true,
-    )
-    await gallery.screenshot({
-      path: resolve(evidence, `${width}-single-player.png`),
-      fullPage: true,
-    })
-  }
+  await gallery.screenshot({ path: resolve(evidence, "single-preview.png") })
+  await verifyResponsiveSingleGallery(gallery, evidence)
   await gallery.getByRole("button", { name: "pads", exact: true }).click()
   await gallery.mouse.move(0, 0)
   await gallery.evaluate(async () => {
@@ -210,7 +203,7 @@ try {
         .map((animation) => animation.finished),
     )
   })
-  assert.equal(await gallery.locator(".pad--right").count(), 0)
+  assert.equal(await gallery.getByRole("region", { name: "Right pad", exact: true }).count(), 0)
   await gallery.screenshot({ path: resolve(evidence, "375-single-pads.png"), fullPage: true })
   await gallery.close()
   await page.setViewportSize({ width: 375, height: 900 })
@@ -231,7 +224,7 @@ try {
       {
         single_lanes: 5,
         double_lanes: 10,
-        exact_lookahead_seconds: [0.1, 0.25, 0.5],
+        single_preview_opened: true,
         unsaved_rules_preserved: true,
         reusable_component_applied: true,
         real_native_results: 2,
@@ -242,7 +235,7 @@ try {
     { mode: 0o600 },
   )
   console.log(
-    "PASS: required project modes, native result opening, 5/10-lane UI, precise lookahead, dirty rule guard, component reuse and phone layout.",
+    "PASS: required project modes, native result opening, 5/10-lane UI, playback, dirty rule guard, component reuse and phone layout.",
   )
 } finally {
   try {

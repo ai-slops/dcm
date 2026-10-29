@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 
 import { ProjectMutationSchema } from "../../shared/project-commands.ts"
 import { librarySnapshot } from "./library-support.mjs"
+import { sourceKey, weightedRules } from "./project-beat-fixtures.mjs"
 import { cleanProjectArtifacts } from "./projects-api-support.mjs"
 import { bootstrap } from "./ucs-support.mjs"
 
@@ -35,6 +36,10 @@ export async function createProjectThroughUi(page, input) {
   assert.equal(await form.getByRole("combobox", { name: "Mode", exact: true }).inputValue(), "")
   await form.getByRole("combobox", { name: "Song", exact: true }).selectOption(input.songId)
   await form.getByRole("combobox", { name: "Mode", exact: true }).selectOption(input.mode)
+  await form.getByRole("textbox", { name: "Chart artist", exact: true }).fill(input.chartArtist)
+  const base = form.getByRole("combobox", { name: "Base timing source", exact: true })
+  assert.equal(await base.inputValue(), "")
+  await base.selectOption(sourceKey(input.base.ref))
   await page.waitForFunction(() => {
     const form = document.querySelector("dialog[open] .project-editor")
     return form !== null && !form.querySelector('button[type="submit"]').disabled
@@ -42,14 +47,9 @@ export async function createProjectThroughUi(page, input) {
   const timing = JSON.parse(
     await form.getByRole("textbox", { name: "Timing", exact: true }).inputValue(),
   )
-  const rules = {
-    schema_version: 1,
-    algorithm: "weighted_cycle_v1",
-    start_tick: 0,
-    end_tick: Math.min(timing.duration_ticks, timing.ticks_per_beat * 8),
-    step_ticks: timing.ticks_per_beat,
-    pattern: [{ choices: [{ panel_mask: input.mask, hold_ticks: 0, weight: 1 }] }],
-  }
+  assert.equal(timing.duration, null)
+  assert.ok(input.base.timing.duration)
+  const rules = weightedRules({ end: input.base.timing.duration, panelMask: input.mask })
   await form
     .getByRole("textbox", { name: "Generation rules", exact: true })
     .fill(JSON.stringify(rules, null, 2))
@@ -84,6 +84,20 @@ export async function openGeneratedThroughUi(page) {
     .click()
   assert.equal((await pending).status(), 200)
   await projectDialog(page).waitFor({ state: "hidden" })
+}
+
+export async function verifyApproachLookahead(page) {
+  const exact = page.getByLabel("Exact preview lookahead seconds", { exact: true })
+  const range = page.getByLabel("Preview lookahead range", { exact: true })
+  await exact.fill("0.25")
+  assert.equal(await range.inputValue(), "0.25")
+  await exact.fill("0.5")
+  assert.equal(await range.inputValue(), "0.5")
+  await exact.fill("0.26")
+  assert.equal(await exact.inputValue(), "0.26")
+  assert.equal(await range.inputValue(), "0.5")
+  await page.getByRole("alert").filter({ hasText: "increments of 0.05" }).waitFor()
+  await exact.fill("4")
 }
 
 export async function restoreProjectUi(context, url, ids) {
