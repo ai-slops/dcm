@@ -41,21 +41,22 @@ describe("StudioStore durability", () => {
     const previous = store.audio()
     const replacement = Uint8Array.from(demo.audio)
     replacement[replacement.length - 1] = (replacement.at(-1) ?? 0) ^ 1
-    const digest = createHash("sha256").update(replacement).digest()
+    const digest = createHash("sha256").update(replacement).digest("hex")
+    const current = store.document()
     const project = {
-      ...demo.document.project,
-      music: { ...demo.document.project.music, audio_sha256: [...digest] },
+      ...current.project,
+      audio_sha256: digest,
     }
     await unlink(join(root, "document.json"))
     await mkdir(join(root, "document.json"))
 
     // When
-    const replaced = store.replace(demo.document.revision, project, replacement)
+    const replaced = store.replace(current.revision, project, replacement)
 
     // Then
     await expect(replaced).rejects.toBeInstanceOf(Error)
     expect(store.audio()).toEqual(previous)
-    expect(store.document()).toEqual(demo.document)
+    expect(store.document()).toEqual(current)
   })
 })
 

@@ -2,36 +2,41 @@ import { createHash } from "node:crypto"
 import { mkdir, readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import type {
-  GenerationProject,
-  ProjectWorkspace,
-  ReusableComponent,
-} from "../shared/generation-projects.ts"
-import { ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
-import type { CurrentDocument, StudioProjectV1 } from "../shared/index.ts"
+  BeatCurrentDocument,
+  BeatReusableComponent,
+  GenerationProjectV2,
+} from "../shared/beat-projects.ts"
+import { BeatCurrentDocumentSchema, BeatProjectWorkspaceSchema } from "../shared/beat-projects.ts"
 import type { ChartId, LibraryChartDocument, LibrarySnapshot } from "../shared/library.ts"
+import { LibrarySnapshotSchema } from "../shared/library.ts"
 import type { ComponentId, GenerationProjectId } from "../shared/project-identities.ts"
 import { StudioError } from "./errors.ts"
 import { type AssetWrite, atomicState, readAsset, writeAsset } from "./library/assets.ts"
-import { hexDigest } from "./library/chart-summary.ts"
-import { replaceDocumentMutation, saveDocumentMutation } from "./library/document-mutations.ts"
-import { currentDocument } from "./library/document-view.ts"
+import {
+  replaceBeatDocumentMutation,
+  saveBeatDocumentMutation,
+} from "./library/document-mutations-v4.ts"
+import { migrateV3ToV4 } from "./library/migrate-v3-v4.ts"
 import { migrateV2ToV3 } from "./library/migration.ts"
 import {
   initialState,
   LegacyCurrentDocumentSchema,
   PersistedStateV2Schema,
-  type PersistedStateV3,
   PersistedStateV3Schema,
-  chartDocument as projectForChart,
-  snapshot,
 } from "./library/state.ts"
-import { componentSummary, projectSummary } from "./projects/views.ts"
+import { type PersistedStateV4, PersistedStateV4Schema } from "./library/state-v4.ts"
+import {
+  type AudioRecord,
+  activeChart,
+  assertAudio,
+  assertLegacyAudio,
+  audioRecord,
+  audioWrite,
+  cloneAudio,
+  initialBeatState,
+} from "./store-support.ts"
 
-export type AudioRecord = {
-  readonly bytes: Uint8Array
-  readonly digest: string
-  readonly format: "wav" | "ogg" | "mp3"
-}
+export type { AudioRecord } from "./store-support.ts"
 
 export type StoreMutation<T> = {
   readonly state: unknown
@@ -41,13 +46,13 @@ export type StoreMutation<T> = {
 
 export class StudioStore {
   readonly #documentPath: string
-  #state: PersistedStateV3
+  #state: PersistedStateV4
   #audio: AudioRecord
   #tail = Promise.resolve()
 
   private constructor(
     readonly root: string,
-    state: PersistedStateV3,
+    state: PersistedStateV4,
     audio: AudioRecord,
   ) {
     this.#documentPath = resolve(root, "document.json")
@@ -55,40 +60,51 @@ export class StudioStore {
     this.#audio = audio
   }
 
-  static async open(
-    root: string,
-    initial: CurrentDocument,
-    audio: Uint8Array,
-  ): Promise<StudioStore> {
+  static async open(root: string, initial: unknown, audio: Uint8Array): Promise<StudioStore> {
     await Promise.all([
       mkdir(resolve(root, "audio"), { recursive: true }),
       mkdir(resolve(root, "archives"), { recursive: true }),
     ])
-    const initialAudio = audioRecord(audio, initial.project.audio_asset.format)
-    assertAudio(initial.project, initialAudio)
-    let state: PersistedStateV3
+    const beatInitial = BeatCurrentDocumentSchema.safeParse(initial)
+    const legacyInitial = beatInitial.success
+      ? undefined
+      : LegacyCurrentDocumentSchema.parse(initial)
+    const initialFormat = beatInitial.success
+      ? beatInitial.data.project.audio_asset.format
+      : legacyInitial?.project.audio_asset.format
+    if (initialFormat === undefined)
+      throw new StudioError(500, "initial_document_invalid", "Initial document has no audio format")
+    const initialAudio = audioRecord(audio, initialFormat)
+    if (beatInitial.success) assertAudio(beatInitial.data.project, initialAudio)
+    else if (legacyInitial !== undefined) assertLegacyAudio(legacyInitial.project, initialAudio)
+    let state: PersistedStateV4
     let persist = false
     try {
       const parsed: unknown = JSON.parse(await readFile(resolve(root, "document.json"), "utf8"))
-      const current = PersistedStateV3Schema.safeParse(parsed)
+      const current = PersistedStateV4Schema.safeParse(parsed)
       if (current.success) state = current.data
       else {
-        const previous = PersistedStateV2Schema.safeParse(parsed)
-        state = previous.success
-          ? migrateV2ToV3(previous.data)
-          : initialState(LegacyCurrentDocumentSchema.parse(parsed))
+        const v3 = PersistedStateV3Schema.safeParse(parsed)
+        const v2 = PersistedStateV2Schema.safeParse(parsed)
+        state = v3.success
+          ? migrateV3ToV4(v3.data)
+          : v2.success
+            ? migrateV3ToV4(migrateV2ToV3(v2.data))
+            : migrateV3ToV4(initialState(LegacyCurrentDocumentSchema.parse(parsed)))
         persist = true
       }
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error
-      state = initialState(initial)
+      state = beatInitial.success
+        ? initialBeatState(beatInitial.data)
+        : migrateV3ToV4(initialState(LegacyCurrentDocumentSchema.parse(legacyInitial)))
       persist = true
       await writeAsset(root, audioWrite(initialAudio))
     }
     const active = state.library.charts.find((chart) => chart.id === state.library.active_chart_id)
     if (active === undefined)
       throw new StudioError(500, "library_corrupt", "Active chart is missing")
-    const digest = hexDigest(active.project.music.audio_sha256)
+    const digest = active.project.audio_sha256
     const bytes = await readAsset(root, {
       directory: "audio",
       digest,
@@ -100,37 +116,52 @@ export class StudioStore {
     return new StudioStore(root, state, persistedAudio)
   }
 
-  document(): CurrentDocument {
-    return structuredClone(currentDocument(this.#state))
+  document(): BeatCurrentDocument {
+    return structuredClone(this.#state.document)
   }
 
   library(): LibrarySnapshot {
-    return structuredClone(snapshot(this.#state))
+    return structuredClone(
+      LibrarySnapshotSchema.parse({
+        ...this.#state.library,
+        charts: this.#state.library.charts.map(({ project: _project, ...chart }) => chart),
+      }),
+    )
   }
 
-  projects(): ProjectWorkspace {
-    return ProjectWorkspaceSchema.parse({
+  projects() {
+    return BeatProjectWorkspaceSchema.parse({
       revision: this.#state.projects.revision,
       selected_project_id: this.#state.projects.selected_project_id,
-      projects: this.#state.projects.records.map(projectSummary),
-      components: this.#state.projects.components.map(componentSummary),
+      projects: this.#state.projects.records.map(
+        ({
+          timing: _timing,
+          evaluation_contract: _evaluation,
+          generation_rules: _rules,
+          ...summary
+        }) => summary,
+      ),
+      components: this.#state.projects.components,
     })
   }
 
-  generationProject(id: GenerationProjectId): GenerationProject | undefined {
+  generationProject(id: GenerationProjectId): GenerationProjectV2 | undefined {
     const project = this.#state.projects.records.find((candidate) => candidate.id === id)
     return project === undefined ? undefined : structuredClone(project)
   }
 
-  reusableComponent(id: ComponentId): ReusableComponent | undefined {
+  reusableComponent(id: ComponentId): BeatReusableComponent | undefined {
     const component = this.#state.projects.components.find((candidate) => candidate.id === id)
     return component === undefined ? undefined : structuredClone(component)
   }
 
   chartDocument(id: ChartId): LibraryChartDocument {
-    const result = projectForChart(this.#state, id)
-    if (result === undefined) throw new StudioError(404, "chart_not_found", "Chart was not found")
-    return structuredClone(result)
+    const stored = this.#state.library.charts.find((chart) => chart.id === id)
+    if (stored === undefined) throw new StudioError(404, "chart_not_found", "Chart was not found")
+    const song = this.#state.library.songs.find((candidate) => candidate.id === stored.song_id)
+    if (song === undefined) throw new StudioError(500, "library_corrupt", "Chart song is missing")
+    const { project, ...chart } = stored
+    return structuredClone({ chart, song, project })
   }
 
   audio(): AudioRecord {
@@ -166,9 +197,9 @@ export class StudioStore {
     return bytes
   }
 
-  save(baseRevision: number, projectInput: unknown): Promise<CurrentDocument> {
+  save(baseRevision: number, projectInput: unknown): Promise<BeatCurrentDocument> {
     return this.transact(undefined, (state) =>
-      saveDocumentMutation(state, baseRevision, projectInput),
+      saveBeatDocumentMutation(state, baseRevision, projectInput),
     )
   }
 
@@ -176,15 +207,15 @@ export class StudioStore {
     baseRevision: number,
     projectInput: unknown,
     bytes: Uint8Array,
-  ): Promise<CurrentDocument> {
+  ): Promise<BeatCurrentDocument> {
     return this.transact(undefined, (state) =>
-      replaceDocumentMutation(state, baseRevision, projectInput, bytes),
+      replaceBeatDocumentMutation(state, baseRevision, projectInput, bytes),
     )
   }
 
   transact<T>(
     libraryRevision: number | undefined,
-    operation: (state: PersistedStateV3) => StoreMutation<T> | Promise<StoreMutation<T>>,
+    operation: (state: PersistedStateV4) => StoreMutation<T> | Promise<StoreMutation<T>>,
     commitSignal?: AbortSignal,
   ): Promise<T> {
     return this.#serialized(async () => {
@@ -196,12 +227,12 @@ export class StudioStore {
           this.#state.library.revision,
         )
       const mutation = await operation(structuredClone(this.#state))
-      const next = PersistedStateV3Schema.parse(mutation.state)
+      const next = PersistedStateV4Schema.parse(mutation.state)
       for (const asset of mutation.assets ?? []) await writeAsset(this.root, asset)
       const active = activeChart(next)
       const bytes = await readAsset(this.root, {
         directory: "audio",
-        digest: hexDigest(active.project.music.audio_sha256),
+        digest: active.project.audio_sha256,
         extension: active.project.audio_asset.format,
       })
       const nextAudio = audioRecord(bytes, active.project.audio_asset.format)
@@ -222,36 +253,4 @@ export class StudioStore {
     )
     return result
   }
-}
-
-function activeChart(state: PersistedStateV3) {
-  const chart = state.library.charts.find(
-    (candidate) => candidate.id === state.library.active_chart_id,
-  )
-  if (chart === undefined) throw new StudioError(500, "library_corrupt", "Active chart is missing")
-  return chart
-}
-
-function audioRecord(bytes: Uint8Array, format: AudioRecord["format"]): AudioRecord {
-  return {
-    bytes: Uint8Array.from(bytes),
-    digest: createHash("sha256").update(bytes).digest("hex"),
-    format,
-  }
-}
-
-function audioWrite(audio: AudioRecord): AssetWrite {
-  return { directory: "audio", digest: audio.digest, extension: audio.format, bytes: audio.bytes }
-}
-
-function assertAudio(project: StudioProjectV1, audio: AudioRecord): void {
-  if (
-    audio.digest !== hexDigest(project.music.audio_sha256) ||
-    audio.bytes.byteLength !== project.audio_asset.byte_length
-  )
-    throw new StudioError(500, "audio_corrupt", "Audio bytes differ from project metadata")
-}
-
-function cloneAudio(audio: AudioRecord): AudioRecord {
-  return { ...audio, bytes: Uint8Array.from(audio.bytes) }
 }

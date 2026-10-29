@@ -5,8 +5,10 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { loadDemo } from "../../server/demo.ts"
-import { chartSummary } from "../../server/library/chart-summary.ts"
+import { migrateLegacyChart } from "../../server/library/legacy-beat-migration.ts"
 import { LibraryService } from "../../server/library/service.ts"
+import { initialState } from "../../server/library/state.ts"
+import { beatChartSummary } from "../../server/library/state-v4.ts"
 import { StudioStore } from "../../server/store.ts"
 import { LibraryCommandSchema, NewSongSchema } from "../../shared/library-commands.ts"
 import { repoRoot } from "../support/paths.ts"
@@ -21,18 +23,14 @@ describe("Studio library persistence", () => {
   it("summarizes panel contacts rather than grouped note records", async () => {
     // Given
     const demo = await loadDemo(repoRoot)
+    const migrated = migrateLegacyChart(demo.document.project)
     const project = {
-      ...demo.document.project,
-      chart: {
-        ...demo.document.project.chart,
-        notes: demo.document.project.chart.notes.map((note, index) =>
-          index === 0 ? { ...note, panel_mask: 3 } : note,
-        ),
-      },
+      ...migrated,
+      notes: migrated.notes.map((note, index) => (index === 0 ? { ...note, panel_mask: 3 } : note)),
     }
 
     // When
-    const summary = chartSummary(project)
+    const summary = beatChartSummary(project)
 
     // Then
     expect(summary.note_count).toBe(5)
@@ -45,20 +43,18 @@ describe("Studio library persistence", () => {
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     await StudioStore.open(root, demo.document, demo.audio)
-    const legacy = JSON.parse(await readFile(join(root, "document.json"), "utf8"))
-    await writeFile(join(root, "document.json"), `${JSON.stringify(legacy.document)}\n`)
+    await writeFile(join(root, "document.json"), `${JSON.stringify(demo.document)}\n`)
 
     // When
     const migrated = await StudioStore.open(root, demo.document, demo.audio)
 
     // Then
-    expect(migrated.document()).toEqual(demo.document)
+    expect(migrated.document().project).toEqual(migrateLegacyChart(demo.document.project))
     expect(migrated.library().songs).toHaveLength(1)
     expect(migrated.library().charts).toHaveLength(1)
     expect(migrated.library().active_chart_id).toBe(migrated.library().charts[0]?.id)
     expect(JSON.parse(await readFile(join(root, "document.json"), "utf8"))).toMatchObject({
-      version: 3,
-      document: demo.document,
+      version: 4,
       projects: { revision: 0, selected_project_id: null, records: [], components: [] },
     })
   })
@@ -70,17 +66,18 @@ describe("Studio library persistence", () => {
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
     const active = store.library().active_chart_id
+    const current = store.document()
     const project = {
-      ...demo.document.project,
-      chart: { ...demo.document.project.chart, notes: [] },
+      ...current.project,
+      notes: [],
     }
 
     // When
-    const saved = await store.save(demo.document.revision, project)
+    const saved = await store.save(current.revision, project)
 
     // Then
     expect(saved.revision).toBe(1)
-    expect(store.chartDocument(active).project.chart.notes).toEqual([])
+    expect(store.chartDocument(active).project.notes).toEqual([])
   })
 
   it("rejects changing canonical UCS mode through normal save", async () => {
@@ -89,10 +86,11 @@ describe("Studio library persistence", () => {
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
+    const current = store.document()
 
     const changed = store.save(store.document().revision, {
-      ...demo.document.project,
-      ucs_mode: "Single",
+      ...current.project,
+      mode: "Single",
     })
 
     // Then
@@ -121,7 +119,7 @@ describe("Studio library persistence", () => {
     )
 
     // When
-    await store.save(0, { ...demo.document.project, title: "Older document rename" })
+    await store.save(0, { ...store.document().project, title: "Older document rename" })
 
     // Then
     expect(store.library().songs[0]).toMatchObject({
@@ -152,14 +150,11 @@ describe("Studio library persistence", () => {
     )
 
     // When
-    const restored = await store.replace(
-      store.document().revision,
-      demo.document.project,
-      demo.audio,
-    )
+    const original = migrateLegacyChart(demo.document.project)
+    const restored = await store.replace(store.document().revision, original, demo.audio)
 
     // Then
-    expect(restored.project).toEqual(demo.document.project)
+    expect(restored.project).toEqual(original)
     expect(store.chartDocument(store.library().active_chart_id).chart.mode).toBe("Double")
   })
 
@@ -170,9 +165,7 @@ describe("Studio library persistence", () => {
     const demo = await loadDemo(repoRoot)
     await StudioStore.open(root, demo.document, demo.audio)
     const path = join(root, "document.json")
-    const state = JSON.parse(await readFile(path, "utf8"))
-    state.version = 2
-    delete state.projects
+    const state = JSON.parse(JSON.stringify(initialState(demo.document)))
     state.document.project.ucs_mode = "Single"
     state.document.project.chart.notes[0].panel_mask = 32
     state.library.charts[0].mode = "Single"
