@@ -1,15 +1,17 @@
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
-import { loadDemo } from "../server/demo.ts"
 import { RevisionSchema } from "../shared/api.ts"
-import { ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
-import { LibraryRevisionSchema, LibrarySongSchema } from "../shared/library.ts"
+import { BeatProjectWorkspaceSchema } from "../shared/beat-projects.ts"
+import {
+  LibraryRevisionSchema,
+  LibrarySnapshotSchema,
+  LibrarySongSchema,
+} from "../shared/library.ts"
 import { GenerationProjectIdSchema } from "../shared/project-identities.ts"
 import { LibraryNewSongForm } from "../src/ui/LibraryNewSongForm.tsx"
 import { ProjectEditorForm } from "../src/ui/ProjectEditorForm.tsx"
 import { ProjectWorkspaceList } from "../src/ui/ProjectWorkspaceList.tsx"
-import { repoRoot } from "./support/paths.ts"
 
 it("requires an explicit mode before creating a song and its first chart", () => {
   // Given a new-song form with no prior chart mode to inherit
@@ -28,9 +30,8 @@ it("requires an explicit mode before creating a song and its first chart", () =>
   expect(markup).toContain('<option value="" selected="">Choose mode</option>')
 })
 
-it("requires selected-song timing before creating a rule project", async () => {
+it("requires selected-song timing before creating a rule project", () => {
   // Given
-  const demo = await loadDemo(repoRoot)
   const song = LibrarySongSchema.parse({
     id: "00000000-0000-4000-8000-000000000002",
     title: "Song",
@@ -42,44 +43,44 @@ it("requires selected-song timing before creating a rule project", async () => {
   const markup = renderToStaticMarkup(
     createElement(ProjectEditorForm, {
       busy: false,
-      currentChart: demo.document.project,
+      library: librarySnapshot(song),
       project: null,
-      songs: [song],
       onDirtyChange: () => undefined,
-      onLoadSongTiming: async () => {
-        const { audio_sha256: _audio, ...timing } = demo.document.project.music
-        return timing
-      },
+      onLoadBase: () => Promise.reject(new TypeError("not called during server render")),
+      onLoadBaseSources: () => Promise.resolve([]),
       onCreate: () => undefined,
       onWrite: () => undefined,
     }),
   )
 
   // Then
-  expect(markup).toContain("Choose a song to load timing")
+  expect(markup).toContain("Duration starts automatic")
+  expect(markup).toContain("no chart is selected implicitly")
+  expect(markup).toContain("Base timing source")
   expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Create project/s)
 })
 
-it("locks every rule field and project inspection control during a mutation", async () => {
+it("locks every rule field and project inspection control during a mutation", () => {
   // Given
-  const demo = await loadDemo(repoRoot)
   const song = LibrarySongSchema.parse({
     id: "00000000-0000-4000-8000-000000000002",
     title: "Song",
     artist: "Artist",
     audio: { format: "wav", byte_length: 0, sha256: "0".repeat(64) },
   })
-  const workspace = ProjectWorkspaceSchema.parse({
+  const workspace = BeatProjectWorkspaceSchema.parse({
     revision: 1,
     selected_project_id: "00000000-0000-4000-8000-000000000001",
     projects: [
       {
-        schema_version: 1,
+        schema_version: 2,
         id: "00000000-0000-4000-8000-000000000001",
         revision: 2,
         name: "Rules",
         song_id: song.id,
         mode: "Double",
+        chart_artist: "Stepper",
+        base_ucs_ref: null,
         applied_components: {},
       },
     ],
@@ -90,14 +91,11 @@ it("locks every rule field and project inspection control during a mutation", as
   const form = renderToStaticMarkup(
     createElement(ProjectEditorForm, {
       busy: true,
-      currentChart: demo.document.project,
+      library: librarySnapshot(song),
       project: null,
-      songs: [song],
       onDirtyChange: () => undefined,
-      onLoadSongTiming: async () => {
-        const { audio_sha256: _audio, ...timing } = demo.document.project.music
-        return timing
-      },
+      onLoadBase: () => Promise.reject(new TypeError("not called during server render")),
+      onLoadBaseSources: () => Promise.resolve([]),
       onCreate: () => undefined,
       onWrite: () => undefined,
     }),
@@ -148,21 +146,33 @@ async function projectFixtureForLink() {
   const id = GenerationProjectIdSchema.parse("00000000-0000-4000-8000-000000000001")
   return {
     id,
-    workspace: ProjectWorkspaceSchema.parse({
+    workspace: BeatProjectWorkspaceSchema.parse({
       revision: 1,
       selected_project_id: id,
       projects: [
         {
-          schema_version: 1,
+          schema_version: 2,
           id,
           revision: 2,
           name: "Rules",
           song_id: "00000000-0000-4000-8000-000000000002",
           mode: "Double",
+          chart_artist: "Stepper",
+          base_ucs_ref: null,
           applied_components: {},
         },
       ],
       components: [],
     }),
   }
+}
+
+function librarySnapshot(song: ReturnType<typeof LibrarySongSchema.parse>) {
+  return LibrarySnapshotSchema.parse({
+    revision: 1,
+    active_chart_id: "00000000-0000-4000-8000-000000000005",
+    songs: [song],
+    charts: [],
+    archives: [],
+  })
 }
