@@ -1,104 +1,37 @@
 import { useEffect, useState } from "react"
 
-import type { Fraction, StudioProjectV1 } from "../../shared/index.ts"
+import type { BeatChartDocument } from "../../shared/index.ts"
+import { formatBeat } from "../domain/beat-timeline.ts"
 import {
-  addTempoChange,
+  addTempoMarker,
+  type BeatDocumentEditResult,
   bpmInputValue,
-  editTempoChange,
-  removeTempoChange,
-  setChartDuration,
-  type TimingEditResult,
-} from "../domain/timing-inputs.ts"
+  removeTempoMarker,
+  setBeatDuration,
+  updateTempoMarker,
+} from "../domain/beat-timing-inputs.ts"
 import { Button, Field } from "./primitives.tsx"
 
 type TimingEditorProps = {
-  readonly project: StudioProjectV1
-  readonly replaceProject: (project: StudioProjectV1) => void
-}
-
-type TempoRowProps = {
-  readonly project: StudioProjectV1
-  readonly index: number
-  readonly startTick: number
-  readonly microsPerBeat: Fraction
-  readonly commit: (result: TimingEditResult) => void
-}
-
-function TempoRow(props: TempoRowProps) {
-  const [tickInput, setTickInput] = useState(String(props.startTick))
-  const [bpmInput, setBpmInput] = useState(() => bpmInputValue(props.microsPerBeat))
-
-  useEffect(() => {
-    setTickInput(String(props.startTick))
-    setBpmInput(bpmInputValue(props.microsPerBeat))
-  }, [props.startTick, props.microsPerBeat])
-
-  return (
-    <form
-      className="inspector-stack"
-      onSubmit={(event) => {
-        event.preventDefault()
-        props.commit(
-          editTempoChange(props.project, {
-            originalTick: props.startTick,
-            tick: tickInput,
-            bpm: bpmInput,
-          }),
-        )
-      }}
-    >
-      <strong>Tempo marker {props.index + 1}</strong>
-      <Field
-        label="Start tick"
-        {...(props.startTick === 0 ? { help: "The base marker must stay at tick 0." } : {})}
-      >
-        <input
-          className="mono"
-          disabled={props.startTick === 0}
-          inputMode="numeric"
-          value={tickInput}
-          onChange={(event) => setTickInput(event.currentTarget.value)}
-        />
-      </Field>
-      <Field
-        label={props.startTick === 0 ? "Base BPM" : "BPM"}
-        help={`Stored exactly as ${props.microsPerBeat.numerator}/${props.microsPerBeat.denominator} microseconds per beat.`}
-      >
-        <input
-          className="mono"
-          inputMode="decimal"
-          value={bpmInput}
-          onChange={(event) => setBpmInput(event.currentTarget.value)}
-        />
-      </Field>
-      <div className="cluster">
-        <Button type="submit">Update marker</Button>
-        {props.startTick === 0 ? null : (
-          <Button
-            type="button"
-            variant="danger"
-            onClick={() => props.commit(removeTempoChange(props.project, props.startTick))}
-          >
-            Remove marker
-          </Button>
-        )}
-      </div>
-    </form>
-  )
+  readonly project: BeatChartDocument
+  readonly replaceProject: (project: BeatChartDocument) => void
 }
 
 export function TimingEditor(props: TimingEditorProps) {
-  const [durationInput, setDurationInput] = useState(String(props.project.chart.span_ticks))
-  const [newTickInput, setNewTickInput] = useState("")
-  const [newBpmInput, setNewBpmInput] = useState("")
+  const [duration, setDuration] = useState(
+    props.project.timing.duration === null ? "" : formatBeat(props.project.timing.duration),
+  )
+  const [newAt, setNewAt] = useState("")
+  const [newBpm, setNewBpm] = useState("")
   const [error, setError] = useState("")
 
-  useEffect(
-    () => setDurationInput(String(props.project.chart.span_ticks)),
-    [props.project.chart.span_ticks],
-  )
+  useEffect(() => {
+    setDuration(
+      props.project.timing.duration === null ? "" : formatBeat(props.project.timing.duration),
+    )
+  }, [props.project.timing.duration])
 
-  function commit(result: TimingEditResult): void {
+  function commit(result: BeatDocumentEditResult): void {
     if (result.kind === "error") {
       setError(result.message)
       return
@@ -108,61 +41,64 @@ export function TimingEditor(props: TimingEditorProps) {
   }
 
   return (
-    <section className="inspector-stack" aria-label="Chart timing">
+    <section className="inspector-stack" aria-label="Beat timing">
       <form
         className="inspector-stack"
         onSubmit={(event) => {
           event.preventDefault()
-          commit(setChartDuration(props.project, durationInput))
+          commit(setBeatDuration(props.project, duration))
         }}
       >
-        <Field label="Chart duration" help="Ticks. Updates music duration and chart span together.">
+        <Field
+          label="Explicit duration"
+          help="Exact beat fraction. Leave empty for automatic extent."
+        >
           <input
             className="mono"
-            inputMode="numeric"
-            value={durationInput}
-            onChange={(event) => setDurationInput(event.currentTarget.value)}
+            inputMode="text"
+            placeholder="Automatic"
+            value={duration}
+            onChange={(event) => setDuration(event.currentTarget.value)}
           />
         </Field>
-        <Button type="submit">Set duration</Button>
+        <Button type="submit">Set duration policy</Button>
       </form>
-      {props.project.music.tempo.map((segment, index) => (
+      {props.project.timing.tempo.map((segment, index) => (
         <TempoRow
-          commit={commit}
+          key={`${segment.at.numerator}/${segment.at.denominator}`}
           index={index}
-          key={segment.start_tick}
-          microsPerBeat={segment.micros_per_beat}
-          project={props.project}
-          startTick={segment.start_tick}
+          at={formatBeat(segment.at)}
+          bpm={bpmInputValue(segment.micros_per_beat)}
+          onUpdate={(at, bpm) => commit(updateTempoMarker(props.project, index, at, bpm))}
+          onRemove={() => commit(removeTempoMarker(props.project, index))}
         />
       ))}
       <form
         className="inspector-stack"
         onSubmit={(event) => {
           event.preventDefault()
-          const result = addTempoChange(props.project, newTickInput, newBpmInput)
+          const result = addTempoMarker(props.project, newAt, newBpm)
           commit(result)
           if (result.kind === "success") {
-            setNewTickInput("")
-            setNewBpmInput("")
+            setNewAt("")
+            setNewBpm("")
           }
         }}
       >
         <strong>Add tempo change</strong>
-        <Field label="New marker tick">
+        <Field label="Marker beat">
           <input
             className="mono"
-            inputMode="numeric"
-            value={newTickInput}
-            onChange={(event) => setNewTickInput(event.currentTarget.value)}
+            value={newAt}
+            onChange={(event) => setNewAt(event.currentTarget.value)}
           />
         </Field>
-        <Field label="New marker BPM" help="Positive, up to 1000, with at most 6 decimal places.">
+        <Field label="Marker BPM">
           <input
             className="mono"
             inputMode="decimal"
-            value={newBpmInput}
-            onChange={(event) => setNewBpmInput(event.currentTarget.value)}
+            value={newBpm}
+            onChange={(event) => setNewBpm(event.currentTarget.value)}
           />
         </Field>
         <Button type="submit">Add marker</Button>
@@ -173,5 +109,58 @@ export function TimingEditor(props: TimingEditorProps) {
         </p>
       )}
     </section>
+  )
+}
+
+function TempoRow(props: {
+  readonly index: number
+  readonly at: string
+  readonly bpm: string
+  readonly onUpdate: (at: string, bpm: string) => void
+  readonly onRemove: () => void
+}) {
+  const [at, setAt] = useState(props.at)
+  const [bpm, setBpm] = useState(props.bpm)
+  useEffect(() => {
+    setAt(props.at)
+    setBpm(props.bpm)
+  }, [props.at, props.bpm])
+  return (
+    <form
+      className="inspector-stack"
+      onSubmit={(event) => {
+        event.preventDefault()
+        props.onUpdate(at, bpm)
+      }}
+    >
+      <strong>Tempo marker {props.index + 1}</strong>
+      <Field
+        label="Start beat"
+        {...(props.index === 0 ? { help: "The base marker stays at beat zero." } : {})}
+      >
+        <input
+          className="mono"
+          disabled={props.index === 0}
+          value={at}
+          onChange={(event) => setAt(event.currentTarget.value)}
+        />
+      </Field>
+      <Field label="BPM">
+        <input
+          className="mono"
+          inputMode="decimal"
+          value={bpm}
+          onChange={(event) => setBpm(event.currentTarget.value)}
+        />
+      </Field>
+      <div className="cluster">
+        <Button type="submit">Update marker</Button>
+        {props.index === 0 ? null : (
+          <Button type="button" variant="danger" onClick={props.onRemove}>
+            Remove marker
+          </Button>
+        )}
+      </div>
+    </form>
   )
 }

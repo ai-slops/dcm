@@ -1,10 +1,16 @@
 import { useState } from "react"
 
 import type {
+  BeatChartDocument,
   ChartProposal,
   EvaluationResponse,
+  NativeCapability,
   Revision,
-  StudioProjectV1,
+} from "../../shared/index.ts"
+import {
+  nativeEvaluationExtentCapability,
+  projectBeatChartNative,
+  resolveChartOutputTiming,
 } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
@@ -17,7 +23,7 @@ type NativeActionsProps = {
   readonly nativeMessage: string
   readonly nativeReady: boolean
   readonly open: boolean
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly revision: Revision
   readonly onClose: () => void
   readonly onOpenProjects: () => void
@@ -40,7 +46,22 @@ export function NativeActionsDialog(props: NativeActionsProps) {
     readonly text: string
   } | null>(null)
   const persisted = !props.dirty
-  const single = props.project.ucs_mode === "Single"
+  const single = props.project.mode === "Single"
+  const chart = {
+    mode: props.project.mode,
+    timing: props.project.timing,
+    notes: props.project.notes,
+  }
+  const projection = projectBeatChartNative(chart, digestBytes(props.project.audio_sha256))
+  const outputTiming = resolveChartOutputTiming(chart)
+  const evaluationCapability =
+    outputTiming === null || outputTiming.duration === null
+      ? null
+      : nativeEvaluationExtentCapability(props.project.evaluation_contract, outputTiming.duration)
+  const capability =
+    projection.kind === "unsupported" ? projection.capability : evaluationCapability
+  const nativeCapable = projection.kind === "supported" && capability === null
+  const capabilityMessage = capability === null ? "" : nativeCapabilityMessage(capability)
   const currentResult = !props.dirty && result?.revision === props.revision ? result.text : ""
 
   async function runNative(
@@ -69,6 +90,11 @@ export function NativeActionsDialog(props: NativeActionsProps) {
     >
       <div className="action-dialog__body">
         <p className="status-copy">{props.nativeMessage}</p>
+        {capabilityMessage === "" ? null : (
+          <p className="status-copy" role="status">
+            {capabilityMessage} Editing and direct UCS export remain available.
+          </p>
+        )}
         {single ? (
           <p className="status-copy">
             Single charts do not use legacy proposal generation or Pump Double SSC ZIP export. Use a
@@ -93,7 +119,13 @@ export function NativeActionsDialog(props: NativeActionsProps) {
             </>
           ) : (
             <Button
-              disabled={!persisted || !props.nativeReady || seed.length !== 64 || busy !== null}
+              disabled={
+                !persisted ||
+                !props.nativeReady ||
+                !nativeCapable ||
+                seed.length !== 64 ||
+                busy !== null
+              }
               onClick={() =>
                 void runNative("generate", async () => {
                   const proposal = await studioApi.generate(props.csrfToken, {
@@ -112,7 +144,7 @@ export function NativeActionsDialog(props: NativeActionsProps) {
             </Button>
           )}
           <Button
-            disabled={!persisted || !props.nativeReady || busy !== null}
+            disabled={!persisted || !props.nativeReady || !nativeCapable || busy !== null}
             onClick={() =>
               void runNative("evaluate", async () => {
                 const evaluation = await studioApi.evaluate(props.csrfToken, {
@@ -129,6 +161,7 @@ export function NativeActionsDialog(props: NativeActionsProps) {
               disabled={
                 !persisted ||
                 !props.nativeReady ||
+                !nativeCapable ||
                 props.project.audio_asset.byte_length === 0 ||
                 busy !== null
               }
@@ -151,4 +184,23 @@ export function NativeActionsDialog(props: NativeActionsProps) {
       </div>
     </ActionDialog>
   )
+}
+
+function digestBytes(digest: string): readonly number[] {
+  return Array.from({ length: 32 }, (_, index) =>
+    Number.parseInt(digest.slice(index * 2, index * 2 + 2), 16),
+  )
+}
+
+function nativeCapabilityMessage(capability: NativeCapability): string {
+  switch (capability.code) {
+    case "native_duration_unresolved":
+      return "Set a concrete duration before native evaluation, generation, or export."
+    case "native_grid_unsupported":
+      return `Exact native projection requires ${capability.required_tpb} ticks per beat; the native limit is ${capability.limit}.`
+    case "native_limit_unsupported":
+      return `Exact native ${capability.field} ${capability.value} exceeds the limit ${capability.limit}.`
+    case "native_evaluation_extent_unsupported":
+      return capability.message
+  }
 }
