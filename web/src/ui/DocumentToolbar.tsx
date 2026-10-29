@@ -1,10 +1,10 @@
 import { Bot, Redo2, Save, Undo2 } from "lucide-react"
 
 import type {
+  BeatChartDocument,
   Bootstrap,
   ChartProposal,
   CurrentDocument,
-  StudioProjectV1,
 } from "../../shared/index.ts"
 import { Badge, Button, IconButton } from "./primitives.tsx"
 import { StudioActions } from "./StudioActions.tsx"
@@ -12,13 +12,13 @@ import type { SaveResult } from "./studio-types.ts"
 
 type DocumentToolbarProps = {
   readonly bootstrap: Bootstrap
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly revision: CurrentDocument["revision"]
   readonly dirty: boolean
   readonly status: string
   readonly canUndo: boolean
   readonly canRedo: boolean
-  readonly setProject: (project: StudioProjectV1) => void
+  readonly setProject: (project: BeatChartDocument) => void
   readonly undo: () => void
   readonly redo: () => void
   readonly save: () => Promise<SaveResult | null>

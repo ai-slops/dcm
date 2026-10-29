@@ -1,23 +1,22 @@
 import { useMemo, useRef, useState } from "react"
 
-import type { Bootstrap, ChartProposal, CurrentDocument } from "../../shared/api.ts"
-import type { StudioProjectV1 } from "../../shared/project.ts"
+import type {
+  Beat,
+  BeatChartDocument,
+  Bootstrap,
+  ChartProposal,
+  CurrentDocument,
+} from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
-import { quantizedPlacementTick } from "../domain/edit-snap.ts"
+import { placeBeatHold, toggleBeatPanel } from "../domain/beat-editor.ts"
+import { validateRowsPerMeasureChange } from "../domain/beat-timeline.ts"
 import type { PanelIndex } from "../domain/editor.ts"
-import {
-  findPanelDemand,
-  placePanelHold,
-  togglePanelAtTick,
-  updatePanelDemand,
-} from "../domain/editor.ts"
 import { CenterStudio } from "./CenterStudio.tsx"
 import { DocumentToolbar } from "./DocumentToolbar.tsx"
 import { Inspector } from "./Inspector.tsx"
 import { type MobileTab, MobileTabs } from "./MobileTabs.tsx"
 import { StudioAgentAside } from "./StudioAgentAside.tsx"
-import { editorStateForReplacement, reconcileAppliedDocument } from "./studio-state.ts"
-import type { EditorTool } from "./studio-types.ts"
+import { reconcileAppliedDocument } from "./studio-state.ts"
 import { Transport } from "./Transport.tsx"
 import { useAudioPlayback } from "./useAudioPlayback.ts"
 import { useBeforeUnload } from "./useBeforeUnload.ts"
@@ -26,41 +25,36 @@ import { useProposalOwner } from "./useProposalOwner.ts"
 import { useRefreshedBootstrap } from "./useRefreshedBootstrap.ts"
 
 export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
-  const [project, setProjectState] = useState<StudioProjectV1>(bootstrap.document.project)
+  const [project, setProjectState] = useState<BeatChartDocument>(bootstrap.document.project)
   const projectRef = useRef(project)
-  function setProject(nextProject: StudioProjectV1) {
+  function setProject(nextProject: BeatChartDocument): void {
     projectRef.current = nextProject
     setProjectState(nextProject)
   }
   const [persistedProject, setPersistedProject] = useState(bootstrap.document.project)
   const [revision, setRevision] = useState(bootstrap.document.revision)
   const [origin, setOrigin] = useState(bootstrap.document.origin)
-  const [tool, setTool] = useState<EditorTool>("tap")
-  const [tick, setTick] = useState(0)
-  const [lane, setLane] = useState<PanelIndex>(0)
-  const [holdTicks, setHoldTicks] = useState(project.chart.ticks_per_beat)
-  const [quantize, setQuantize] = useState(1)
   const [tab, setTab] = useState<MobileTab>("editor")
+  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [status, setStatus] = useState("Ready")
   const [validationError, setValidationError] = useState("")
-  const [past, setPast] = useState<readonly StudioProjectV1[]>([])
-  const [future, setFuture] = useState<readonly StudioProjectV1[]>([])
+  const [past, setPast] = useState<readonly BeatChartDocument[]>([])
+  const [future, setFuture] = useState<readonly BeatChartDocument[]>([])
   const playback = useAudioPlayback(project)
   const dirty = useMemo(
     () => JSON.stringify(project) !== JSON.stringify(persistedProject),
     [persistedProject, project],
   )
   useBeforeUnload(dirty)
-  const selectedDemand = findPanelDemand(project.chart, tick, lane)
 
-  function replaceProject(nextProject: StudioProjectV1) {
+  function replaceProject(nextProject: BeatChartDocument): void {
     setPast((current) => [...current, project])
     setFuture([])
     setProject(nextProject)
     setValidationError("")
   }
 
-  function undo() {
+  function undo(): void {
     const previous = past.at(-1)
     if (previous === undefined) return
     setFuture((current) => [project, ...current])
@@ -68,7 +62,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setProject(previous)
   }
 
-  function redo() {
+  function redo(): void {
     const next = future[0]
     if (next === undefined) return
     setPast((current) => [...current, project])
@@ -76,75 +70,40 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setProject(next)
   }
 
-  function acceptDocument(document: CurrentDocument) {
-    const editorState = editorStateForReplacement(document.project)
+  function acceptDocument(document: CurrentDocument): void {
     playback.stop()
     setProject(document.project)
     setPersistedProject(document.project)
     setRevision(document.revision)
     setOrigin(document.origin)
-    setTick(editorState.tick)
-    setLane(editorState.lane)
-    setHoldTicks(editorState.holdTicks)
-    setQuantize(editorState.quantize)
     setValidationError("")
     setPast([])
     setFuture([])
   }
 
-  function editCell(nextTick: number, nextLane: PanelIndex) {
+  function edit(action: () => typeof project.notes): void {
     try {
-      const existing = findPanelDemand(project.chart, nextTick, nextLane)
-      const placementTick =
-        tool !== "select" && tool !== "erase" && existing === undefined
-          ? quantizedPlacementTick(project.chart, { tick: nextTick, panel: nextLane }, quantize)
-          : nextTick
-      setTick(placementTick)
-      setLane(nextLane)
-      if (tool === "select") return
-      if (tool === "erase" && existing === undefined) return
-      const chart = togglePanelAtTick(project.chart, { tick: nextTick, panel: nextLane }, quantize)
-      replaceProject({ ...project, chart })
+      replaceProject({ ...project, notes: action() })
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : "The note edit is invalid")
     }
   }
 
-  function editHold(startTick: number, endTick: number, nextLane: PanelIndex) {
-    if (tool === "select" || tool === "erase") return
-    try {
-      const chart = placePanelHold(project.chart, { startTick, endTick, panel: nextLane }, quantize)
-      const selectedTick = Math.min(startTick, endTick)
-      setTick(
-        quantizedPlacementTick(project.chart, { tick: selectedTick, panel: nextLane }, quantize),
-      )
-      setLane(nextLane)
-      replaceProject({ ...project, chart })
-    } catch (error) {
-      setValidationError(error instanceof Error ? error.message : "The hold edit is invalid")
-    }
+  function toggleTap(at: Beat, lane: PanelIndex): void {
+    edit(() => toggleBeatPanel(project.notes, project.timing, at, lane))
   }
 
-  function selectCell(nextTick: number, nextLane: PanelIndex) {
-    setTick(nextTick)
-    setLane(nextLane)
+  function placeHold(head: Beat, tail: Beat, lane: PanelIndex): void {
+    edit(() => placeBeatHold(project.notes, project.timing, head, tail, lane))
   }
 
-  function updateSelection(nextTick: number, nextLane: PanelIndex, nextHoldTicks: number) {
-    try {
-      const chart = updatePanelDemand(project.chart, {
-        sourceTick: tick,
-        sourcePanel: lane,
-        tick: nextTick,
-        panel: nextLane,
-        holdTicks: nextHoldTicks,
-      })
-      replaceProject({ ...project, chart })
-      setTick(nextTick)
-      setLane(nextLane)
-    } catch (error) {
-      setValidationError(error instanceof Error ? error.message : "The selected note is invalid")
+  function changeSplit(at: Beat, rowsPerMeasure: number): void {
+    const result = validateRowsPerMeasureChange(project.timing, project.notes, at, rowsPerMeasure)
+    if (result.kind === "error") {
+      setValidationError(result.message)
+      return
     }
+    replaceProject({ ...project, timing: result.timing })
   }
 
   const save = useDocumentSave({
@@ -160,7 +119,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     onValidationError: setValidationError,
   })
 
-  async function applyProposal(proposal: ChartProposal) {
+  async function applyProposal(proposal: ChartProposal): Promise<void> {
     const startedFromProject = projectRef.current
     const document = await studioApi.applyProposal(bootstrap.csrf_token, proposal.id, {
       base_revision: revision,
@@ -180,7 +139,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     setRevision(reconciled.revision)
   }
 
-  async function discardProposal(proposal: ChartProposal) {
+  async function discardProposal(proposal: ChartProposal): Promise<void> {
     await studioApi.discardProposal(bootstrap.csrf_token, proposal.id)
   }
 
@@ -208,35 +167,45 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
       />
       <MobileTabs selected={tab} onSelect={setTab} />
       <div className="studio-body">
-        <aside className={`inspector mobile-${tab}`} id="tools-panel">
+        {tab === "editor" ? (
+          <button
+            className="mobile-inspector-trigger"
+            type="button"
+            aria-expanded={inspectorOpen}
+            aria-controls="tools-panel"
+            onClick={() => setInspectorOpen(true)}
+          >
+            Chart info
+          </button>
+        ) : null}
+        <aside
+          className={`inspector mobile-${tab}`}
+          data-open={inspectorOpen || undefined}
+          id="tools-panel"
+        >
+          <button
+            className="mobile-inspector-close"
+            type="button"
+            onClick={() => setInspectorOpen(false)}
+          >
+            Close chart info
+          </button>
           <Inspector
             project={project}
-            tool={tool}
-            tick={tick}
-            lane={lane}
-            holdTicks={holdTicks}
-            selectedDemand={selectedDemand}
             validationError={validationError}
-            setTool={setTool}
-            setHoldTicks={setHoldTicks}
-            updateSelection={updateSelection}
             replaceProject={replaceProject}
           />
         </aside>
         <CenterStudio
           tab={tab}
-          chart={project.chart}
-          music={project.music}
-          ucsMode={project.ucs_mode ?? "Double"}
+          notes={project.notes}
+          timing={project.timing}
+          mode={project.mode}
           playback={playback}
-          selectedTick={tick}
-          selectedLane={lane}
-          quantize={quantize}
-          automaticRegions={origin?.automatic_regions}
-          onQuantize={setQuantize}
-          onCell={editCell}
-          onHold={editHold}
-          onSelect={selectCell}
+          {...(origin === undefined ? {} : { automaticRegions: origin.automatic_regions })}
+          onToggleTap={toggleTap}
+          onPlaceHold={placeHold}
+          onRowsPerMeasureChange={changeSplit}
         />
         <StudioAgentAside
           tab={tab}
@@ -251,12 +220,7 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           discard={proposalOwner.discard}
         />
       </div>
-      <Transport
-        project={project}
-        selectedTick={tick}
-        onSeekSelection={setTick}
-        playback={playback}
-      />
+      <Transport project={project} playback={playback} />
     </main>
   )
 }

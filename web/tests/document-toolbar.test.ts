@@ -1,7 +1,7 @@
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
-
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
 import {
   BootstrapSchema,
   type CurrentDocument,
@@ -10,49 +10,51 @@ import {
 } from "../shared/index.ts"
 import { DocumentToolbar } from "../src/ui/DocumentToolbar.tsx"
 
-const project = StudioProjectV1Schema.parse({
-  schema_version: 1,
-  title: "Toolbar test",
-  artist: "Test artist",
-  music: {
-    duration_ticks: 8,
-    offset_micros: 0,
-    ticks_per_beat: 4,
-    tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
-    audio_sha256: Array.from({ length: 32 }, () => 0),
-    reference_accents: [],
-  },
-  chart: { ticks_per_beat: 4, span_ticks: 8, notes: [] },
-  evaluation_contract: {
-    schema_version: 2,
-    history_policy: { recent_window: 0, max_request_history: 0 },
-    foot_model: {
-      version: 1,
-      micros_per_panel_unit: 100_000,
-      bracket_setup_micros: 100_000,
-      crossover_penalty: 2,
-      bracket_penalty: 3,
+const project = migrateLegacyChart(
+  StudioProjectV1Schema.parse({
+    schema_version: 1,
+    title: "Toolbar test",
+    artist: "Test artist",
+    music: {
+      duration_ticks: 8,
+      offset_micros: 0,
+      ticks_per_beat: 4,
+      tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
+      audio_sha256: Array.from({ length: 32 }, () => 0),
+      reference_accents: [],
     },
-    difficulty: {
-      label: "fixture",
-      density: { minimum: 0, maximum: 1_000_000 },
-      movement: { minimum: 0, maximum: 1_000_000 },
-      brackets: { minimum: 0, maximum: 1_000_000 },
-      hold_occupancy: { minimum: 0, maximum: 1_000_000 },
-      local_load: { minimum: 0, maximum: 1_000_000 },
-      total: { minimum: 0, maximum: 1_000_000 },
-      local_windows: [],
+    chart: { ticks_per_beat: 4, span_ticks: 8, notes: [] },
+    evaluation_contract: {
+      schema_version: 2,
+      history_policy: { recent_window: 0, max_request_history: 0 },
+      foot_model: {
+        version: 1,
+        micros_per_panel_unit: 100_000,
+        bracket_setup_micros: 100_000,
+        crossover_penalty: 2,
+        bracket_penalty: 3,
+      },
+      difficulty: {
+        label: "fixture",
+        density: { minimum: 0, maximum: 1_000_000 },
+        movement: { minimum: 0, maximum: 1_000_000 },
+        brackets: { minimum: 0, maximum: 1_000_000 },
+        hold_occupancy: { minimum: 0, maximum: 1_000_000 },
+        local_load: { minimum: 0, maximum: 1_000_000 },
+        total: { minimum: 0, maximum: 1_000_000 },
+        local_windows: [],
+      },
+      intents: [],
+      budgets: {
+        max_notes: 10_000,
+        max_frames: 10_000,
+        max_dp_work: 1_000_000,
+        max_matching_work: 1_000_000,
+      },
     },
-    intents: [],
-    budgets: {
-      max_notes: 10_000,
-      max_frames: 10_000,
-      max_dp_work: 1_000_000,
-      max_matching_work: 1_000_000,
-    },
-  },
-  audio_asset: { format: "wav", byte_length: 44 },
-})
+    audio_asset: { format: "wav", byte_length: 44 },
+  }),
+)
 
 const revision = RevisionSchema.parse(0)
 const bootstrap = BootstrapSchema.parse({

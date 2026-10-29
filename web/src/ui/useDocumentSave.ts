@@ -1,16 +1,16 @@
 import type { RefObject } from "react"
 
-import type { DocumentOrigin, Revision, StudioProjectV1 } from "../../shared/index.ts"
+import type { BeatChartDocument, DocumentOrigin, Revision } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import type { SaveResult } from "./studio-types.ts"
 
 type DocumentSaveInput = {
   readonly csrfToken: string
-  readonly project: StudioProjectV1
-  readonly projectRef: RefObject<StudioProjectV1>
+  readonly project: BeatChartDocument
+  readonly projectRef: RefObject<BeatChartDocument>
   readonly revision: Revision
-  readonly onProject: (project: StudioProjectV1) => void
-  readonly onPersistedProject: (project: StudioProjectV1) => void
+  readonly onProject: (project: BeatChartDocument) => void
+  readonly onPersistedProject: (project: BeatChartDocument) => void
   readonly onRevision: (revision: Revision) => void
   readonly onOrigin: (origin: DocumentOrigin | undefined) => void
   readonly onStatus: (status: string) => void

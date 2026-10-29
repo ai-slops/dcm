@@ -1,22 +1,28 @@
 import { describe, expect, it } from "vitest"
 
-import { RevisionSchema, StudioProjectV1Schema } from "../shared/index.ts"
-import { editorStateForReplacement, reconcileAppliedDocument } from "../src/ui/studio-state.ts"
+import { BeatChartDocumentSchema, RevisionSchema } from "../shared/index.ts"
+import { reconcileAppliedDocument } from "../src/ui/studio-state.ts"
+
+const zero = { numerator: 0, denominator: 1 } as const
 
 function project(title: string) {
-  return StudioProjectV1Schema.parse({
+  return BeatChartDocumentSchema.parse({
     schema_version: 1,
     title,
     artist: "PUMP",
-    music: {
-      duration_ticks: 32,
-      ticks_per_beat: 4,
+    chart_artist: null,
+    mode: "Double",
+    timing: {
+      schema_version: 1,
       offset_micros: 0,
-      tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
-      audio_sha256: Array.from({ length: 32 }, () => 0),
+      tempo: [{ at: zero, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
+      grid_sections: [{ at: zero, rows_per_measure: 16 }],
+      duration: { numerator: 8, denominator: 1 },
       reference_accents: [],
     },
-    chart: { ticks_per_beat: 4, span_ticks: 32, notes: [] },
+    notes: [],
+    audio_sha256: "0".repeat(64),
+    audio_asset: { format: "wav", byte_length: 44 },
     evaluation_contract: {
       schema_version: 2,
       history_policy: { recent_window: 0, max_request_history: 0 },
@@ -45,13 +51,12 @@ function project(title: string) {
         max_matching_work: 1_000_000,
       },
     },
-    audio_asset: { format: "wav", byte_length: 44 },
   })
 }
 
 describe("reconcileAppliedDocument", () => {
-  it("uses the applied server document as both the visible project and persisted baseline", () => {
-    // Given an unchanged draft while a proposal is applying
+  it("uses the applied beat document as the visible project and persisted baseline", () => {
+    // Given an unchanged beat draft while a proposal is applying
     const original = project("Original")
     const applied = project("Applied")
 
@@ -69,10 +74,9 @@ describe("reconcileAppliedDocument", () => {
       historyProject: original,
       revision: 2,
     })
-    expect(JSON.stringify(result.historyProject)).not.toBe(JSON.stringify(result.persistedProject))
   })
 
-  it("preserves a newer manual draft while advancing the persisted baseline", () => {
+  it("preserves a newer manual beat draft while advancing the persisted baseline", () => {
     // Given a manual edit made while a proposal request is in flight
     const original = project("Original")
     const manualDraft = project("Manual draft")
@@ -85,30 +89,12 @@ describe("reconcileAppliedDocument", () => {
       document: { revision: RevisionSchema.parse(2), project: applied },
     })
 
-    // Then the manual draft remains visible and dirty against the actual server document
+    // Then the manual draft remains visible and dirty against the server document
     expect(result).toEqual({
       project: manualDraft,
       persistedProject: applied,
       historyProject: null,
       revision: 2,
     })
-  })
-})
-
-describe("replacement editor state", () => {
-  it("resets a short imported chart to one valid tick and the new hold grid", () => {
-    // Given an imported project whose timing grid differs from the prior editor state
-    const imported = project("Imported")
-    const replacement = {
-      ...imported,
-      music: { ...imported.music, ticks_per_beat: 8 },
-      chart: { ...imported.chart, ticks_per_beat: 8, span_ticks: 12 },
-    }
-
-    // When replacement editor state is derived from the imported document
-    const state = editorStateForReplacement(replacement)
-
-    // Then every cursor/window value starts in range with one-tick quantization
-    expect(state).toEqual({ tick: 0, lane: 0, holdTicks: 8, quantize: 1, windowStart: 0 })
   })
 })

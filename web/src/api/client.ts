@@ -5,13 +5,13 @@ import type {
   AgentRunSnapshot,
   AgentStreamEvent,
   BaseRevisionRequest,
+  BeatChartDocument,
   Bootstrap,
   ChartProposal,
   CurrentDocument,
   EvaluationResponse,
   GenerationRequest,
   PutDocumentRequest,
-  StudioProjectV1,
   UcsExportRequest,
 } from "../../shared/index.ts"
 import {
@@ -105,7 +105,7 @@ export const studioApi = {
   importProject(
     csrfToken: string,
     baseRevision: number,
-    project: StudioProjectV1,
+    project: BeatChartDocument,
     audio: File,
   ): Promise<CurrentDocument> {
     const body = new FormData()
