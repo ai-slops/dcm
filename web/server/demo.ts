@@ -2,15 +2,16 @@ import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import {
-  type CurrentDocument,
   EvalContractSchema,
   NativeMusicSchema,
+  type Revision,
   RevisionSchema,
+  type StudioProjectV1,
   StudioProjectV1Schema,
 } from "../shared/index.ts"
 
 export type DemoState = {
-  readonly document: CurrentDocument
+  readonly document: { readonly revision: Revision; readonly project: StudioProjectV1 }
   readonly audio: Uint8Array
 }
 

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 
-import { PutDocumentRequestSchema, StudioProjectV1Schema } from "../../shared/index.ts"
+import { BeatChartDocumentSchema, PutDocumentRequestSchema } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import { audioFormat, parseJson, parseMultipart, requiredFile, requiredRevision } from "../http.ts"
 import type { Services, StudioApp } from "../types.ts"
@@ -19,11 +19,11 @@ export function registerDocumentRoutes(app: StudioApp, services: Services): void
     const file = requiredFile(form, "audio")
     const bytes = new Uint8Array(await file.arrayBuffer())
     const format = audioFormat(file)
-    const digest = [...createHash("sha256").update(bytes).digest()]
+    const digest = createHash("sha256").update(bytes).digest("hex")
     const current = services.store.document()
-    const project = StudioProjectV1Schema.parse({
+    const project = BeatChartDocumentSchema.parse({
       ...current.project,
-      music: { ...current.project.music, audio_sha256: digest },
+      audio_sha256: digest,
       audio_asset: { format, byte_length: bytes.byteLength },
     })
     return context.json(await services.store.replace(baseRevision, project, bytes))
@@ -37,7 +37,20 @@ export function registerDocumentRoutes(app: StudioApp, services: Services): void
     if (typeof projectValue !== "string") {
       throw new StudioError(400, "project_part", "Project must be a JSON text part")
     }
-    const project = StudioProjectV1Schema.parse(JSON.parse(projectValue))
+    const projectResult = BeatChartDocumentSchema.safeParse(JSON.parse(projectValue))
+    if (!projectResult.success) {
+      const collision = projectResult.error.issues.some(
+        (issue) =>
+          issue.message === "panel demands overlap" ||
+          issue.message === "notes collide or are not canonical",
+      )
+      throw new StudioError(
+        400,
+        collision ? "ucs_cell_conflict" : "invalid_project",
+        projectResult.error.issues.map((issue) => issue.message).join("; "),
+      )
+    }
+    const project = projectResult.data
     if (audioFormat(file) !== project.audio_asset.format) {
       throw new StudioError(400, "audio_format", "Audio extension differs from project metadata")
     }

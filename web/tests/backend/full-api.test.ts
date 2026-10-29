@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import { createStudioApp } from "../../server/app.ts"
 import { loadConfig } from "../../server/config.ts"
+import { nativeDocumentFor } from "../../server/native/beat-document.ts"
 import {
   AgentRunSnapshotSchema,
   BootstrapSchema,
@@ -67,7 +68,7 @@ describe("complete studio HTTP API", () => {
     // Then
     expect(evaluation.status).toBe(200)
     expect(proposal.source).toBe("native_generate")
-    expect(applied.project.chart).toEqual(proposal.chart)
+    expect(nativeDocumentFor(applied.project).chart).toEqual(proposal.chart)
     expect(exported.headers.get("content-type")).toBe("application/zip")
     expect(Object.keys(archive).sort()).toEqual([
       "chart.ssc",
@@ -107,7 +108,9 @@ describe("complete studio HTTP API", () => {
     expect(eventText).toContain("event: completed")
     expect(refreshed.document.revision).toBe(client.bootstrap.document.revision)
     expect(refreshed.proposals).toHaveLength(1)
-    expect(refreshed.proposals?.[0]?.chart).not.toEqual(client.bootstrap.document.project.chart)
+    expect(refreshed.proposals?.[0]?.chart).not.toEqual(
+      nativeDocumentFor(client.bootstrap.document.project).chart,
+    )
   })
 })
 

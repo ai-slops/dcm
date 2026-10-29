@@ -15,6 +15,8 @@ import { StudioError } from "./errors.ts"
 import { enforceApiBodyLimit } from "./http.ts"
 import { LibraryArchives } from "./library/archives.ts"
 import { LibraryService } from "./library/service.ts"
+import { nativeDocumentFor } from "./native/beat-document.ts"
+import { NativeBeatUcsService } from "./native/beat-ucs.ts"
 import { ProjectNativeService } from "./native/project-rules.ts"
 import { NativeService } from "./native/service.ts"
 import { NativeUcsService } from "./native/ucs.ts"
@@ -43,20 +45,27 @@ export async function createStudioApp(
   const projectNative = new ProjectNativeService(config.repoRoot)
   const projects = new ProjectService(store, projectNative)
   const ucs = new NativeUcsService(config.repoRoot)
+  const beatUcs = new NativeBeatUcsService(config.repoRoot)
   const songTemplates = new SongTemplateService(store, ucs)
   const provider = await resolveAgentProvider(config)
   const library = new LibraryService(store)
-  const archives = new LibraryArchives(store, ucs)
+  const archives = new LibraryArchives(store, beatUcs)
   const runs = new AgentRuns({
     configuration: provider.configuration,
     resolveConfiguration: (modelId) => configurationForModel(config, modelId),
     store,
     projects,
     native: {
-      evaluate: (project, signal) => native.evaluate(project, signal),
-      generate: (project, audio, seed, signal) => native.generate(project, audio, seed, signal),
+      evaluate: (project, signal) => native.evaluate(nativeDocumentFor(project), signal),
+      generate: (project, audio, seed, signal) =>
+        native.generate(nativeDocumentFor(project), audio, seed, signal),
       validateUcs: async (project, mode, signal) => {
-        const bytes = await ucs.export(project, mode, signal)
+        if (project.mode !== mode)
+          throw new StudioError(409, "chart_mode_immutable", "UCS mode must match the chart")
+        const bytes = await beatUcs.export(
+          { timing: project.timing, notes: project.notes, mode: project.mode },
+          signal,
+        )
         return { valid: true, mode, byte_length: bytes.byteLength }
       },
     },
@@ -139,9 +148,7 @@ export async function createStudioApp(
     const session = context.get("session")
     const readiness = await native.readiness()
     const projectReadiness = await projectNative.readiness()
-    const generatorCompatible =
-      readiness.ready &&
-      JSON.stringify(store.document().project.music) === JSON.stringify(demo.document.project.music)
+    const generatorCompatible = readiness.ready
     const refreshedProvider = await resolveAgentProvider(config)
     const recentRuns = [...session.runs.values()]
       .filter((run) => run.status !== "queued" && run.status !== "running")
@@ -165,7 +172,7 @@ export async function createStudioApp(
     })
   })
   registerDocumentRoutes(app, services)
-  registerLibraryRoutes(app, services, ucs)
+  registerLibraryRoutes(app, services, beatUcs)
   registerNativeRoutes(app, services)
   registerProjectRoutes(app, services)
   registerUcsRoutes(app, services)
