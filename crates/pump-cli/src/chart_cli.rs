@@ -26,6 +26,8 @@ pub enum ChartCommand {
     ExportEditedSsc(ChartExportEditedSscArgs),
     ImportUcs(ChartImportUcsArgs),
     ExportUcs(ChartExportUcsArgs),
+    ImportUcsBeats(ChartImportUcsArgs),
+    ExportUcsBeats(ChartExportUcsBeatsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -203,6 +205,13 @@ pub struct ChartExportUcsArgs {
     pub music: PathBuf,
     #[arg(long, value_enum, ignore_case = true, default_value_t = UcsModeArg::Double)]
     pub mode: UcsModeArg,
+    #[arg(long)]
+    pub out: PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub struct ChartExportUcsBeatsArgs {
+    pub chart: PathBuf,
     #[arg(long)]
     pub out: PathBuf,
 }

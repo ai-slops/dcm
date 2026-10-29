@@ -109,6 +109,12 @@ pub fn run(args: &ChartArgs, format: OutputFormat) -> Result<()> {
         }
         ChartCommand::ImportUcs(args) => output(&crate::ucs_commands::import(args)?, format),
         ChartCommand::ExportUcs(args) => output(&crate::ucs_commands::export(args)?, format),
+        ChartCommand::ImportUcsBeats(args) => {
+            output(&crate::ucs_commands::import_beats(args)?, format)
+        }
+        ChartCommand::ExportUcsBeats(args) => {
+            output(&crate::ucs_commands::export_beats(args)?, format)
+        }
     }
 }
 

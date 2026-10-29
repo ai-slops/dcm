@@ -3,7 +3,9 @@ use std::fs;
 use pump_chart::{Chart, Fraction, Music, Note, TempoSegment};
 use sha2::{Digest, Sha256};
 
-use crate::chart_cli::{ChartExportUcsArgs, ChartImportUcsArgs, UcsModeArg};
+use crate::chart_cli::{
+    ChartExportUcsArgs, ChartExportUcsBeatsArgs, ChartImportUcsArgs, UcsModeArg,
+};
 
 #[test]
 fn import_binds_optional_audio_hash() -> anyhow::Result<()> {
@@ -86,5 +88,34 @@ fn export_writes_new_file_and_preserves_existing_destination() -> anyhow::Result
     assert_eq!(summary.certification.status, "none");
     assert!(error.to_string().contains("create new UCS output"));
     assert_eq!(fs::read(out)?, b"sentinel");
+    Ok(())
+}
+
+#[test]
+fn beat_import_and_export_preserve_section_local_grid() -> anyhow::Result<()> {
+    let root = tempfile::tempdir()?;
+    let ucs = root.path().join("source.ucs");
+    let json = root.path().join("beats.json");
+    let output = root.path().join("roundtrip.ucs");
+    let mut source =
+        String::from(":Format=1\n:Mode=Single\n:BPM=120\n:Beat=4\n:Split=127\nX....\n");
+    source.push_str(&".....\n".repeat(127));
+    source.push_str(":Split=113\n.X...\n");
+    source.push_str(&".....\n".repeat(113));
+    fs::write(&ucs, source)?;
+
+    let imported = crate::ucs_commands::import_beats(&ChartImportUcsArgs {
+        file: ucs,
+        audio: None,
+    })?;
+    fs::write(&json, serde_json::to_vec(&imported)?)?;
+    crate::ucs_commands::export_beats(&ChartExportUcsBeatsArgs {
+        chart: json,
+        out: output.clone(),
+    })?;
+    let reparsed = pump_ucs::parse_ucs_beats(&fs::read(output)?, [0; 32])?;
+
+    assert_eq!(reparsed, imported);
+    assert_eq!(imported.grid_sections[1].rows_per_measure, 452);
     Ok(())
 }

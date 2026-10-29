@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::artifact_io::{self, ARTIFACT_LIMIT};
 use crate::chart_build::read_json;
-use crate::chart_cli::{ChartExportUcsArgs, ChartImportUcsArgs};
+use crate::chart_cli::{ChartExportUcsArgs, ChartExportUcsBeatsArgs, ChartImportUcsArgs};
 
 const UCS_LIMIT: u64 = 16 * 1024 * 1024;
 
@@ -35,6 +35,15 @@ pub fn import(args: &ChartImportUcsArgs) -> Result<pump_ucs::UcsChart> {
     pump_ucs::parse_ucs(&bytes, audio_sha256).map_err(anyhow::Error::new)
 }
 
+pub fn import_beats(args: &ChartImportUcsArgs) -> Result<pump_ucs::BeatUcsChart> {
+    let bytes = artifact_io::read(&args.file, UCS_LIMIT)?;
+    let audio_sha256 = match args.audio.as_deref() {
+        Some(path) => Sha256::digest(artifact_io::read(path, ARTIFACT_LIMIT)?).into(),
+        None => [0; 32],
+    };
+    pump_ucs::parse_ucs_beats(&bytes, audio_sha256).map_err(anyhow::Error::new)
+}
+
 pub fn export(args: &ChartExportUcsArgs) -> Result<ExportSummary> {
     let chart: Chart = read_json(&args.chart, "chart")?;
     let music: Music = read_json(&args.music, "music")?;
@@ -47,6 +56,20 @@ pub fn export(args: &ChartExportUcsArgs) -> Result<ExportSummary> {
         certification: Certification {
             status: "none",
             reason: "not_generated_from_a_verified_bundle",
+        },
+    })
+}
+
+pub fn export_beats(args: &ChartExportUcsBeatsArgs) -> Result<ExportSummary> {
+    let chart: pump_ucs::BeatUcsChart = read_json(&args.chart, "beat chart")?;
+    let text = pump_ucs::render_ucs_beats(&chart).map_err(anyhow::Error::new)?;
+    write_new(&args.out, text.as_bytes())?;
+    Ok(ExportSummary {
+        file: args.out.clone(),
+        source: "beat_authoring",
+        certification: Certification {
+            status: "none",
+            reason: "direct_ucs_export_is_uncertified",
         },
     })
 }
