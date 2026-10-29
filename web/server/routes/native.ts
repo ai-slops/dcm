@@ -1,30 +1,29 @@
+import type { BeatChartDocument } from "../../shared/beat-projects.ts"
 import {
   BaseRevisionRequestSchema,
   ChartProposalSchema,
   GenerationRequestSchema,
   MAX_SESSION_PROPOSALS,
-  type StudioProjectV1,
 } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import { parseJson } from "../http.ts"
+import { NativeDocumentUnsupportedError, nativeDocumentFor } from "../native/beat-document.ts"
 import { exportFilename } from "../native/service.ts"
 import type { Services, StudioApp } from "../types.ts"
+import { applyProposalSource } from "./proposal-timing.ts"
 
 export function registerNativeRoutes(app: StudioApp, services: Services): void {
   app.post("/api/v1/evaluations", async (context) => {
     const request = await parseJson(context, BaseRevisionRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    return context.json(await services.native.evaluate(document.project))
+    return context.json(await services.native.evaluate(nativeProject(document.project)))
   })
 
   app.post("/api/v1/generations", async (context) => {
     const request = await parseJson(context, GenerationRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    const chart = await services.native.generate(
-      document.project,
-      services.store.audio(),
-      request.seed,
-    )
+    const native = nativeProject(document.project)
+    const chart = await services.native.generate(native, services.store.audio(), request.seed)
     const session = context.get("session")
     if (session.proposals.size >= MAX_SESSION_PROPOSALS)
       throw new StudioError(
@@ -38,7 +37,7 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
       source: "native_generate",
       summary: `Native candidate for seed ${request.seed.slice(0, 8)}`,
       chart,
-      before: { chart: document.project.chart, music: document.project.music },
+      before: { chart: native.chart, music: native.music },
     })
     session.proposals.set(proposal.id, proposal)
     return context.json(proposal)
@@ -47,11 +46,12 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
   app.post("/api/v1/exports", async (context) => {
     const request = await parseJson(context, BaseRevisionRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    const archive = await services.native.export(document.project, services.store.audio())
+    const native = nativeProject(document.project)
+    const archive = await services.native.export(native, services.store.audio())
     return new Response(Uint8Array.from(archive).buffer, {
       headers: {
         "content-type": "application/zip",
-        "content-disposition": `attachment; filename="${exportFilename(document.project)}"`,
+        "content-disposition": `attachment; filename="${exportFilename(native)}"`,
         "content-length": String(archive.byteLength),
       },
     })
@@ -67,11 +67,7 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
       throw new StudioError(409, "proposal_stale", "Proposal was created for another revision")
     }
     const current = currentAtRevision(services, request.base_revision)
-    const project: StudioProjectV1 = {
-      ...current.project,
-      chart: proposal.chart,
-      ...(proposal.music === undefined ? {} : { music: proposal.music }),
-    }
+    const project = applyProposalSource(current.project, proposal)
     const saved = await services.store.save(request.base_revision, project)
     session.proposals.delete(proposal.id)
     services.runs.recordDecision(session, proposal.run_id, {
@@ -96,6 +92,16 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
     })
     return context.body(null, 204)
   })
+}
+
+function nativeProject(project: BeatChartDocument) {
+  try {
+    return nativeDocumentFor(project)
+  } catch (error) {
+    if (error instanceof NativeDocumentUnsupportedError)
+      throw new StudioError(422, error.capability.code, error.message)
+    throw error
+  }
 }
 
 export function currentAtRevision(services: Services, revision: number) {
