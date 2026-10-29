@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
 import { RevisionSchema } from "../shared/index.ts"
 import { LibrarySnapshotSchema, SongIdSchema } from "../shared/library.ts"
 import {
@@ -48,8 +49,8 @@ const snapshot = LibrarySnapshotSchema.parse({
       mode: "Double",
       note_count: 8,
       hold_count: 1,
-      ticks_per_beat: 4,
-      duration_ticks: 32,
+      duration: { numerator: 8, denominator: 1 },
+      chart_artist: null,
     },
     {
       id: fallbackId,
@@ -58,8 +59,8 @@ const snapshot = LibrarySnapshotSchema.parse({
       mode: "Single",
       note_count: 4,
       hold_count: 0,
-      ticks_per_beat: 4,
-      duration_ticks: 32,
+      duration: { numerator: 8, denominator: 1 },
+      chart_artist: null,
     },
   ],
   archives: [],
@@ -183,11 +184,10 @@ describe("library workflow helpers", () => {
   it("aborts a guarded switch when save persisted an older draft", async () => {
     // Given
     const demo = await loadDemo(repoRoot)
+    const document = { ...demo.document, project: migrateLegacyChart(demo.document.project) }
 
     // When / Then
-    expect(guardedSwitchDocument({ kind: "saved_older", document: demo.document })).toBeNull()
-    expect(guardedSwitchDocument({ kind: "saved_current", document: demo.document })).toEqual(
-      demo.document,
-    )
+    expect(guardedSwitchDocument({ kind: "saved_older", document })).toBeNull()
+    expect(guardedSwitchDocument({ kind: "saved_current", document })).toEqual(document)
   })
 })

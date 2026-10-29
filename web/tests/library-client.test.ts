@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
 import { LibrarySnapshotSchema, UcsCatalogResultSchema } from "../shared/library.ts"
 import { NewSongSchema } from "../shared/library-commands.ts"
 import { repoRoot } from "./support/paths.ts"
@@ -39,8 +40,8 @@ function snapshotFixture() {
         mode: "Single",
         note_count: 10,
         hold_count: 1,
-        ticks_per_beat: 4,
-        duration_ticks: 64,
+        duration: { numerator: 16, denominator: 1 },
+        chart_artist: "Stepper",
       },
     ],
     archives: [],
@@ -68,7 +69,15 @@ describe("libraryApi", () => {
     const demo = await loadDemo(repoRoot)
     const snapshot = snapshotFixture()
     httpMock.post.mockResolvedValue(
-      new Response(JSON.stringify({ document: demo.document, library: snapshot })),
+      new Response(
+        JSON.stringify({
+          document: {
+            revision: demo.document.revision,
+            project: migrateLegacyChart(demo.document.project),
+          },
+          library: snapshot,
+        }),
+      ),
     )
     const input = NewSongSchema.parse({
       library_revision: snapshot.revision,
