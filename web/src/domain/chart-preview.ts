@@ -1,46 +1,52 @@
 import type { NativeChart, NativeMusic } from "../../shared/index.ts"
 import { tickToAudioMicros } from "./timing.ts"
 
-type IndexedPreviewContact = {
+export type IndexedAudioContact = {
   readonly key: string
   readonly kind: "tap" | "hold"
   readonly lane: number
-  readonly tick: number
-  readonly holdTicks: number
   readonly headMicros: number
   readonly tailMicros: number
 }
 
-export type ChartPreviewIndex = {
-  readonly contacts: readonly IndexedPreviewContact[]
+type NativePreviewContact = IndexedAudioContact & {
+  readonly tick: number
+  readonly holdTicks: number
+}
+
+export type ChartPreviewIndex<Contact extends IndexedAudioContact = IndexedAudioContact> = {
+  readonly contacts: readonly Contact[]
   readonly maxTailMicros: readonly number[]
 }
 
-export type PreviewContact = IndexedPreviewContact & {
+export type PreviewContact<Contact extends IndexedAudioContact = IndexedAudioContact> = Contact & {
   readonly headPosition: number
   readonly tailPosition: number
 }
 
-export type PreviewProjection = {
-  readonly contacts: readonly PreviewContact[]
+export type PreviewProjection<Contact extends IndexedAudioContact = IndexedAudioContact> = {
+  readonly contacts: readonly PreviewContact<Contact>[]
   readonly hiddenContactCount: number
 }
 
-type ProjectionInput = {
-  readonly index: ChartPreviewIndex
+type ProjectionInput<Contact extends IndexedAudioContact> = {
+  readonly index: ChartPreviewIndex<Contact>
   readonly audioMicros: number
   readonly pastMicros: number
   readonly lookaheadMicros: number
   readonly contactCap: number
 }
 
-export function buildChartPreviewIndex(chart: NativeChart, music: NativeMusic): ChartPreviewIndex {
+export function buildChartPreviewIndex(
+  chart: NativeChart,
+  music: NativeMusic,
+): ChartPreviewIndex<NativePreviewContact> {
   const contacts = chart.notes.flatMap((note) => {
     const headMicros = tickToAudioMicros(music, note.tick)
     const tailMicros =
       note.hold_ticks === 0 ? headMicros : tickToAudioMicros(music, note.tick + note.hold_ticks)
     return lanesInMask(note.panel_mask).map(
-      (lane): IndexedPreviewContact => ({
+      (lane): NativePreviewContact => ({
         key: `${note.tick}:${note.hold_ticks}:${lane}`,
         kind: note.hold_ticks === 0 ? "tap" : "hold",
         lane,
@@ -60,11 +66,13 @@ export function buildChartPreviewIndex(chart: NativeChart, music: NativeMusic): 
   return { contacts, maxTailMicros }
 }
 
-export function projectVisibleContacts(input: ProjectionInput): PreviewProjection {
+export function projectVisibleContacts<Contact extends IndexedAudioContact>(
+  input: ProjectionInput<Contact>,
+): PreviewProjection<Contact> {
   const windowStart = input.audioMicros - input.pastMicros
   const windowEnd = input.audioMicros + input.lookaheadMicros
   const windowLength = input.pastMicros + input.lookaheadMicros
-  const visible: PreviewContact[] = []
+  const visible: PreviewContact<Contact>[] = []
   let visibleCount = 0
   const start = firstIntersectingContact(input.index.maxTailMicros, windowStart)
   for (let position = start; position < input.index.contacts.length; position += 1) {

@@ -3,13 +3,11 @@ import { useMemo, useState } from "react"
 
 import type { LibraryChartDocument, LibrarySnapshot } from "../../shared/library.ts"
 import { libraryApi } from "../api/library-client.ts"
-import type { PanelIndex } from "../domain/editor.ts"
 import { canControlPlayback } from "./audio-playback-state.ts"
 import { browserAudioPlaybackEnvironmentFor } from "./audioPlaybackEnvironment.ts"
 import { PrimitiveStateHarness } from "./PrimitiveShowcase.tsx"
 import { Badge, Button, Panel, ToolChip } from "./primitives.tsx"
-import { ScrollingChartPreview } from "./ScrollingChartPreview.tsx"
-import { PlayfieldPads } from "./StudioPanels.tsx"
+import { PlayfieldPads, Preview } from "./StudioPanels.tsx"
 import { Timeline } from "./Timeline.tsx"
 import { Transport } from "./Transport.tsx"
 import {
@@ -28,9 +26,6 @@ export function PreviewGalleryDocument({
   readonly document: LibraryChartDocument
   readonly library: LibrarySnapshot
 }) {
-  const [selectedTick, setSelectedTick] = useState(0)
-  const [selectedLane, setSelectedLane] = useState<PanelIndex>(0)
-  const [quantize, setQuantize] = useState(1)
   const [view, setView] = useState<GalleryView>("player")
   const hasAudio = document.song.audio.byte_length > 0
   const environment = useMemo(
@@ -77,11 +72,7 @@ export function PreviewGalleryDocument({
             {provenanceUrl}
           </a>
         )}
-        <FirstNoteButton
-          playback={playback}
-          firstTick={document.project.chart.notes[0]?.tick}
-          onSeek={setSelectedTick}
-        />
+        <FirstNoteButton playback={playback} firstBeat={document.project.notes[0]?.at} />
       </section>
       {!hasAudio ? (
         <p className="preview-gallery__missing">
@@ -101,88 +92,62 @@ export function PreviewGalleryDocument({
         className="preview-gallery__player"
       >
         {view === "player" ? (
-          <ScrollingChartPreview
-            chart={document.project.chart}
-            music={document.project.music}
+          <Preview
+            notes={document.project.notes}
+            timing={document.project.timing}
             mode={document.chart.mode}
             playback={playback}
-            selectedTick={selectedTick}
           />
         ) : null}
         {view === "pads" ? (
           <PlayfieldPads
-            chart={document.project.chart}
-            music={document.project.music}
+            notes={document.project.notes}
+            timing={document.project.timing}
             playback={playback}
-            selectedTick={selectedTick}
             mode={document.chart.mode}
           />
         ) : null}
         {view === "timeline" ? (
           <div className="preview-gallery__timeline">
             <Timeline
-              chart={document.project.chart}
-              music={document.project.music}
-              ucsMode={document.project.ucs_mode ?? "Double"}
+              notes={document.project.notes}
+              timing={document.project.timing}
+              mode={document.project.mode}
               playback={playback}
-              selectedTick={selectedTick}
-              selectedLane={selectedLane}
-              quantize={quantize}
-              automaticRegions={document.chart.generated_from?.automatic_regions}
-              onQuantize={setQuantize}
-              onCell={(tick, lane) => {
-                setSelectedTick(tick)
-                setSelectedLane(lane)
-                playback.seek(tick)
-              }}
-              onSelect={(tick, lane) => {
-                setSelectedTick(tick)
-                setSelectedLane(lane)
-              }}
+              {...(document.chart.generated_from === undefined
+                ? {}
+                : { automaticRegions: document.chart.generated_from.automatic_regions })}
+              readOnly
+              onRowsPerMeasureChange={() => undefined}
+              onToggleTap={() => undefined}
+              onPlaceHold={() => undefined}
             />
           </div>
         ) : null}
-        {view === "transport" ? (
-          <Transport
-            project={document.project}
-            selectedTick={selectedTick}
-            onSeekSelection={setSelectedTick}
-            playback={playback}
-          />
-        ) : null}
+        {view === "transport" ? <Transport project={document.project} playback={playback} /> : null}
         {view === "primitives" ? <PrimitiveStateHarness /> : null}
       </Panel>
-      {view === "transport" ? null : (
-        <Transport
-          project={document.project}
-          selectedTick={selectedTick}
-          onSeekSelection={setSelectedTick}
-          playback={playback}
-        />
-      )}
+      {view === "transport" ? null : <Transport project={document.project} playback={playback} />}
     </>
   )
 }
 
 function FirstNoteButton({
   playback,
-  firstTick,
-  onSeek,
+  firstBeat,
 }: {
   readonly playback: AudioPlaybackController
-  readonly firstTick: number | undefined
-  readonly onSeek: (tick: number) => void
+  readonly firstBeat: { readonly numerator: number; readonly denominator: number } | undefined
 }) {
   const snapshot = usePlaybackSnapshot(playback)
-  const enabled = firstTick !== undefined && canControlPlayback(snapshot.status)
+  const enabled = firstBeat !== undefined && canControlPlayback(snapshot.status)
   return (
     <Button
       icon={<SkipForward aria-hidden="true" size={15} />}
       disabled={!enabled}
       onClick={() => {
-        if (firstTick === undefined) return
-        playback.seek(firstTick)
-        onSeek(firstTick)
+        if (firstBeat === undefined) return
+        playback.seekBeatPosition(firstBeat.numerator / firstBeat.denominator)
       }}
     >
       First note

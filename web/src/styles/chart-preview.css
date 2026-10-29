@@ -27,6 +27,10 @@
   align-self: end;
 }
 
+.chart-preview__lookahead input[type="range"] {
+  min-block-size: var(--control-touch);
+}
+
 .chart-preview__lookahead input[type="number"] {
   inline-size: 100%;
   min-inline-size: 0;

@@ -1,12 +1,8 @@
 import { useMemo } from "react"
 
-import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
-import {
-  activePanelMaskAtAudioIntervals,
-  activePanelMaskAtSelectedTick,
-  buildNoteAudioIntervals,
-} from "../domain/playback.ts"
-import { laneTone } from "../domain/timeline.ts"
+import type { BeatNote, BeatTiming, UcsMode } from "../../shared/index.ts"
+import { laneTone } from "../domain/beat-timeline.ts"
+import { activePanelMaskAtAudioIntervals, buildNoteAudioIntervals } from "../domain/playback.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { Panel } from "./primitives.tsx"
 import { ScrollingChartPreview } from "./ScrollingChartPreview.tsx"
@@ -14,75 +10,54 @@ import { laneLabels } from "./studio-types.ts"
 import { TimelineClock } from "./TimelineClock.tsx"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
-export function Preview({
-  chart,
-  music,
-  selectedTick,
-  playback,
-  ucsMode = "Double",
-}: {
-  readonly chart: NativeChart
-  readonly music: NativeMusic
-  readonly selectedTick: number
+const zero = { numerator: 0, denominator: 1 } as const
+
+export function Preview(props: {
+  readonly notes: readonly BeatNote[]
+  readonly timing: BeatTiming
+  readonly mode: UcsMode
   readonly playback: AudioPlaybackController
-  readonly ucsMode?: UcsMode
 }) {
   return (
     <Panel title="Chart preview" className="preview">
-      {ucsMode === "Single" ? (
+      {props.mode === "Single" ? (
         <p className="status-copy">UCS Single preference · left-pad mapping</p>
       ) : null}
       <ScrollingChartPreview
-        chart={chart}
-        music={music}
-        mode={ucsMode}
-        playback={playback}
-        selectedTick={selectedTick}
+        notes={props.notes}
+        timing={props.timing}
+        mode={props.mode}
+        playback={props.playback}
       />
-      <PlayfieldPads
-        chart={chart}
-        music={music}
-        playback={playback}
-        selectedTick={selectedTick}
-        mode={ucsMode}
-      />
+      <PlayfieldPads {...props} />
       <TimelineClock
-        music={music}
-        playback={playback}
-        selectedTick={selectedTick}
+        timing={props.timing}
+        playback={props.playback}
+        cursorBeat={zero}
         label="Preview timing context"
       />
     </Panel>
   )
 }
 
-export function PlayfieldPads({
-  chart,
-  music,
-  selectedTick,
-  playback,
-  mode = "Double",
-}: {
-  readonly chart: NativeChart
-  readonly music: NativeMusic
-  readonly selectedTick: number
+export function PlayfieldPads(props: {
+  readonly notes: readonly BeatNote[]
+  readonly timing: BeatTiming
   readonly playback: AudioPlaybackController
   readonly mode?: UcsMode
 }) {
-  const snapshot = usePlaybackSnapshot(playback)
+  const snapshot = usePlaybackSnapshot(props.playback)
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
-  const audioIntervals = useMemo(() => buildNoteAudioIntervals(chart, music), [chart, music])
-  const mask = useMemo(
-    () =>
-      snapshot.status === "ended"
-        ? 0
-        : usesClock
-          ? activePanelMaskAtAudioIntervals(audioIntervals, snapshot.audioMicros)
-          : activePanelMaskAtSelectedTick(chart, selectedTick),
-    [audioIntervals, chart, selectedTick, snapshot.audioMicros, snapshot.status, usesClock],
+  const intervals = useMemo(
+    () => buildNoteAudioIntervals(props.notes, props.timing),
+    [props.notes, props.timing],
   )
+  const mask =
+    snapshot.status === "ended" || !usesClock
+      ? 0
+      : activePanelMaskAtAudioIntervals(intervals, snapshot.audioMicros)
   const groups =
-    mode === "Single"
+    props.mode === "Single"
       ? ([[1, 3, 2, 0, 4]] as const)
       : ([
           [1, 3, 2, 0, 4],
@@ -116,9 +91,9 @@ export function PlayfieldPads({
         ))}
       </div>
       <p className="mono preview__time" data-testid="preview-time">
-        {snapshot.chartTick === null && usesClock
+        {snapshot.chartBeat === null && usesClock
           ? "PRE-ROLL"
-          : `TICK ${(usesClock ? (snapshot.chartTick ?? 0) : selectedTick).toFixed(usesClock ? 2 : 0)}`}
+          : `BEAT ${(snapshot.chartBeat ?? 0).toFixed(3).replace(/\.?0+$/, "")}`}
       </p>
       <p className="preview__summary" aria-live="polite">
         {activeLabels.length === 0 ? "No active contacts" : `Active: ${activeLabels.join(", ")}`}

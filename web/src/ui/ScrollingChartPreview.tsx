@@ -1,9 +1,16 @@
 import { useId, useMemo, useState } from "react"
 
-import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
-import { buildChartPreviewIndex, projectVisibleContacts } from "../domain/chart-preview.ts"
-import { laneTone } from "../domain/timeline.ts"
-import { tickToAudioMicros } from "../domain/timing.ts"
+import {
+  addBeats,
+  type Beat,
+  type BeatNote,
+  type BeatTiming,
+  type UcsMode,
+} from "../../shared/index.ts"
+import { buildBeatChartPreviewIndex } from "../domain/beat-chart-preview.ts"
+import { formatBeat, laneTone } from "../domain/beat-timeline.ts"
+import { beatToAudioMicros } from "../domain/beat-timing.ts"
+import { projectVisibleContacts } from "../domain/chart-preview.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { laneLabels } from "./studio-types.ts"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
@@ -14,20 +21,20 @@ const pastMicros = 400_000
 const contactCap = 160
 
 type ScrollingChartPreviewProps = {
-  readonly chart: NativeChart
-  readonly music: NativeMusic
+  readonly notes: readonly BeatNote[]
+  readonly timing: BeatTiming
   readonly mode?: UcsMode
   readonly playback: AudioPlaybackController
-  readonly selectedTick: number
+  readonly cursorBeat?: Beat
   readonly controls?: boolean
 }
 
 export function ScrollingChartPreview({
-  chart,
-  music,
+  notes,
+  timing,
   mode = "Double",
   playback,
-  selectedTick,
+  cursorBeat = { numerator: 0, denominator: 1 },
   controls = true,
 }: ScrollingChartPreviewProps) {
   const snapshot = usePlaybackSnapshot(playback)
@@ -39,9 +46,9 @@ export function ScrollingChartPreview({
   const [lookaheadDraft, setLookaheadDraft] = useState("4")
   const [lookaheadError, setLookaheadError] = useState("")
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
-  const audioMicros = usesClock ? snapshot.audioMicros : tickToAudioMicros(music, selectedTick)
+  const audioMicros = usesClock ? snapshot.audioMicros : beatToAudioMicros(timing, cursorBeat)
   const lookaheadMicros = lookaheadSeconds * 1_000_000
-  const index = useMemo(() => buildChartPreviewIndex(chart, music), [chart, music])
+  const index = useMemo(() => buildBeatChartPreviewIndex(notes, timing), [notes, timing])
   const projection = useMemo(
     () =>
       projectVisibleContacts({
@@ -67,8 +74,8 @@ export function ScrollingChartPreview({
         <div>
           <strong>Approach field</strong>
           <span className="mono">
-            {(audioMicros / 1_000_000).toFixed(3)} audio sec · tick{" "}
-            {selectedTickLabel(snapshot.chartTick, selectedTick, usesClock)}
+            {(audioMicros / 1_000_000).toFixed(3)} audio sec · beat{" "}
+            {beatPositionLabel(snapshot.chartBeat, cursorBeat, usesClock)}
           </span>
         </div>
         {controls ? (
@@ -139,7 +146,7 @@ export function ScrollingChartPreview({
         <div className="chart-preview__contacts">
           {contacts.map((contact) => (
             <div
-              aria-label={`${laneLabels[contact.lane]}, ${contact.kind}, tick ${contact.tick}${contact.kind === "hold" ? `, tail tick ${contact.tick + contact.holdTicks}` : ""}`}
+              aria-label={`${laneLabels[contact.lane]}, ${contact.kind}, beat ${formatBeat(contact.at)}${contact.kind === "hold" ? `, tail beat ${formatBeat(addBeats(contact.at, contact.hold))}` : ""}`}
               className={`chart-contact chart-contact--${contact.kind}`}
               data-tone={laneTone(contact.lane)}
               key={contact.key}
@@ -202,13 +209,9 @@ export function parseLookaheadDraft(
   return { kind: "valid", value }
 }
 
-function selectedTickLabel(
-  chartTick: number | null,
-  selectedTick: number,
-  usesClock: boolean,
-): string {
-  if (usesClock && chartTick === null) return "pre-roll"
-  return (usesClock ? (chartTick ?? 0) : selectedTick).toFixed(usesClock ? 2 : 0)
+function beatPositionLabel(chartBeat: number | null, cursorBeat: Beat, usesClock: boolean): string {
+  if (usesClock && chartBeat === null) return "pre-roll"
+  return usesClock ? (chartBeat ?? 0).toFixed(3).replace(/\.?0+$/, "") : formatBeat(cursorBeat)
 }
 
 function displayPosition(position: number, receptorPosition: number): number {
