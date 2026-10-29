@@ -4,6 +4,7 @@ mod beat;
 mod beat_native;
 mod beat_parse;
 mod beat_render;
+mod beat_validate;
 mod decimal;
 mod error;
 mod model;

@@ -68,6 +68,40 @@ fn native_projection_preserves_exact_coordinates_when_supported() {
 }
 
 #[test]
+fn native_projection_returns_bounded_lower_bound_before_lcm_overflow() {
+    let source = BeatUcsChart {
+        mode: UcsMode::Single,
+        offset_micros: 0,
+        tempo: vec![BeatTempoSegment {
+            at: Beat::new(0, 1).expect("zero"),
+            micros_per_beat: Fraction::new(500_000, 1).expect("tempo"),
+        }],
+        grid_sections: vec![BeatGridSection {
+            at: Beat::new(0, 1).expect("zero"),
+            rows_per_measure: 4,
+        }],
+        duration: Beat::new(1, 1).expect("duration"),
+        notes: vec![BeatNote {
+            at: Beat::new(1, u64::MAX).expect("fine coordinate"),
+            hold: Beat::new(0, 1).expect("tap"),
+            panel_mask: 1,
+        }],
+        audio_sha256: [0; 32],
+        reference_accents: Vec::new(),
+    };
+
+    let error = project_beats_native(&source).expect_err("native TPB must be bounded");
+
+    assert_eq!(
+        error,
+        NativeProjectionError::GridUnsupported {
+            required_tpb: u64::MAX,
+            limit: 4_096,
+        }
+    );
+}
+
+#[test]
 fn beat_export_refines_arbitrary_measure_rows_without_rounding() {
     for (rows_per_measure, expected_split) in [(7, 7), (6, 3), (1, 1)] {
         let source = BeatUcsChart {

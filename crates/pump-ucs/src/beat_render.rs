@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::beat::{Beat, BeatUcsChart, gcd};
+use crate::beat::{Beat, BeatUcsChart};
+use crate::beat_validate::{ucs_split, validate_for_render};
 use crate::decimal::{JS_SAFE, format_decimal};
 use crate::{UcsError, UcsMode};
 
@@ -8,7 +9,7 @@ const MAX_ROWS: usize = 1_000_000;
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 
 pub fn render_ucs_beats(chart: &BeatUcsChart) -> Result<String, UcsError> {
-    validate(chart)?;
+    validate_for_render(chart)?;
     let mut boundaries = BTreeSet::new();
     boundaries.extend(chart.tempo.iter().map(|segment| segment.at));
     boundaries.extend(chart.grid_sections.iter().map(|section| section.at));
@@ -42,6 +43,7 @@ pub fn render_ucs_beats(chart: &BeatUcsChart) -> Result<String, UcsError> {
         }
         let rows = usize::try_from(output_scaled / u128::from(delta.denominator()))
             .map_err(|_| UcsError::Overflow)?;
+        checked_row_total(row_beats.len(), rows)?;
         for row in 0..rows {
             row_beats.push(start.checked_add(Beat::new(
                 u64::try_from(row).map_err(|_| UcsError::Overflow)?,
@@ -119,38 +121,6 @@ pub fn render_ucs_beats(chart: &BeatUcsChart) -> Result<String, UcsError> {
     Ok(output)
 }
 
-fn validate(chart: &BeatUcsChart) -> Result<(), UcsError> {
-    if chart.duration.numerator() == 0 || chart.notes.len() > 10_000 {
-        return Err(UcsError::Unrepresentable("chart bounds are invalid"));
-    }
-    if chart.tempo.first().map(|segment| segment.at) != Some(Beat::new(0, 1)?)
-        || chart.grid_sections.first().map(|section| section.at) != Some(Beat::new(0, 1)?)
-    {
-        return Err(UcsError::Unrepresentable(
-            "tempo and grid must start at beat zero",
-        ));
-    }
-    if chart.mode == UcsMode::Single
-        && chart
-            .notes
-            .iter()
-            .any(|note| note.panel_mask & !0x001f != 0)
-    {
-        return Err(UcsError::Unrepresentable(
-            "Single mode cannot represent right-pad notes; choose Double",
-        ));
-    }
-    for section in &chart.grid_sections {
-        if !(1..=512).contains(&section.rows_per_measure) {
-            return Err(UcsError::Unrepresentable(
-                "rows_per_measure must be between 1 and 512",
-            ));
-        }
-        ucs_split(section.rows_per_measure)?;
-    }
-    Ok(())
-}
-
 fn active_grid(chart: &BeatUcsChart, at: Beat) -> Result<u16, UcsError> {
     chart
         .grid_sections
@@ -200,18 +170,6 @@ fn write_header(
     Ok(())
 }
 
-fn ucs_split(rows_per_measure: u16) -> Result<u16, UcsError> {
-    let divisor =
-        u16::try_from(gcd(4, u64::from(rows_per_measure))).map_err(|_| UcsError::Overflow)?;
-    let split = rows_per_measure / divisor;
-    if split > 128 {
-        return Err(UcsError::Unrepresentable(
-            "local grid cannot refine to UCS Split <= 128",
-        ));
-    }
-    Ok(split)
-}
-
 fn set_cell(cells: &mut [Vec<u8>], row: usize, lane: usize, value: u8) -> Result<(), UcsError> {
     let cell = cells
         .get_mut(row)
@@ -226,4 +184,21 @@ fn set_cell(cells: &mut [Vec<u8>], row: usize, lane: usize, value: u8) -> Result
     }
     *cell = value;
     Ok(())
+}
+
+fn checked_row_total(existing: usize, additional: usize) -> Result<usize, UcsError> {
+    existing
+        .checked_add(additional)
+        .filter(|total| *total <= MAX_ROWS)
+        .ok_or(UcsError::Limit("output row count"))
+}
+
+#[cfg(test)]
+mod row_budget_tests {
+    #[test]
+    fn huge_row_counts_are_rejected_without_materializing_rows() {
+        assert!(super::checked_row_total(0, usize::MAX).is_err());
+        assert!(super::checked_row_total(1, 1_000_000).is_err());
+        assert_eq!(super::checked_row_total(0, 1_000_000).ok(), Some(1_000_000));
+    }
 }

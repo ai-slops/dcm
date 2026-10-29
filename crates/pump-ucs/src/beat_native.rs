@@ -11,7 +11,9 @@ const NATIVE_TICK_LIMIT: u64 = 1_000_000;
 #[derive(Clone, Debug, Eq, Error, PartialEq, Serialize)]
 #[serde(tag = "code", rename_all = "snake_case")]
 pub enum NativeProjectionError {
-    #[error("exact native grid requires {required_tpb} ticks per beat, above limit {limit}")]
+    #[error(
+        "exact native grid requires at least {required_tpb} ticks per beat, above limit {limit}"
+    )]
     GridUnsupported { required_tpb: u64, limit: u64 },
     #[error("exact native projection exceeds the {field} limit of {limit}")]
     Limit { field: &'static str, limit: u64 },
@@ -181,6 +183,14 @@ impl From<NativeBeatProjection> for UcsChart {
 
 fn required_tpb(source: &BeatUcsChart) -> Result<u64, NativeProjectionError> {
     let mut required = 1_u64;
+    for section in &source.grid_sections {
+        let row_denominator =
+            u64::from(section.rows_per_measure) / gcd(4, u64::from(section.rows_per_measure));
+        required = lcm_lower_bound(required, row_denominator);
+        if required > NATIVE_TPB_LIMIT {
+            return Ok(required);
+        }
+    }
     let beats = source
         .notes
         .iter()
@@ -190,20 +200,18 @@ fn required_tpb(source: &BeatUcsChart) -> Result<u64, NativeProjectionError> {
         .chain(source.reference_accents.iter().copied())
         .chain([source.duration]);
     for beat in beats {
-        required = lcm(required, beat.denominator())?;
-    }
-    for section in &source.grid_sections {
-        let row_denominator =
-            u64::from(section.rows_per_measure) / gcd(4, u64::from(section.rows_per_measure));
-        required = lcm(required, row_denominator)?;
+        required = lcm_lower_bound(required, beat.denominator());
+        if required > NATIVE_TPB_LIMIT {
+            return Ok(required);
+        }
     }
     Ok(required)
 }
 
-fn lcm(left: u64, right: u64) -> Result<u64, NativeProjectionError> {
+fn lcm_lower_bound(left: u64, right: u64) -> u64 {
     left.checked_div(gcd(left, right))
         .and_then(|value| value.checked_mul(right))
-        .ok_or(NativeProjectionError::Overflow)
+        .unwrap_or(u64::MAX)
 }
 
 fn to_tick(beat: Beat, tpb: u64) -> Result<u64, NativeProjectionError> {

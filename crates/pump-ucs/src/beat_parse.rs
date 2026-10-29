@@ -7,6 +7,7 @@ use crate::{UcsError, UcsMode};
 
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 const MAX_NOTES: usize = 10_000;
+const MAX_RAW_NOTES: usize = 10 * MAX_NOTES;
 
 pub fn parse_ucs_beats(bytes: &[u8], audio_sha256: [u8; 32]) -> Result<BeatUcsChart, UcsError> {
     if bytes.len() > MAX_BYTES {
@@ -104,6 +105,9 @@ fn build(document: Document<'_>, audio_sha256: [u8; 32]) -> Result<BeatUcsChart,
         let advance = Beat::new(1, u64::from(section_split))?;
         for (line, row) in section.rows {
             parse_row(row, line, document.mode, at, &mut active, &mut notes)?;
+            if notes.len() > MAX_RAW_NOTES {
+                return Err(UcsError::Limit("raw lane note count"));
+            }
             at = at.checked_add(advance)?;
         }
     }
