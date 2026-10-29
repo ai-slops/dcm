@@ -6,7 +6,7 @@ export const GenerationProjectIdSchema = z.uuid().brand("GenerationProjectId")
 export const ComponentIdSchema = z.uuid().brand("ComponentId")
 export const ProjectRevisionSchema = NonNegativeIntegerSchema.brand("ProjectRevision")
 export const WorkspaceRevisionSchema = NonNegativeIntegerSchema.brand("WorkspaceRevision")
-export const ComponentKindSchema = z.enum(["timing", "evaluation", "generator"])
+export const ComponentKindSchema = z.enum(["timing", "evaluation", "generator", "note_fragment"])
 export const MAX_GENERATION_PROJECTS = 64
 export const MAX_REUSABLE_COMPONENTS = 128
 

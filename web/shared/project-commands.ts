@@ -1,14 +1,14 @@
 import { z } from "zod"
 
 import { NativeAssessmentSchema } from "./assessment.ts"
-import { EvalContractSchema } from "./evaluation-contract.ts"
+import { BaseUcsRefSchema, BeatChartCoreSchema, BeatSchema, BeatTimingSchema } from "./beat.ts"
+import { BeatEvaluationContractSchema } from "./beat-evaluation.ts"
 import {
-  GenerationProjectSchema,
-  MusicTimingSchema,
-  ProjectWorkspaceSchema,
-  ReusableComponentSchema,
-} from "./generation-projects.ts"
-import { GenerationRulesSchema } from "./generation-rules.ts"
+  BeatProjectWorkspaceSchema,
+  BeatReusableComponentSchema,
+  GenerationProjectV2Schema,
+} from "./beat-projects.ts"
+import { BeatGenerationRulesSchema } from "./beat-rules.ts"
 import { ChartIdSchema, LibraryLabelSchema, SongIdSchema } from "./library.ts"
 import { NativeChartSchema, NonNegativeIntegerSchema } from "./native.ts"
 import { UcsModeSchema } from "./project.ts"
@@ -21,9 +21,10 @@ import {
 
 const MutableProjectFields = {
   name: LibraryLabelSchema,
-  timing: MusicTimingSchema,
-  evaluation_contract: EvalContractSchema,
-  generation_rules: GenerationRulesSchema,
+  chart_artist: LibraryLabelSchema.nullable(),
+  timing: BeatTimingSchema,
+  evaluation_contract: BeatEvaluationContractSchema,
+  generation_rules: BeatGenerationRulesSchema,
 } as const
 const ProjectGuard = {
   project_id: GenerationProjectIdSchema,
@@ -35,7 +36,9 @@ export const ProjectCommandSchema = z.discriminatedUnion("type", [
       type: z.literal("create_project"),
       song_id: SongIdSchema,
       mode: UcsModeSchema,
+      base_ucs_ref: BaseUcsRefSchema,
       ...MutableProjectFields,
+      chart_artist: LibraryLabelSchema,
     })
     .readonly(),
   z
@@ -54,6 +57,8 @@ export const ProjectCommandSchema = z.discriminatedUnion("type", [
       ...ProjectGuard,
       kind: ComponentKindSchema,
       name: LibraryLabelSchema,
+      start: BeatSchema.optional(),
+      end: BeatSchema.optional(),
     })
     .readonly(),
   z
@@ -61,6 +66,7 @@ export const ProjectCommandSchema = z.discriminatedUnion("type", [
       type: z.literal("apply_component"),
       ...ProjectGuard,
       component_id: ComponentIdSchema,
+      at: BeatSchema.optional(),
     })
     .readonly(),
   z
@@ -103,7 +109,12 @@ export const NativeRuleGenerationSchema = z
   })
   .readonly()
 
-export const ProjectGenerationResultSchema = NativeRuleGenerationSchema.unwrap()
+export const BeatRuleGenerationSchema = NativeRuleGenerationSchema.unwrap()
+  .omit({ chart: true })
+  .extend({ chart: BeatChartCoreSchema })
+  .readonly()
+
+export const ProjectGenerationResultSchema = BeatRuleGenerationSchema.unwrap()
   .extend({
     chart_id: ChartIdSchema,
     project_id: GenerationProjectIdSchema,
@@ -114,14 +125,15 @@ export const ProjectGenerationResultSchema = NativeRuleGenerationSchema.unwrap()
 
 export const ProjectMutationSchema = z
   .strictObject({
-    workspace: ProjectWorkspaceSchema,
-    project: GenerationProjectSchema.optional(),
-    component: ReusableComponentSchema.optional(),
+    workspace: BeatProjectWorkspaceSchema,
+    project: GenerationProjectV2Schema.optional(),
+    component: BeatReusableComponentSchema.optional(),
     generation: ProjectGenerationResultSchema.optional(),
   })
   .readonly()
 
 export type ProjectCommand = z.infer<typeof ProjectCommandSchema>
 export type NativeRuleGeneration = z.infer<typeof NativeRuleGenerationSchema>
+export type BeatRuleGeneration = z.infer<typeof BeatRuleGenerationSchema>
 export type ProjectGenerationResult = z.infer<typeof ProjectGenerationResultSchema>
 export type ProjectMutation = z.infer<typeof ProjectMutationSchema>

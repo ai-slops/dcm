@@ -1,10 +1,10 @@
 import { z } from "zod"
 
 import { CurrentDocumentSchema } from "./api.ts"
-import { AutomaticRegionViewSchema } from "./generation-rules.ts"
-import { NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
-import { AudioAssetSchema, StudioProjectV1Schema, UcsModeSchema } from "./project.ts"
-import { GenerationProjectIdSchema, ProjectRevisionSchema } from "./project-identities.ts"
+import { BeatSchema, BeatTimingSchema } from "./beat.ts"
+import { BeatChartDocumentSchema, BeatDocumentOriginSchema } from "./beat-projects.ts"
+import { NonNegativeIntegerSchema } from "./native.ts"
+import { AudioAssetSchema, UcsModeSchema } from "./project.ts"
 
 export const MAX_LIBRARY_SONGS = 64
 export const MAX_LIBRARY_CHARTS = 128
@@ -17,13 +17,12 @@ export const LibraryLabelSchema = z.string().trim().min(1).max(160)
 export const AudioBindingSchema = AudioAssetSchema.unwrap()
   .extend({ sha256: z.string().regex(/^[0-9a-f]{64}$/) })
   .readonly()
-const { audio_sha256: _audioDigest, ...archiveTimingShape } = NativeMusicSchema.unwrap().shape
 export const ArchiveSourceTimingSchema = z
   .strictObject({
     chart_name: z.string().min(1).max(512),
     audio_name: z.string().min(1).max(512),
     mode: UcsModeSchema,
-    timing: z.strictObject(archiveTimingShape).readonly(),
+    timing: BeatTimingSchema,
   })
   .readonly()
 
@@ -46,17 +45,9 @@ export const LibraryChartSchema = z
     mode: UcsModeSchema,
     note_count: NonNegativeIntegerSchema.max(100_000),
     hold_count: NonNegativeIntegerSchema.max(100_000),
-    ticks_per_beat: z.number().int().positive().max(4_096),
-    duration_ticks: z.number().int().positive().max(1_000_000),
-    generated_from: z
-      .strictObject({
-        project_id: GenerationProjectIdSchema,
-        project_revision: ProjectRevisionSchema,
-        seed: z.string().regex(/^[0-9a-f]{64}$/),
-        automatic_regions: z.array(AutomaticRegionViewSchema).max(64).readonly().optional(),
-      })
-      .readonly()
-      .optional(),
+    duration: BeatSchema.nullable(),
+    chart_artist: LibraryLabelSchema.nullable(),
+    generated_from: BeatDocumentOriginSchema.optional(),
   })
   .readonly()
 
@@ -95,7 +86,7 @@ export const LibraryChartDocumentSchema = z
   .strictObject({
     chart: LibraryChartSchema,
     song: LibrarySongSchema,
-    project: StudioProjectV1Schema,
+    project: BeatChartDocumentSchema,
   })
   .readonly()
 

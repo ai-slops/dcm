@@ -1,9 +1,12 @@
 import { z } from "zod"
 
 import type { EvaluationResponseSchema } from "./assessment.ts"
-import { AutomaticRegionViewSchema } from "./generation-rules.ts"
+import {
+  BeatChartDocumentSchema,
+  BeatCurrentDocumentSchema,
+  BeatDocumentOriginSchema,
+} from "./beat-projects.ts"
 import { NativeChartSchema, NativeMusicSchema, NonNegativeIntegerSchema } from "./native.ts"
-import { StudioProjectV1Schema } from "./project.ts"
 import { GenerationProjectIdSchema, ProjectRevisionSchema } from "./project-identities.ts"
 import { AgentProviderStatusSchema, ProviderApiSchema } from "./provider.ts"
 import { MAX_AGENT_DELTA_BYTES, MAX_AGENT_TEXT_BYTES } from "./text.ts"
@@ -26,21 +29,8 @@ const AgentDeltaSchema = z
   .string()
   .refine((value) => new TextEncoder().encode(value).byteLength <= MAX_AGENT_DELTA_BYTES)
 
-export const DocumentOriginSchema = z
-  .strictObject({
-    project_id: GenerationProjectIdSchema,
-    project_revision: ProjectRevisionSchema,
-    automatic_regions: z.array(AutomaticRegionViewSchema).max(64).readonly(),
-  })
-  .readonly()
-
-export const CurrentDocumentSchema = z
-  .strictObject({
-    revision: RevisionSchema,
-    project: StudioProjectV1Schema,
-    origin: DocumentOriginSchema.optional(),
-  })
-  .readonly()
+export const DocumentOriginSchema = BeatDocumentOriginSchema
+export const CurrentDocumentSchema = BeatCurrentDocumentSchema
 
 export const ChartProposalSchema = z
   .strictObject({
@@ -140,7 +130,7 @@ export const BootstrapSchema = z
           })
           .readonly(),
       )
-      .max(16)
+      .max(32)
       .readonly()
       .optional(),
     proposals: z.array(ChartProposalSchema).max(MAX_SESSION_PROPOSALS).readonly().optional(),
@@ -166,7 +156,7 @@ export const BaseRevisionRequestSchema = z
   .readonly()
 
 export const PutDocumentRequestSchema = z
-  .strictObject({ base_revision: RevisionSchema, project: StudioProjectV1Schema })
+  .strictObject({ base_revision: RevisionSchema, project: BeatChartDocumentSchema })
   .readonly()
 
 export const GenerationRequestSchema = z

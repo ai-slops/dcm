@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
 import {
   AgentRunRequestSchema,
   AgentRunSnapshotSchema,
@@ -239,7 +240,7 @@ describe("agent recovery contracts", () => {
       audio_asset: { format: "wav", byte_length: 44 },
     })
     const bootstrap = {
-      document: { revision: 3, project },
+      document: { revision: 3, project: migrateLegacyChart(project) },
       csrf_token: "csrf",
       session_id: "session-1",
       native: { ready: true, message: "ready" },
