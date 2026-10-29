@@ -1,6 +1,8 @@
 import { expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
+import { StudioProjectV1Schema } from "../shared/index.ts"
 import { boundedAudioSeconds, validatedPlaybackSegment } from "../src/ui/audio-playback-state.ts"
 import {
   AudioPlaybackController,
@@ -8,6 +10,11 @@ import {
   type PlaybackMedia,
 } from "../src/ui/useAudioPlayback.ts"
 import { repoRoot } from "./support/paths.ts"
+
+async function beatProject() {
+  const demo = await loadDemo(repoRoot)
+  return migrateLegacyChart(StudioProjectV1Schema.parse(demo.document.project))
+}
 
 class FakePlaybackMedia implements PlaybackMedia {
   currentTime = 0
@@ -66,13 +73,12 @@ function fakePlaybackEnvironment(media: FakePlaybackMedia): {
 }
 
 it("keeps unavailable audio unavailable when the editing cursor is scrubbed", async () => {
-  const demo = await loadDemo(repoRoot)
-  const playback = new AudioPlaybackController(demo.document.project)
+  const playback = new AudioPlaybackController(await beatProject())
 
-  playback.seek(8)
+  playback.seekBeatPosition(2)
 
   expect(playback.getSnapshot().status).toBe("no-audio")
-  expect(playback.getSnapshot().chartTick).toBeNull()
+  expect(playback.getSnapshot().chartBeat).toBeNull()
 })
 
 it("clamps chart seeks to the real audio duration", () => {
@@ -115,10 +121,10 @@ it.each([
 
 it("pauses and clamps the media clock at a selected segment end", async () => {
   // Given ready media with a finite ten-second duration
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.load(true)
   await Promise.resolve()
   media.onloadedmetadata?.()
@@ -142,10 +148,10 @@ it("pauses and clamps the media clock at a selected segment end", async () => {
 
 it("loops a selected segment without enabling full-song media loop", async () => {
   // Given ready media and an existing full-song loop preference
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.setLoop(true)
   playback.load(true)
   await Promise.resolve()
@@ -166,10 +172,10 @@ it("loops a selected segment without enabling full-song media loop", async () =>
 
 it("restarts a looping segment ending at media duration from the ended event", async () => {
   // Given a looping range whose end equals the actual media duration
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.load(true)
   await Promise.resolve()
   media.onloadedmetadata?.()
@@ -191,10 +197,10 @@ it("restarts a looping segment ending at media duration from the ended event", a
 
 it("keeps playback state unchanged when a segment range is invalid", async () => {
   // Given ready media at a stable playback position
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.load(true)
   await Promise.resolve()
   media.onloadedmetadata?.()
@@ -212,10 +218,10 @@ it("keeps playback state unchanged when a segment range is invalid", async () =>
 })
 
 it("enforces the range on media events without animation frames", async () => {
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.load(true)
   await Promise.resolve()
   media.oncanplay?.()
@@ -227,10 +233,10 @@ it("enforces the range on media events without animation frames", async () => {
 })
 
 it("ignores an aborted old play request after audio is unloaded", async () => {
-  const demo = await loadDemo(repoRoot)
+  const project = await beatProject()
   const media = new FakePlaybackMedia()
   const fake = fakePlaybackEnvironment(media)
-  const playback = new AudioPlaybackController(demo.document.project, fake.environment)
+  const playback = new AudioPlaybackController(project, fake.environment)
   playback.load(true)
   await Promise.resolve()
   media.oncanplay?.()

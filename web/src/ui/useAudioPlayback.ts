@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { StudioProjectV1 } from "../../shared/index.ts"
+import type { BeatChartDocument } from "../../shared/index.ts"
 import type { PlaybackSnapshot } from "./audio-playback-state.ts"
 import { AudioPlaybackController } from "./audioPlaybackController.ts"
 import type { AudioPlaybackEnvironment } from "./audioPlaybackEnvironment.ts"
@@ -8,7 +8,7 @@ import type { AudioPlaybackEnvironment } from "./audioPlaybackEnvironment.ts"
 export { AudioPlaybackController } from "./audioPlaybackController.ts"
 export type { AudioPlaybackEnvironment, PlaybackMedia } from "./audioPlaybackEnvironment.ts"
 
-export function useAudioPlayback(project: StudioProjectV1): AudioPlaybackController {
+export function useAudioPlayback(project: BeatChartDocument): AudioPlaybackController {
   return useAudioPlaybackSource(project, browserSource)
 }
 
@@ -17,7 +17,7 @@ const browserSource = {
 } as const
 
 export function useAudioPlaybackSource(
-  project: StudioProjectV1,
+  project: BeatChartDocument,
   source: {
     readonly key: string
     readonly environment?: AudioPlaybackEnvironment
@@ -32,12 +32,9 @@ export function useAudioPlaybackSource(
   }
   const controller = controllerRef.current
   const hasAudio = source.hasAudio ?? project.audio_asset.byte_length > 0
-  const audioDigest = project.music.audio_sha256.join(",")
+  const audioDigest = project.audio_sha256
 
-  useEffect(
-    () => controller.setTiming(project.music, project.chart.span_ticks),
-    [controller, project],
-  )
+  useEffect(() => controller.setTiming(project.timing), [controller, project])
   useEffect(() => {
     controller.load(hasAudio && audioDigest !== "")
     return () => controller.unload()

@@ -16,7 +16,7 @@ export type PlaybackSegment = {
 export type PlaybackSnapshot = {
   readonly status: PlaybackStatus
   readonly audioMicros: number
-  readonly chartTick: number | null
+  readonly chartBeat: number | null
   readonly durationSeconds: number | null
   readonly error: string | null
   readonly loop: boolean
@@ -28,7 +28,7 @@ export type PlaybackSnapshot = {
 export const initialPlaybackSnapshot: PlaybackSnapshot = {
   status: "no-audio",
   audioMicros: 0,
-  chartTick: null,
+  chartBeat: null,
   durationSeconds: null,
   error: null,
   loop: false,

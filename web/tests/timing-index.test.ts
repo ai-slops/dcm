@@ -1,6 +1,6 @@
 import { expect, it } from "vitest"
 
-import type { NativeChart, NativeMusic } from "../shared/index.ts"
+import type { BeatNote, BeatTiming, NativeMusic } from "../shared/index.ts"
 import { buildNoteAudioIntervals } from "../src/domain/playback.ts"
 import { audioMicrosToTick, tickToAudioMicros } from "../src/domain/timing.ts"
 
@@ -22,14 +22,14 @@ it("does not advance into later tempo segments when a large offset hides sub-mic
 it("projects the maximum note and tempo profile without rescanning tempo for every note", () => {
   // Given a valid maximum-size profile with observable reads of tempo periods
   let periodReads = 0
-  const music: NativeMusic = {
-    duration_ticks: 50_000,
-    ticks_per_beat: 4,
+  const timing: BeatTiming = {
+    schema_version: 1,
     offset_micros: 1_001,
-    audio_sha256: Array.from({ length: 32 }, () => 0),
+    duration: { numerator: 12_500, denominator: 1 },
+    grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 16 }],
     reference_accents: [],
     tempo: Array.from({ length: 4_096 }, (_, index) => ({
-      start_tick: index * 10,
+      at: { numerator: index * 5, denominator: 2 },
       micros_per_beat: {
         get numerator() {
           periodReads += 1
@@ -39,19 +39,15 @@ it("projects the maximum note and tempo profile without rescanning tempo for eve
       },
     })),
   }
-  const chart: NativeChart = {
-    ticks_per_beat: 4,
-    span_ticks: 50_000,
-    notes: Array.from({ length: 10_000 }, (_, index) => ({
-      tick: index * 4,
-      panel_mask: 1,
-      hold_ticks: 0,
-    })),
-  }
+  const notes: readonly BeatNote[] = Array.from({ length: 10_000 }, (_, index) => ({
+    at: { numerator: index, denominator: 1 },
+    panel_mask: 1,
+    hold: { numerator: 0, denominator: 1 },
+  }))
   // When a chart is projected, then edited without replacing its music revision
-  const first = buildNoteAudioIntervals(chart, music)
+  const first = buildNoteAudioIntervals(notes, timing)
   const readsAfterInitialProjection = periodReads
-  const edited = buildNoteAudioIntervals({ ...chart, notes: chart.notes.slice(1) }, music)
+  const edited = buildNoteAudioIntervals(notes.slice(1), timing)
   // Then tempo construction is linear once, and later chart edits reuse that projection
   expect(first).toHaveLength(10_000)
   expect(edited).toHaveLength(9_999)

@@ -1,6 +1,5 @@
-import type { NativeMusic, StudioProjectV1 } from "../../shared/index.ts"
-import { chartTickAtAudioMicros } from "../domain/playback.ts"
-import { tickToAudioMicros } from "../domain/timing.ts"
+import type { BeatChartDocument, BeatTiming } from "../../shared/index.ts"
+import { audioMicrosToBeatPosition, beatPositionToAudioMicros } from "../domain/beat-timing.ts"
 import {
   boundedAudioSeconds,
   canControlPlayback,
@@ -29,20 +28,17 @@ export class AudioPlaybackController {
   private objectUrl: string | null = null
   private frame = 0
   private loadGeneration = 0
-  private music: NativeMusic
-  private spanTicks: number
+  private timing: BeatTiming
 
   constructor(
-    project: StudioProjectV1,
+    project: BeatChartDocument,
     private readonly environment: AudioPlaybackEnvironment = browserAudioPlaybackEnvironment,
   ) {
-    this.music = project.music
-    this.spanTicks = project.chart.span_ticks
+    this.timing = project.timing
   }
 
-  setTiming(music: NativeMusic, spanTicks: number): void {
-    this.music = music
-    this.spanTicks = spanTicks
+  setTiming(timing: BeatTiming): void {
+    this.timing = timing
     if (this.audio !== null) this.publishClock(this.audio.currentTime * 1_000_000)
   }
 
@@ -66,9 +62,8 @@ export class AudioPlaybackController {
         audio.onloadedmetadata = () => this.publishDuration(audio)
         audio.oncanplay = () => {
           this.publishDuration(audio)
-          if (this.snapshot.status === "loading") {
+          if (this.snapshot.status === "loading")
             this.publish({ ...this.snapshot, status: "ready", error: null })
-          }
         }
         audio.onplay = () => {
           this.publish({ ...this.snapshot, status: "playing", error: null })
@@ -76,9 +71,8 @@ export class AudioPlaybackController {
         }
         audio.onpause = () => {
           this.stopClock()
-          if (!audio.ended && this.snapshot.status === "playing") {
+          if (!audio.ended && this.snapshot.status === "playing")
             this.publishClock(audio.currentTime * 1_000_000, "paused")
-          }
         }
         audio.onended = () => this.handleEnded(audio)
         audio.ontimeupdate = () => !audio.paused && this.applySegmentBoundary(audio)
@@ -97,10 +91,9 @@ export class AudioPlaybackController {
   unload(): void {
     this.loadGeneration += 1
     this.stopClock()
-    const audio = this.audio
-    if (audio !== null) {
-      clearPlaybackMediaHandlers(audio)
-      audio.pause()
+    if (this.audio !== null) {
+      clearPlaybackMediaHandlers(this.audio)
+      this.audio.pause()
     }
     this.audio = null
     if (this.objectUrl !== null) this.environment.revokeObjectUrl(this.objectUrl)
@@ -136,23 +129,30 @@ export class AudioPlaybackController {
   }
 
   stop(): void {
-    const audio = this.audio
     this.clearSegment()
+    const audio = this.audio
     if (audio === null) return
     audio.pause()
-    const audioMicros = Math.max(0, tickToAudioMicros(this.music, 0))
-    audio.currentTime = boundedAudioSeconds(audio, audioMicros)
+    audio.currentTime = boundedAudioSeconds(
+      audio,
+      Math.max(0, beatPositionToAudioMicros(this.timing, 0)),
+    )
     this.publishClock(audio.currentTime * 1_000_000, "ready")
   }
 
-  seek(tick: number): void {
+  seekBeatPosition(beat: number): void {
     this.clearSegment()
     if (!canControlPlayback(this.snapshot.status)) return
     const audio = this.audio
     if (audio === null) return
-    const boundedTick = Math.min(Math.max(tick, 0), this.spanTicks)
-    const audioMicros = Math.max(0, tickToAudioMicros(this.music, boundedTick))
-    audio.currentTime = boundedAudioSeconds(audio, audioMicros)
+    const duration = this.timing.duration
+    const maximum =
+      duration === null ? Number.POSITIVE_INFINITY : duration.numerator / duration.denominator
+    const bounded = Math.min(Math.max(beat, 0), maximum)
+    audio.currentTime = boundedAudioSeconds(
+      audio,
+      Math.max(0, beatPositionToAudioMicros(this.timing, bounded)),
+    )
     this.publishClock(audio.currentTime * 1_000_000, audio.paused ? "paused" : "playing")
   }
 
@@ -239,8 +239,10 @@ export class AudioPlaybackController {
   }
 
   private publishDuration(audio: PlaybackMedia): void {
-    const durationSeconds = Number.isFinite(audio.duration) ? audio.duration : null
-    this.publish({ ...this.snapshot, durationSeconds })
+    this.publish({
+      ...this.snapshot,
+      durationSeconds: Number.isFinite(audio.duration) ? audio.duration : null,
+    })
   }
 
   private publishClock(audioMicros: number, status = this.snapshot.status): void {
@@ -248,7 +250,7 @@ export class AudioPlaybackController {
       ...this.snapshot,
       status,
       audioMicros,
-      chartTick: chartTickAtAudioMicros(this.music, audioMicros),
+      chartBeat: audioMicrosToBeatPosition(this.timing, audioMicros),
     })
   }
 

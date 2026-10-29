@@ -1,5 +1,6 @@
-import type { NativeChart, NativeMusic } from "../../shared/index.ts"
-import { audioMicrosToTick, tickToAudioMicros } from "./timing.ts"
+import type { Beat, BeatNote, BeatTiming } from "../../shared/beat.ts"
+import { addBeats, compareBeats } from "../../shared/beat.ts"
+import { audioMicrosToBeatPosition, beatToAudioMicros } from "./beat-timing.ts"
 
 export const TAP_VISUAL_PULSE_MICROS = 120_000
 
@@ -9,32 +10,23 @@ export type NoteAudioInterval = {
   readonly tailMicros: number
 }
 
-export function chartTickAtAudioMicros(music: NativeMusic, audioMicros: number): number | null {
-  if (audioMicros < music.offset_micros) return null
-  return audioMicrosToTick(music, audioMicros)
-}
-
-export function activePanelMaskAtAudioMicros(
-  chart: NativeChart,
-  music: NativeMusic,
-  audioMicros: number,
-): number {
-  return activePanelMaskAtAudioIntervals(buildNoteAudioIntervals(chart, music), audioMicros)
+export function chartBeatAtAudioMicros(timing: BeatTiming, audioMicros: number): number | null {
+  return audioMicrosToBeatPosition(timing, audioMicros)
 }
 
 export function buildNoteAudioIntervals(
-  chart: NativeChart,
-  music: NativeMusic,
+  notes: readonly BeatNote[],
+  timing: BeatTiming,
 ): readonly NoteAudioInterval[] {
-  return chart.notes.map((note) => {
-    const headMicros = tickToAudioMicros(music, note.tick)
+  return notes.map((note) => {
+    const headMicros = beatToAudioMicros(timing, note.at)
     return {
       panelMask: note.panel_mask,
       headMicros,
       tailMicros:
-        note.hold_ticks === 0
+        note.hold.numerator === 0
           ? headMicros + TAP_VISUAL_PULSE_MICROS
-          : tickToAudioMicros(music, note.tick + note.hold_ticks),
+          : beatToAudioMicros(timing, addBeats(note.at, note.hold)),
     }
   })
 }
@@ -49,12 +41,13 @@ export function activePanelMaskAtAudioIntervals(
   }, 0)
 }
 
-export function activePanelMaskAtSelectedTick(chart: NativeChart, tick: number): number {
-  return chart.notes.reduce((mask, note) => {
+export function activePanelMaskAtBeat(notes: readonly BeatNote[], at: Beat): number {
+  return notes.reduce((mask, note) => {
+    const tail = addBeats(note.at, note.hold)
     const active =
-      note.hold_ticks === 0
-        ? note.tick === tick
-        : note.tick <= tick && tick < note.tick + note.hold_ticks
+      note.hold.numerator === 0
+        ? compareBeats(note.at, at) === 0
+        : compareBeats(note.at, at) <= 0 && compareBeats(at, tail) < 0
     return active ? mask | note.panel_mask : mask
   }, 0)
 }

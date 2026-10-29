@@ -1,16 +1,15 @@
 import { AlertTriangle, Check, LoaderCircle, Pause, Play, Scissors, Square } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
-import type { StudioProjectV1 } from "../../shared/index.ts"
+import type { Beat, BeatChartDocument } from "../../shared/index.ts"
+import { addBeats, compareBeats } from "../../shared/index.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { Badge, Button, IconButton } from "./primitives.tsx"
 import { SegmentPlaybackDialog } from "./SegmentPlaybackDialog.tsx"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
 type TransportProps = {
-  readonly project: StudioProjectV1
-  readonly selectedTick: number
-  readonly onSeekSelection: (tick: number) => void
+  readonly project: BeatChartDocument
   readonly playback: AudioPlaybackController
 }
 
@@ -36,12 +35,10 @@ function audioStatus(status: ReturnType<AudioPlaybackController["getSnapshot"]>[
   }
 }
 
-function StatusIcon({
-  status,
-}: {
+function StatusIcon(props: {
   readonly status: ReturnType<AudioPlaybackController["getSnapshot"]>["status"]
 }) {
-  switch (status) {
+  switch (props.status) {
     case "loading":
       return <LoaderCircle size={12} />
     case "ready":
@@ -60,20 +57,15 @@ export function Transport(props: TransportProps) {
   const [segmentOpen, setSegmentOpen] = useState(false)
   const playback = usePlaybackSnapshot(props.playback)
   const usesClock = showsPlaybackClock(playback.status) || playback.status === "ended"
-  const visibleTick = usesClock ? (playback.chartTick ?? 0) : props.selectedTick
-  const scrubTick = Math.min(Math.max(visibleTick, 0), props.project.chart.span_ticks)
+  const visibleBeat = usesClock ? (playback.chartBeat ?? 0) : 0
+  const maximumBeat = useMemo(() => documentExtent(props.project), [props.project])
+  const scrubBeat = Math.min(Math.max(visibleBeat, 0), maximumBeat)
   const status = audioStatus(playback.status)
-  const tickValue =
-    playback.chartTick === null && usesClock
+  const beatValue =
+    playback.chartBeat === null && usesClock
       ? "PRE-ROLL"
-      : usesClock
-        ? visibleTick.toFixed(2)
-        : String(Math.floor(visibleTick))
-  const canPlay =
-    playback.status === "ready" ||
-    playback.status === "playing" ||
-    playback.status === "paused" ||
-    playback.status === "ended"
+      : visibleBeat.toFixed(3).replace(/\.?0+$/, "")
+  const canPlay = ["ready", "playing", "paused", "ended"].includes(playback.status)
 
   return (
     <footer className="transport">
@@ -88,33 +80,27 @@ export function Transport(props: TransportProps) {
           label="Stop"
           icon={<Square size={14} />}
           disabled={!canPlay}
-          onClick={() => {
-            props.playback.stop()
-            props.onSeekSelection(0)
-          }}
+          onClick={() => props.playback.stop()}
         />
-        <span className="mono transport__tick" data-testid="transport-tick">
+        <span className="mono transport__tick" data-testid="transport-beat">
           <span className="transport__tick-accessible">
-            {tickValue === "PRE-ROLL" ? "Chart pre-roll" : `Chart tick ${tickValue}`}
+            {beatValue === "PRE-ROLL" ? "Chart pre-roll" : `Chart beat ${beatValue}`}
           </span>
           <span aria-hidden="true">
-            <span className="transport__tick-prefix">TICK </span>
-            {tickValue}
+            <span className="transport__tick-prefix">BEAT </span>
+            {beatValue}
           </span>
         </span>
         <input
-          aria-label="Chart position"
-          aria-valuetext={`Tick ${scrubTick.toFixed(2)} of ${props.project.chart.span_ticks}`}
-          max={props.project.chart.span_ticks}
+          aria-label="Chart beat position"
+          aria-valuetext={`Beat ${scrubBeat.toFixed(3)} of ${maximumBeat.toFixed(3)}`}
+          disabled={maximumBeat === 0}
+          max={Math.max(maximumBeat, 1)}
           min="0"
           step="any"
           type="range"
-          value={scrubTick}
-          onChange={(event) => {
-            const nextTick = Number(event.currentTarget.value)
-            props.playback.seek(nextTick)
-            props.onSeekSelection(Math.min(nextTick, props.project.chart.span_ticks - 1))
-          }}
+          value={scrubBeat}
+          onChange={(event) => props.playback.seekBeatPosition(Number(event.currentTarget.value))}
         />
         <Badge tone={status.tone}>
           <StatusIcon status={playback.status} /> {status.label}
@@ -173,4 +159,15 @@ export function Transport(props: TransportProps) {
       ) : null}
     </footer>
   )
+}
+
+function documentExtent(project: BeatChartDocument): number {
+  if (project.timing.duration !== null)
+    return project.timing.duration.numerator / project.timing.duration.denominator
+  const zero = { numerator: 0, denominator: 1 } as const
+  const end = project.notes.reduce<Beat>((latest, note) => {
+    const tail = addBeats(note.at, note.hold)
+    return compareBeats(tail, latest) > 0 ? tail : latest
+  }, zero)
+  return end.numerator / end.denominator
 }
