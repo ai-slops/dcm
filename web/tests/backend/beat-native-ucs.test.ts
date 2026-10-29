@@ -149,4 +149,57 @@ describe("beat native UCS adapter", () => {
       expect.objectContaining({ code: "empty_auto_extent" }),
     )
   })
+
+  it("rejects huge output row counts before starting a native export", () => {
+    expect(() =>
+      beatUcsDocumentFor({
+        mode: "Single",
+        timing: {
+          schema_version: 1,
+          offset_micros: 0,
+          duration: { numerator: Number.MAX_SAFE_INTEGER, denominator: 1 },
+          tempo: [
+            {
+              at: { numerator: 0, denominator: 1 },
+              micros_per_beat: { numerator: 500_000, denominator: 1 },
+            },
+          ],
+          grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 4 }],
+          reference_accents: [],
+        },
+        notes: [],
+      }),
+    ).toThrowError(expect.objectContaining({ code: "ucs_row_limit" }))
+  })
+
+  it("keeps source reference accents while omitting metadata the UCS format cannot encode", async () => {
+    const source: BeatChartCore = {
+      mode: "Single",
+      timing: {
+        schema_version: 1,
+        offset_micros: 0,
+        tempo: [
+          {
+            at: { numerator: 0, denominator: 1 },
+            micros_per_beat: { numerator: 500_000, denominator: 1 },
+          },
+        ],
+        grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 4 }],
+        duration: { numerator: 2, denominator: 1 },
+        reference_accents: [{ numerator: 0, denominator: 1 }],
+      },
+      notes: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          hold: { numerator: 0, denominator: 1 },
+          panel_mask: 1,
+        },
+      ],
+    }
+
+    const bytes = await new NativeBeatUcsService(repoRoot).export(source)
+
+    expect(new TextDecoder().decode(bytes)).toContain("X....")
+    expect(source.timing.reference_accents).toEqual([{ numerator: 0, denominator: 1 }])
+  })
 })

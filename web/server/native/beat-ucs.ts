@@ -17,6 +17,7 @@ import { StudioError } from "../errors.ts"
 import type { AudioRecord } from "../store.ts"
 import { nativeExecutable } from "./paths.ts"
 import { ProcessPool } from "./process.ts"
+import { assertUcsRowBudget } from "./ucs-row-budget.ts"
 
 const NativeBeatUcsSchema = z
   .strictObject({
@@ -105,6 +106,7 @@ export function beatUcsDocumentFor(chart: BeatChartCore): z.infer<typeof NativeB
       "empty_auto_extent",
       "Automatic UCS extent requires at least one note",
     )
+  assertUcsRowBudget(outputTiming, outputTiming.duration)
   return NativeBeatUcsSchema.parse({
     mode: source.mode,
     offset_micros: outputTiming.offset_micros,
@@ -113,7 +115,7 @@ export function beatUcsDocumentFor(chart: BeatChartCore): z.infer<typeof NativeB
     duration: outputTiming.duration,
     notes: source.notes,
     audio_sha256: Array.from({ length: 32 }, () => 0),
-    reference_accents: outputTiming.reference_accents,
+    reference_accents: [],
   })
 }
 
