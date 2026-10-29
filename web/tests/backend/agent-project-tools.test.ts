@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import { ProjectAgentTools } from "../../server/agent/project-tools.ts"
 import type {
-  GenerationProject,
-  ProjectWorkspace,
-  ReusableComponent,
-} from "../../shared/generation-projects.ts"
+  BeatProjectWorkspace,
+  BeatReusableComponent,
+  GenerationProjectV2,
+} from "../../shared/beat-projects.ts"
 import type { ProjectMutation } from "../../shared/project-commands.ts"
 import {
   fullProject,
@@ -121,6 +121,7 @@ function writeInput() {
     project_id: project.id,
     base_revision: project.revision,
     name: project.name,
+    chart_artist: project.chart_artist,
     timing: project.timing,
     evaluation_contract: project.evaluation_contract,
     generation_rules: project.generation_rules,
@@ -129,13 +130,14 @@ function writeInput() {
 
 function fakeService(command: () => ProjectMutation) {
   return {
-    list: (): ProjectWorkspace => workspace(),
+    list: (): BeatProjectWorkspace => workspace(),
     songs: () => [],
+    baseSources: () => [],
     chart: () => {
       throw new TypeError("not expected")
     },
-    read: (): GenerationProject => fullProject(),
-    component: (): ReusableComponent => {
+    read: (): GenerationProjectV2 => fullProject(),
+    component: (): BeatReusableComponent => {
       throw new TypeError("not expected")
     },
     command: async () => command(),

@@ -1,27 +1,35 @@
 import {
-  type GenerationProject,
-  GenerationProjectSchema,
-  type ProjectWorkspace,
-  ProjectWorkspaceSchema,
-} from "../../shared/generation-projects.ts"
+  type BeatProjectWorkspace,
+  BeatProjectWorkspaceSchema,
+  type GenerationProjectV2,
+  GenerationProjectV2Schema,
+} from "../../shared/beat-projects.ts"
 import { type ProjectMutation, ProjectMutationSchema } from "../../shared/project-commands.ts"
 
 export const PROJECT_ID = "00000000-0000-4000-8000-000000000001" as const
 export const SONG_ID = "00000000-0000-4000-8000-000000000002" as const
 
-export function fullProject(): GenerationProject {
-  return GenerationProjectSchema.parse({
-    schema_version: 1,
+export function fullProject(): GenerationProjectV2 {
+  return GenerationProjectV2Schema.parse({
+    schema_version: 2,
     id: PROJECT_ID,
     revision: 1,
     name: "Rules",
     song_id: SONG_ID,
     mode: "Single",
+    chart_artist: "Fixture chart author",
+    base_ucs_ref: null,
     timing: {
-      duration_ticks: 96,
-      ticks_per_beat: 4,
+      schema_version: 1,
+      duration: { numerator: 24, denominator: 1 },
+      grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 16 }],
       offset_micros: 0,
-      tempo: [{ start_tick: 0, micros_per_beat: { numerator: 500_000, denominator: 1 } }],
+      tempo: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          micros_per_beat: { numerator: 500_000, denominator: 1 },
+        },
+      ],
       reference_accents: [],
     },
     evaluation_contract: {
@@ -55,16 +63,18 @@ export function fullProject(): GenerationProject {
     generation_rules: {
       schema_version: 1,
       algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: 96,
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      start: { numerator: 0, denominator: 1 },
+      end: { numerator: 24, denominator: 1 },
+      step: { numerator: 12, denominator: 1 },
+      pattern: [
+        { choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }] },
+      ],
     },
     applied_components: {},
   })
 }
 
-export function workspace(): ProjectWorkspace {
+export function workspace(): BeatProjectWorkspace {
   const project = fullProject()
   const {
     timing: _timing,
@@ -72,7 +82,7 @@ export function workspace(): ProjectWorkspace {
     generation_rules: _rules,
     ...summary
   } = project
-  return ProjectWorkspaceSchema.parse({
+  return BeatProjectWorkspaceSchema.parse({
     revision: 1,
     selected_project_id: project.id,
     projects: [summary],
@@ -81,7 +91,7 @@ export function workspace(): ProjectWorkspace {
 }
 
 export function projectMutation(): ProjectMutation {
-  const project = GenerationProjectSchema.parse({ ...fullProject(), revision: 2 })
+  const project = GenerationProjectV2Schema.parse({ ...fullProject(), revision: 2 })
   const {
     timing: _timing,
     evaluation_contract: _evaluation,
@@ -89,7 +99,11 @@ export function projectMutation(): ProjectMutation {
     ...summary
   } = project
   return {
-    workspace: ProjectWorkspaceSchema.parse({ ...workspace(), revision: 2, projects: [summary] }),
+    workspace: BeatProjectWorkspaceSchema.parse({
+      ...workspace(),
+      revision: 2,
+      projects: [summary],
+    }),
     project,
   }
 }
@@ -122,9 +136,15 @@ export function generationMutation(): ProjectMutation {
       seed: "0".repeat(64),
       mode: "Single",
       chart: {
-        ticks_per_beat: 4,
-        span_ticks: 96,
-        notes: [{ tick: 0, panel_mask: 3, hold_ticks: 0 }],
+        mode: "Single",
+        timing: fullProject().timing,
+        notes: [
+          {
+            at: { numerator: 0, denominator: 1 },
+            hold: { numerator: 0, denominator: 1 },
+            panel_mask: 3,
+          },
+        ],
       },
       assessment: {
         schema_version: 2,

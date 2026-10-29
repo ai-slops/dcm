@@ -3,11 +3,13 @@ import type { PartRuntimeOptions } from "./part-runtime.ts"
 import { partSchema } from "./part-schemas.ts"
 import {
   ApplyComponentInput,
+  BaseSourcesSchema,
   ComponentListSchema,
   CreateProjectInput,
   GenerateProjectInput,
   GenerationProjectPartSchema,
   LibraryChartDocumentPartSchema,
+  ListBaseSourcesInput,
   ListComponentsInput,
   ListProjectsInput,
   ListSongsInput,
@@ -45,6 +47,14 @@ export function createProjectToolBindings(
       execute: withTool(options, "list_songs", () => projects.listSongs()),
     }),
     functionTool({
+      id: "list_base_sources",
+      description:
+        "List server-issued exact base timing references for a song before project creation.",
+      input: partSchema("pump-studio/list-base-sources-input", ListBaseSourcesInput),
+      output: BaseSourcesSchema,
+      execute: withTool(options, "list_base_sources", (input) => projects.listBaseSources(input)),
+    }),
+    functionTool({
       id: "read_project",
       description: "Read one live durable generation project by ID.",
       input: partSchema("pump-studio/read-project-input", ReadProjectInput),
@@ -60,7 +70,8 @@ export function createProjectToolBindings(
     }),
     functionTool({
       id: "create_project",
-      description: "Create a durable inactive generation project for an existing song.",
+      description:
+        "Create a durable beat-native project with an explicit base timing reference and chart artist.",
       input: partSchema("pump-studio/create-project-input", CreateProjectInput),
       output: ProjectMutationReceiptSchema,
       effects: "write",
@@ -90,7 +101,8 @@ export function createProjectToolBindings(
     }),
     functionTool({
       id: "publish_component",
-      description: "Publish one project section as a durable reusable component.",
+      description:
+        "Publish reusable project rules or a note_fragment from an exact start/end beat range.",
       input: partSchema("pump-studio/publish-component-input", PublishComponentInput),
       output: ProjectMutationReceiptSchema,
       effects: "write",
@@ -100,7 +112,8 @@ export function createProjectToolBindings(
     }),
     functionTool({
       id: "apply_component",
-      description: "Apply a reusable component to a project using compare-and-swap revision.",
+      description:
+        "Apply a reusable component with compare-and-swap revision; note fragments require an exact insertion beat at.",
       input: partSchema("pump-studio/apply-component-input", ApplyComponentInput),
       output: ProjectMutationReceiptSchema,
       effects: "write",

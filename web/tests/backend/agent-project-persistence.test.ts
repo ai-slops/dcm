@@ -8,7 +8,7 @@ import { ProjectAgentTools } from "../../server/agent/project-tools.ts"
 import { loadDemo } from "../../server/demo.ts"
 import { ProjectService } from "../../server/projects/service.ts"
 import { StudioStore } from "../../server/store.ts"
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import { GenerationProjectIdSchema } from "../../shared/project-identities.ts"
 import { repoRoot } from "../support/paths.ts"
 
@@ -31,7 +31,7 @@ describe("agent project persistence", () => {
     // Then
     expect(songs.songs[0]?.id).toBe(fixture.songId)
     expect(chart.chart.id).toBe(chartId)
-    expect(chart.project.chart.notes).toEqual(fixture.store.document().project.chart.notes)
+    expect(chart.project.notes).toEqual(fixture.store.document().project.notes)
   })
 
   it("persists an allowed project creation through the real project service", async () => {
@@ -111,23 +111,29 @@ async function harness(
 }
 
 async function createInput(fixture: Awaited<ReturnType<typeof harness>>) {
-  const demo = await loadDemo(repoRoot)
   const songId = fixture.songId
   if (songId === undefined) throw new TypeError("Fixture song is missing")
-  const { audio_sha256: _digest, ...timing } = demo.document.project.music
+  const source = fixture.store.document().project
   return {
     song_id: songId,
     mode: "Double" as const,
     name: "Agent rules",
-    timing,
-    evaluation_contract: demo.document.project.evaluation_contract,
+    chart_artist: "Agent fixture author",
+    base_ucs_ref: {
+      source: "saved_chart" as const,
+      chart_id: fixture.store.library().active_chart_id,
+    },
+    timing: source.timing,
+    evaluation_contract: source.evaluation_contract,
     generation_rules: {
       schema_version: 1 as const,
       algorithm: "weighted_cycle_v1" as const,
-      start_tick: 0,
-      end_tick: timing.duration_ticks,
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      start: { numerator: 0, denominator: 1 },
+      end: { numerator: 8, denominator: 1 },
+      step: { numerator: 12, denominator: 1 },
+      pattern: [
+        { choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }] },
+      ],
     },
   }
 }
@@ -137,11 +143,12 @@ async function createProject(fixture: Awaited<ReturnType<typeof harness>>) {
   return fixture.service.read(GenerationProjectIdSchema.parse(receipt.entity.id))
 }
 
-function writeInput(project: GenerationProject, name: string) {
+function writeInput(project: GenerationProjectV2, name: string) {
   return {
     project_id: project.id,
     base_revision: project.revision,
     name,
+    chart_artist: project.chart_artist,
     timing: project.timing,
     evaluation_contract: project.evaluation_contract,
     generation_rules: project.generation_rules,

@@ -23,6 +23,11 @@ export function agentToolReadiness(input: {
       available: true,
     },
     { id: "read_project", description: "Read one live durable project.", available: true },
+    {
+      id: "list_base_sources",
+      description: "List exact base timing references for an existing song.",
+      available: true,
+    },
     { id: "read_chart", description: "Read one saved chart document by ID.", available: true },
     {
       id: "create_project",

@@ -1,16 +1,15 @@
 import { jsonSchema } from "@slop-lab/part/contracts/index.js"
 import type { Contracts } from "@slop-lab/part/reference/index.js"
 import { z } from "zod"
-
-import { EvalContractSchema } from "../../shared/evaluation-contract.ts"
+import { BaseUcsRefSchema, BeatSchema, BeatTimingSchema } from "../../shared/beat.ts"
+import { BeatEvaluationContractSchema } from "../../shared/beat-evaluation.ts"
 import {
-  GenerationProjectSchema,
-  GenerationProjectSummarySchema,
-  MusicTimingSchema,
-  ReusableComponentSchema,
-  ReusableComponentSummarySchema,
-} from "../../shared/generation-projects.ts"
-import { GenerationRulesSchema } from "../../shared/generation-rules.ts"
+  BaseUcsSourceOptionsSchema,
+  BeatReusableComponentSchema,
+  GenerationProjectV2Schema,
+  GenerationProjectV2SummarySchema,
+} from "../../shared/beat-projects.ts"
+import { BeatGenerationRulesSchema } from "../../shared/beat-rules.ts"
 import {
   ChartIdSchema,
   LibraryChartDocumentSchema,
@@ -20,7 +19,6 @@ import {
 import { UcsModeSchema } from "../../shared/project.ts"
 import {
   ComponentIdSchema,
-  ComponentKindSchema,
   GenerationProjectIdSchema,
   ProjectRevisionSchema,
 } from "../../shared/project-identities.ts"
@@ -28,9 +26,10 @@ import { partSchema } from "./part-schemas.ts"
 
 const mutableFields = {
   name: LibraryLabelSchema,
-  timing: MusicTimingSchema,
-  evaluation_contract: EvalContractSchema,
-  generation_rules: GenerationRulesSchema,
+  chart_artist: LibraryLabelSchema.nullable(),
+  timing: BeatTimingSchema,
+  evaluation_contract: BeatEvaluationContractSchema,
+  generation_rules: BeatGenerationRulesSchema,
 } as const
 const projectGuard = {
   project_id: GenerationProjectIdSchema,
@@ -40,9 +39,16 @@ const projectGuard = {
 export const ListProjectsInput = z.strictObject({}).readonly()
 export const ReadProjectInput = z.strictObject({ project_id: GenerationProjectIdSchema }).readonly()
 export const ListSongsInput = ListProjectsInput
+export const ListBaseSourcesInput = z.strictObject({ song_id: SongIdSchema }).readonly()
 export const ReadChartInput = z.strictObject({ chart_id: ChartIdSchema }).readonly()
 export const CreateProjectInput = z
-  .strictObject({ song_id: SongIdSchema, mode: UcsModeSchema, ...mutableFields })
+  .strictObject({
+    ...mutableFields,
+    song_id: SongIdSchema,
+    mode: UcsModeSchema,
+    chart_artist: LibraryLabelSchema,
+    base_ucs_ref: BaseUcsRefSchema,
+  })
   .readonly()
 export const WriteProjectInput = z.strictObject({ ...projectGuard, ...mutableFields }).readonly()
 export const GenerateProjectInput = z
@@ -53,10 +59,16 @@ export const GenerateProjectInput = z
   })
   .readonly()
 export const PublishComponentInput = z
-  .strictObject({ ...projectGuard, kind: ComponentKindSchema, name: LibraryLabelSchema })
+  .strictObject({
+    ...projectGuard,
+    kind: z.enum(["timing", "evaluation", "generator", "note_fragment"]),
+    name: LibraryLabelSchema,
+    start: BeatSchema.optional(),
+    end: BeatSchema.optional(),
+  })
   .readonly()
 export const ApplyComponentInput = z
-  .strictObject({ ...projectGuard, component_id: ComponentIdSchema })
+  .strictObject({ ...projectGuard, component_id: ComponentIdSchema, at: BeatSchema.optional() })
   .readonly()
 export const ListComponentsInput = ListProjectsInput
 export const ReadComponentInput = z.strictObject({ component_id: ComponentIdSchema }).readonly()
@@ -65,13 +77,13 @@ const ProjectListOutput = z
   .strictObject({
     workspace_revision: z.number().int().nonnegative(),
     selected_project_id: GenerationProjectIdSchema.nullable(),
-    projects: z.array(GenerationProjectSummarySchema).max(64).readonly(),
+    projects: z.array(GenerationProjectV2SummarySchema).max(64).readonly(),
   })
   .readonly()
 const ComponentListOutput = z
   .strictObject({
     workspace_revision: z.number().int().nonnegative(),
-    components: z.array(ReusableComponentSummarySchema).max(128).readonly(),
+    components: z.array(BeatReusableComponentSchema).max(128).readonly(),
   })
   .readonly()
 const PersistedReceiptShape = {
@@ -131,18 +143,19 @@ const SongListOutput = z
 
 export const ProjectListSchema = partSchema("pump-studio/project-list", ProjectListOutput)
 export const SongListSchema = partSchema("pump-studio/song-list", SongListOutput)
+export const BaseSourcesSchema = partSchema("pump-studio/base-sources", BaseUcsSourceOptionsSchema)
 export const LibraryChartDocumentPartSchema = partSchema(
   "pump-studio/library-chart-document",
   LibraryChartDocumentSchema,
 )
 export const GenerationProjectPartSchema = partSchema(
   "pump-studio/generation-project",
-  GenerationProjectSchema,
+  GenerationProjectV2Schema,
 )
 export const ComponentListSchema = partSchema("pump-studio/component-list", ComponentListOutput)
 export const ReusableComponentPartSchema = partSchema(
   "pump-studio/reusable-component",
-  ReusableComponentSchema,
+  BeatReusableComponentSchema,
 )
 export const ProjectMutationReceiptSchema = partSchema(
   "pump-studio/project-mutation-receipt",
@@ -153,6 +166,7 @@ export const projectToolJsonSchemas = {
   list_projects: toPartJsonSchema(ListProjectsInput),
   read_project: toPartJsonSchema(ReadProjectInput),
   list_songs: toPartJsonSchema(ListSongsInput),
+  list_base_sources: toPartJsonSchema(ListBaseSourcesInput),
   read_chart: toPartJsonSchema(ReadChartInput),
   create_project: toPartJsonSchema(CreateProjectInput),
   write_project: toPartJsonSchema(WriteProjectInput),

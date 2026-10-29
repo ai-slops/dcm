@@ -1,10 +1,11 @@
 import type { AgentWriteAccess } from "../../shared/api.ts"
 import type {
-  GenerationProject,
-  ProjectWorkspace,
-  ReusableComponent,
-} from "../../shared/generation-projects.ts"
-import type { ChartId, LibraryChartDocument, LibrarySong } from "../../shared/library.ts"
+  BaseUcsSourceOption,
+  BeatProjectWorkspace,
+  BeatReusableComponent,
+  GenerationProjectV2,
+} from "../../shared/beat-projects.ts"
+import type { ChartId, LibraryChartDocument, LibrarySong, SongId } from "../../shared/library.ts"
 import type { ProjectCommand, ProjectMutation } from "../../shared/project-commands.ts"
 import type { ComponentId, GenerationProjectId } from "../../shared/project-identities.ts"
 import { StudioError } from "../errors.ts"
@@ -46,11 +47,12 @@ export type ProjectGenerationReceipt = PersistedReceipt & {
 }
 
 export type AgentProjectService = {
-  readonly list: () => ProjectWorkspace
+  readonly list: () => BeatProjectWorkspace
   readonly songs: () => readonly LibrarySong[]
+  readonly baseSources: (songId: SongId) => readonly BaseUcsSourceOption[]
   readonly chart: (chartId: ChartId) => LibraryChartDocument
-  readonly read: (projectId: GenerationProjectId) => GenerationProject
-  readonly component: (componentId: ComponentId) => ReusableComponent
+  readonly read: (projectId: GenerationProjectId) => GenerationProjectV2
+  readonly component: (componentId: ComponentId) => BeatReusableComponent
   readonly command: (command: ProjectCommand, signal?: AbortSignal) => Promise<ProjectMutation>
 }
 
@@ -78,7 +80,7 @@ export class ProjectAgentTools {
     }
   }
 
-  readProject(input: { readonly project_id: GenerationProjectId }): GenerationProject {
+  readProject(input: { readonly project_id: GenerationProjectId }): GenerationProjectV2 {
     this.#assertActive()
     return this.#options.service.read(input.project_id)
   }
@@ -88,6 +90,11 @@ export class ProjectAgentTools {
     return {
       songs: this.#options.service.songs().map(({ id, title, artist }) => ({ id, title, artist })),
     }
+  }
+
+  listBaseSources(input: { readonly song_id: SongId }) {
+    this.#assertActive()
+    return this.#options.service.baseSources(input.song_id)
   }
 
   readChart(input: { readonly chart_id: ChartId }): LibraryChartDocument {
@@ -101,7 +108,7 @@ export class ProjectAgentTools {
     return { workspace_revision: workspace.revision, components: workspace.components }
   }
 
-  readComponent(input: { readonly component_id: ComponentId }): ReusableComponent {
+  readComponent(input: { readonly component_id: ComponentId }): BeatReusableComponent {
     this.#assertActive()
     return this.#options.service.component(input.component_id)
   }

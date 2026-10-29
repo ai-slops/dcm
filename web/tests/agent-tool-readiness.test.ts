@@ -11,7 +11,8 @@ it("advertises the complete bounded agent tool catalog", () => {
   })
 
   // Then
-  expect(tools).toHaveLength(16)
+  expect(tools).toHaveLength(17)
   expect(tools.map((tool) => tool.id)).toContain("list_songs")
+  expect(tools.map((tool) => tool.id)).toContain("list_base_sources")
   expect(tools.map((tool) => tool.id)).toContain("read_chart")
 })
