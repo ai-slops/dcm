@@ -1,8 +1,9 @@
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { BaseUcsRef } from "../../shared/beat.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { SongId } from "../../shared/library.ts"
 import type { ProjectCommand } from "../../shared/project-commands.ts"
 import type { ComponentKind, GenerationProjectId } from "../../shared/project-identities.ts"
-import type { ProjectFormValue } from "./project-form.ts"
+import type { BeatProjectFormValue } from "./project-form.ts"
 
 export type PendingRuleNavigation =
   | { readonly kind: "close" }
@@ -10,13 +11,19 @@ export type PendingRuleNavigation =
   | { readonly kind: "inspect"; readonly projectId: GenerationProjectId }
 
 export function createProjectCommand(
-  value: ProjectFormValue & { readonly songId: SongId },
+  value: BeatProjectFormValue & {
+    readonly songId: SongId
+    readonly baseUcsRef: BaseUcsRef
+  },
 ): ProjectCommand {
+  if (value.chartArtist === null) throw new TypeError("Project creation requires a chart artist")
   return {
     type: "create_project",
     song_id: value.songId,
     mode: value.mode,
+    base_ucs_ref: value.baseUcsRef,
     name: value.name,
+    chart_artist: value.chartArtist,
     timing: value.timing,
     evaluation_contract: value.evaluationContract,
     generation_rules: value.generationRules,
@@ -24,14 +31,15 @@ export function createProjectCommand(
 }
 
 export function writeProjectCommand(
-  project: GenerationProject,
-  value: ProjectFormValue,
+  project: GenerationProjectV2,
+  value: BeatProjectFormValue,
 ): ProjectCommand {
   return {
     type: "write_project",
     project_id: project.id,
     base_revision: project.revision,
     name: value.name,
+    chart_artist: value.chartArtist,
     timing: value.timing,
     evaluation_contract: value.evaluationContract,
     generation_rules: value.generationRules,
@@ -39,7 +47,7 @@ export function writeProjectCommand(
 }
 
 export function publishProjectComponentCommand(
-  project: GenerationProject,
+  project: GenerationProjectV2,
   kind: ComponentKind,
   name: string,
 ): ProjectCommand {
@@ -53,10 +61,10 @@ export function publishProjectComponentCommand(
 }
 
 export function projectAfterMutation(
-  current: GenerationProject | null,
+  current: GenerationProjectV2 | null,
   command: ProjectCommand,
-  returned: GenerationProject | undefined,
-): GenerationProject | null {
+  returned: GenerationProjectV2 | undefined,
+): GenerationProjectV2 | null {
   switch (command.type) {
     case "create_project":
     case "write_project":
@@ -79,7 +87,7 @@ export function projectAfterMutation(
 export function creatingAfterMutation(
   current: boolean,
   command: ProjectCommand,
-  returned: GenerationProject | undefined,
+  returned: GenerationProjectV2 | undefined,
 ): boolean {
   switch (command.type) {
     case "create_project":
@@ -109,7 +117,7 @@ export function projectLoadIsCurrent(
 export function ruleDirtyAfterMutation(
   current: boolean,
   command: ProjectCommand,
-  returned: GenerationProject | undefined,
+  returned: GenerationProjectV2 | undefined,
 ): boolean {
   switch (command.type) {
     case "create_project":

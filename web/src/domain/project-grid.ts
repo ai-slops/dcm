@@ -1,5 +1,12 @@
 import { z } from "zod"
-
+import { addBeats, type Beat, type BeatTiming, compareBeats } from "../../shared/beat.ts"
+import {
+  BeatChartDocumentSchema,
+  type GenerationProjectV2,
+  GenerationProjectV2Schema,
+} from "../../shared/beat-projects.ts"
+import type { BeatGenerationRules } from "../../shared/beat-rules.ts"
+import { BeatHybridRulesSchema } from "../../shared/beat-rules.ts"
 import {
   type GenerationProject,
   GenerationProjectSchema,
@@ -21,6 +28,69 @@ const PositiveTickInputSchema = z
   .regex(/^\d+$/, "Enter a positive whole-number tick count")
   .transform(Number)
   .pipe(z.number().int().positive().max(STUDIO_MAX_DURATION_TICKS))
+
+export { formatBeat, parseBeatDraft } from "./beat-input.ts"
+
+type BeatHybridRules = z.infer<typeof BeatHybridRulesSchema>
+
+export function convertBeatWeightedCycleToHybrid(
+  rules: Extract<BeatGenerationRules, { readonly schema_version: 1 }>,
+  region: { readonly id: string; readonly name: string },
+): BeatHybridRules {
+  const { start, end, step, pattern } = rules
+  return BeatHybridRulesSchema.parse({
+    schema_version: 2,
+    algorithm: "hybrid_regions_v1",
+    fixed_notes: [],
+    regions: [{ id: region.id, name: region.name, rules: { start, end, step, pattern } }],
+  })
+}
+
+export function beatPlaybackProjectFor(project: GenerationProjectV2, song: LibrarySong) {
+  return BeatChartDocumentSchema.parse({
+    schema_version: 1,
+    title: song.title,
+    artist: song.artist,
+    chart_artist: project.chart_artist,
+    mode: project.mode,
+    timing: project.timing,
+    notes:
+      project.generation_rules.schema_version === 2 ? project.generation_rules.fixed_notes : [],
+    audio_sha256: song.audio.sha256,
+    audio_asset: { format: song.audio.format, byte_length: song.audio.byte_length },
+    evaluation_contract: project.evaluation_contract,
+  })
+}
+
+export function replaceBeatHybridRules(
+  project: GenerationProjectV2,
+  rules: BeatHybridRules,
+): GenerationProjectV2 {
+  return GenerationProjectV2Schema.parse({ ...project, generation_rules: rules })
+}
+
+export function projectAutomaticExtent(project: GenerationProjectV2): Beat | null {
+  if (project.generation_rules.schema_version !== 2) return null
+  let extent: Beat | null = null
+  for (const note of project.generation_rules.fixed_notes) {
+    const end = addBeats(note.at, note.hold)
+    if (extent === null || compareBeats(end, extent) > 0) extent = end
+  }
+  for (const region of project.generation_rules.regions)
+    if (extent === null || compareBeats(region.rules.end, extent) > 0) extent = region.rules.end
+  return extent
+}
+
+export function timingWithProjectInformation(
+  project: GenerationProjectV2,
+  change: { readonly chartArtist: string | null; readonly timing: BeatTiming },
+): GenerationProjectV2 {
+  return GenerationProjectV2Schema.parse({
+    ...project,
+    chart_artist: change.chartArtist,
+    timing: change.timing,
+  })
+}
 
 export type TailExtensionResult =
   | { readonly kind: "success"; readonly project: GenerationProject }

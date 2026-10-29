@@ -1,16 +1,18 @@
 import type {
-  GenerationProject,
-  MusicTiming,
-  ProjectWorkspace,
-  ReusableComponent,
-} from "../../shared/generation-projects.ts"
+  BeatProjectWorkspace,
+  BeatReusableComponent,
+  GenerationProjectV2,
+} from "../../shared/beat-projects.ts"
 import {
-  GenerationProjectSchema,
-  ProjectWorkspaceSchema,
-  ReusableComponentSchema,
-} from "../../shared/generation-projects.ts"
+  type BaseUcsSourceOption,
+  BaseUcsSourceOptionsSchema,
+  type BeatChartDocument,
+  BeatChartDocumentSchema,
+  BeatProjectWorkspaceSchema,
+  BeatReusableComponentSchema,
+  GenerationProjectV2Schema,
+} from "../../shared/beat-projects.ts"
 import type { SongId } from "../../shared/library.ts"
-import { ChartDocumentSchema } from "../../shared/project.ts"
 import type { ProjectCommand, ProjectMutation } from "../../shared/project-commands.ts"
 import { ProjectCommandSchema, ProjectMutationSchema } from "../../shared/project-commands.ts"
 import type { ComponentId, GenerationProjectId } from "../../shared/project-identities.ts"
@@ -20,27 +22,31 @@ import { http } from "./http.ts"
 const projectsRoot = "/api/v1/projects"
 
 export const projectsApi = {
-  list(): Promise<ProjectWorkspace> {
-    return typedRequest(http.get(projectsRoot), ProjectWorkspaceSchema)
+  list(): Promise<BeatProjectWorkspace> {
+    return typedRequest(http.get(projectsRoot), BeatProjectWorkspaceSchema)
   },
-  project(id: GenerationProjectId): Promise<GenerationProject> {
+  project(id: GenerationProjectId): Promise<GenerationProjectV2> {
     return typedRequest(
       http.get(`${projectsRoot}/${encodeURIComponent(id)}`),
-      GenerationProjectSchema,
+      GenerationProjectV2Schema,
     )
   },
-  async songTemplate(songId: SongId): Promise<MusicTiming> {
-    const template = await typedRequest(
+  songTemplate(songId: SongId): Promise<BeatChartDocument> {
+    return typedRequest(
       http.get(`${projectsRoot}/song-template/${encodeURIComponent(songId)}`),
-      ChartDocumentSchema,
+      BeatChartDocumentSchema,
     )
-    const { audio_sha256: _audioDigest, ...timing } = template.music
-    return timing
   },
-  component(id: ComponentId): Promise<ReusableComponent> {
+  baseSources(songId: SongId): Promise<readonly BaseUcsSourceOption[]> {
+    return typedRequest(
+      http.get(`${projectsRoot}/base-sources/${encodeURIComponent(songId)}`),
+      BaseUcsSourceOptionsSchema,
+    )
+  },
+  component(id: ComponentId): Promise<BeatReusableComponent> {
     return typedRequest(
       http.get(`/api/v1/components/${encodeURIComponent(id)}`),
-      ReusableComponentSchema,
+      BeatReusableComponentSchema,
     )
   },
   command(csrfToken: string, command: ProjectCommand): Promise<ProjectMutation> {

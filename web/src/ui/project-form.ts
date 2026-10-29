@@ -1,3 +1,10 @@
+import type { BeatTiming } from "../../shared/beat.ts"
+import { BeatTimingSchema } from "../../shared/beat.ts"
+import type { BeatEvaluationContract } from "../../shared/beat-evaluation.ts"
+import { BeatEvaluationContractSchema } from "../../shared/beat-evaluation.ts"
+import type { BeatChartDocument, GenerationProjectV2 } from "../../shared/beat-projects.ts"
+import type { BeatGenerationRules } from "../../shared/beat-rules.ts"
+import { BeatGenerationRulesSchema } from "../../shared/beat-rules.ts"
 import type { EvalContract } from "../../shared/evaluation-contract.ts"
 import { EvalContractSchema } from "../../shared/evaluation-contract.ts"
 import type { GenerationProject, MusicTiming } from "../../shared/generation-projects.ts"
@@ -13,6 +20,15 @@ export type ProjectFormValue = {
   readonly timing: MusicTiming
   readonly evaluationContract: EvalContract
   readonly generationRules: GenerationRules
+}
+
+export type BeatProjectFormValue = {
+  readonly name: string
+  readonly mode: UcsMode
+  readonly chartArtist: string | null
+  readonly timing: BeatTiming
+  readonly evaluationContract: BeatEvaluationContract
+  readonly generationRules: BeatGenerationRules
 }
 
 export function initialProjectJson(project: GenerationProject | StudioProjectV1): {
@@ -33,6 +49,39 @@ export function initialProjectJson(project: GenerationProject | StudioProjectV1)
     evaluation: pretty(project.evaluation_contract),
     rules: emptyHybridRulesJson(),
   }
+}
+
+export function initialBeatProjectJson(project: GenerationProjectV2): {
+  readonly timing: string
+  readonly evaluation: string
+  readonly rules: string
+} {
+  return {
+    timing: pretty(project.timing),
+    evaluation: pretty(project.evaluation_contract),
+    rules: pretty(project.generation_rules),
+  }
+}
+
+export function beatTemplateJson(template: BeatChartDocument): {
+  readonly timing: string
+  readonly evaluation: string
+  readonly rules: string
+} {
+  return {
+    timing: pretty({ ...template.timing, duration: null }),
+    evaluation: pretty(template.evaluation_contract),
+    rules: emptyBeatHybridRulesJson(),
+  }
+}
+
+export function emptyBeatHybridRulesJson(): string {
+  return pretty({
+    schema_version: 2,
+    algorithm: "hybrid_regions_v1",
+    fixed_notes: [],
+    regions: [],
+  })
 }
 
 export function projectTimingJson(timing: MusicTiming): string {
@@ -63,6 +112,31 @@ export function parseProjectForm(input: {
       timing: MusicTimingSchema.parse(JSON.parse(input.timing)),
       evaluationContract: EvalContractSchema.parse(JSON.parse(input.evaluation)),
       generationRules: GenerationRulesSchema.parse(JSON.parse(input.rules)),
+    }
+  } catch (error) {
+    if (error instanceof Error) throw new ProjectFormError(error.message)
+    throw error
+  }
+}
+
+export function parseBeatProjectForm(input: {
+  readonly name: string
+  readonly mode: "" | UcsMode
+  readonly chartArtist: string
+  readonly timing: string
+  readonly evaluation: string
+  readonly rules: string
+}): BeatProjectFormValue {
+  if (input.mode === "") throw new ProjectFormError("Choose Single or Double mode")
+  try {
+    const chartArtist = input.chartArtist.trim()
+    return {
+      name: LibraryLabelSchema.parse(input.name),
+      mode: input.mode,
+      chartArtist: chartArtist === "" ? null : LibraryLabelSchema.parse(chartArtist),
+      timing: BeatTimingSchema.parse(JSON.parse(input.timing)),
+      evaluationContract: BeatEvaluationContractSchema.parse(JSON.parse(input.evaluation)),
+      generationRules: BeatGenerationRulesSchema.parse(JSON.parse(input.rules)),
     }
   } catch (error) {
     if (error instanceof Error) throw new ProjectFormError(error.message)

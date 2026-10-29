@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { loadDemo } from "../server/demo.ts"
-import { GenerationProjectSchema, ProjectWorkspaceSchema } from "../shared/generation-projects.ts"
+import {
+  BaseUcsSourceOptionsSchema,
+  BeatChartDocumentSchema,
+  BeatProjectWorkspaceSchema,
+  GenerationProjectV2Schema,
+} from "../shared/beat-projects.ts"
 import { ProjectMutationSchema } from "../shared/project-commands.ts"
-import { repoRoot } from "./support/paths.ts"
 
 const httpMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 
@@ -14,25 +17,27 @@ import { projectsApi } from "../src/api/projects-client.ts"
 const projectId = "00000000-0000-4000-8000-000000000001"
 const songId = "00000000-0000-4000-8000-000000000002"
 
-async function projectFixture() {
-  const demo = await loadDemo(repoRoot)
-  const { audio_sha256: _audio, ...timing } = demo.document.project.music
-  return GenerationProjectSchema.parse({
-    schema_version: 1,
+function projectFixture() {
+  return GenerationProjectV2Schema.parse({
+    schema_version: 2,
     id: projectId,
     revision: 2,
     name: "Single rules",
     song_id: songId,
     mode: "Single",
-    timing,
-    evaluation_contract: demo.document.project.evaluation_contract,
+    chart_artist: "Stepper",
+    base_ucs_ref: { source: "saved_chart", chart_id: "00000000-0000-4000-8000-000000000003" },
+    timing: timingFixture(),
+    evaluation_contract: evaluationFixture(),
     generation_rules: {
       schema_version: 1,
       algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: timing.duration_ticks,
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+      start: { numerator: 0, denominator: 1 },
+      end: { numerator: 4, denominator: 1 },
+      step: { numerator: 1, denominator: 1 },
+      pattern: [
+        { choices: [{ panel_mask: 1, hold: { numerator: 0, denominator: 1 }, weight: 1 }] },
+      ],
     },
     applied_components: {},
   })
@@ -53,8 +58,8 @@ describe("projectsApi", () => {
 
   it("loads the canonical project workspace and full project routes", async () => {
     // Given
-    const project = await projectFixture()
-    const workspace = ProjectWorkspaceSchema.parse({
+    const project = projectFixture()
+    const workspace = BeatProjectWorkspaceSchema.parse({
       revision: 3,
       selected_project_id: project.id,
       projects: [projectSummary(project)],
@@ -77,7 +82,7 @@ describe("projectsApi", () => {
 
   it("posts project commands with the CSRF header", async () => {
     // Given
-    const project = await projectFixture()
+    const project = projectFixture()
     const mutation = ProjectMutationSchema.parse({
       workspace: {
         revision: 4,
@@ -104,28 +109,94 @@ describe("projectsApi", () => {
 
   it("loads the authoritative immutable song timing template", async () => {
     // Given
-    const project = await projectFixture()
-    const template = {
+    const project = projectFixture()
+    const template = BeatChartDocumentSchema.parse({
       schema_version: 1,
       title: "Template",
       artist: "Artist",
-      music: { ...project.timing, audio_sha256: Array.from({ length: 32 }, () => 0) },
-      chart: {
-        ticks_per_beat: project.timing.ticks_per_beat,
-        span_ticks: project.timing.duration_ticks,
-        notes: [],
-      },
+      chart_artist: "Stepper",
+      mode: project.mode,
+      timing: project.timing,
+      notes: [],
+      audio_sha256: "0".repeat(64),
       evaluation_contract: project.evaluation_contract,
       audio_asset: { format: "wav", byte_length: 0 },
-      ucs_mode: project.mode,
-    }
+    })
     httpMock.get.mockResolvedValue(new Response(JSON.stringify(template)))
 
     // When
-    const timing = await projectsApi.songTemplate(project.song_id)
+    const loaded = await projectsApi.songTemplate(project.song_id)
 
     // Then
-    expect(timing).toEqual(project.timing)
+    expect(loaded).toEqual(template)
     expect(httpMock.get).toHaveBeenCalledWith(`/api/v1/projects/song-template/${project.song_id}`)
   })
+
+  it("discovers retained timing bases through the canonical project API", async () => {
+    // Given
+    const project = projectFixture()
+    const sources = BaseUcsSourceOptionsSchema.parse([
+      {
+        ref: { source: "retained_timing", song_id: project.song_id },
+        label: "Original archive timing",
+        mode: project.mode,
+        timing: project.timing,
+      },
+    ])
+    httpMock.get.mockResolvedValue(new Response(JSON.stringify(sources)))
+
+    // When
+    const loaded = await projectsApi.baseSources(project.song_id)
+
+    // Then
+    expect(loaded).toEqual(sources)
+    expect(httpMock.get).toHaveBeenCalledWith(`/api/v1/projects/base-sources/${project.song_id}`)
+  })
 })
+
+function timingFixture() {
+  return {
+    schema_version: 1,
+    offset_micros: 0,
+    tempo: [
+      {
+        at: { numerator: 0, denominator: 1 },
+        micros_per_beat: { numerator: 500_000, denominator: 1 },
+      },
+    ],
+    grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 16 }],
+    duration: { numerator: 4, denominator: 1 },
+    reference_accents: [],
+  } as const
+}
+
+function evaluationFixture() {
+  return {
+    schema_version: 2,
+    history_policy: { recent_window: 0, max_request_history: 0 },
+    foot_model: {
+      version: 1,
+      micros_per_panel_unit: 100_000,
+      bracket_setup_micros: 100_000,
+      crossover_penalty: 2,
+      bracket_penalty: 3,
+    },
+    difficulty: {
+      label: "fixture",
+      density: { minimum: 0, maximum: 100 },
+      movement: { minimum: 0, maximum: 100 },
+      brackets: { minimum: 0, maximum: 100 },
+      hold_occupancy: { minimum: 0, maximum: 100 },
+      local_load: { minimum: 0, maximum: 100 },
+      total: { minimum: 0, maximum: 100 },
+      local_windows: [],
+    },
+    intents: [],
+    budgets: {
+      max_notes: 10_000,
+      max_frames: 10_000,
+      max_dp_work: 1_000_000,
+      max_matching_work: 1_000_000,
+    },
+  } as const
+}
