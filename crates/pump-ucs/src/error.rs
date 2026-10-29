@@ -12,6 +12,8 @@ pub enum UcsError {
     Unsupported { line: usize, message: &'static str },
     #[error("UCS timing arithmetic overflow")]
     Overflow,
+    #[error("UCS beat fraction must have a positive denominator and remain in range")]
+    InvalidBeat,
     #[error("UCS chart is invalid: {0}")]
     Chart(String),
     #[error("UCS music is invalid: {0}")]
