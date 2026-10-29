@@ -8,9 +8,11 @@ import {
   type BeatTiming,
   compareBeats,
   isGridAligned,
+  MAX_BEAT_NOTES,
+  subtractBeats,
 } from "./beat.ts"
 import type { BeatEvaluationContract } from "./beat-evaluation.ts"
-import type { BeatGenerationRules } from "./beat-rules.ts"
+import { type BeatGenerationRules, beatCycleSlotCount } from "./beat-rules.ts"
 
 type BeatProjectValidationInput = {
   readonly mode: "Single" | "Double"
@@ -38,7 +40,7 @@ export function validateBeatNotes(
       })
     if (
       chart.timing.duration !== null &&
-      compareBeats(addBeats(note.at, note.hold), chart.timing.duration) > 0
+      compareBeats(addBeats(note.at, note.hold), chart.timing.duration) >= 0
     )
       context.addIssue({ code: "custom", path: ["notes", index], message: "note exceeds duration" })
   }
@@ -61,6 +63,22 @@ export function validateBeatGenerationProject(
 ): void {
   const rules = project.generation_rules
   const cycles = rules.schema_version === 1 ? [rules] : rules.regions.map((region) => region.rules)
+  const slotCounts = cycles.map((cycle) => beatCycleSlotCount(cycle))
+  const totalDemand = slotCounts.reduce(
+    (total, count) => total + count,
+    BigInt(rules.schema_version === 2 ? rules.fixed_notes.length : 0),
+  )
+  if (
+    slotCounts.some((count) => count > BigInt(MAX_BEAT_NOTES)) ||
+    totalDemand > BigInt(MAX_BEAT_NOTES)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["generation_rules"],
+      message: "fixed notes and generated slots exceed 10000",
+    })
+    return
+  }
   for (const [index, cycle] of cycles.entries()) {
     if (project.timing.duration !== null && compareBeats(cycle.end, project.timing.duration) > 0)
       context.addIssue({
@@ -75,26 +93,45 @@ export function validateBeatGenerationProject(
         message: "generation range crosses an off-grid section boundary",
       })
     let slot = cycle.start
-    for (
-      let slotIndex = 0;
-      slotIndex < 10_000 && compareBeats(slot, cycle.end) < 0;
-      slotIndex += 1
-    ) {
+    const slotCount = Number(slotCounts[index] ?? 0n)
+    let slotAlignmentReported = false
+    let holdAlignmentReported = false
+    let holdExtentReported = false
+    for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
       if (!isPointAligned(slot, project.timing))
-        context.addIssue({
-          code: "custom",
-          path: ["generation_rules", "regions", index],
-          message: "generation slot is off grid",
-        })
+        if (!slotAlignmentReported) {
+          context.addIssue({
+            code: "custom",
+            path: ["generation_rules", "regions", index],
+            message: "generation slot is off grid",
+          })
+          slotAlignmentReported = true
+        }
       const frame = cycle.pattern[slotIndex % cycle.pattern.length]
       if (frame !== undefined)
-        for (const choice of frame.choices)
-          if (!isIntervalAligned(slot, addBeats(slot, choice.hold), project.timing))
+        for (const choice of frame.choices) {
+          const holdTail = addBeats(slot, choice.hold)
+          if (!isIntervalAligned(slot, holdTail, project.timing) && !holdAlignmentReported) {
             context.addIssue({
               code: "custom",
               path: ["generation_rules", "regions", index],
               message: "generated hold crosses an off-grid section boundary",
             })
+            holdAlignmentReported = true
+          }
+          if (
+            rules.schema_version === 2 &&
+            compareBeats(holdTail, cycle.end) >= 0 &&
+            !holdExtentReported
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: ["generation_rules", "regions", index],
+              message: "generated hold tail must stay before the automatic region end",
+            })
+            holdExtentReported = true
+          }
+        }
       slot = addBeats(slot, cycle.step)
     }
     for (const frame of cycle.pattern)
@@ -149,44 +186,25 @@ export function validateEvaluationDuration(
 }
 
 function isPointAligned(beat: Beat, timing: BeatTiming): boolean {
-  let activeSection = timing.grid_sections[0]
-  for (const candidate of timing.grid_sections) {
-    if (compareBeats(candidate.at, beat) > 0) break
-    activeSection = candidate
-  }
+  const activeSection = activeGridSection(beat, timing)
   return (
     activeSection !== undefined &&
-    isGridAligned(subtractBeat(beat, activeSection.at), activeSection.rows_per_measure)
+    isGridAligned(subtractBeats(beat, activeSection.at), activeSection.rows_per_measure)
   )
 }
 
 function isIntervalAligned(start: Beat, end: Beat, timing: BeatTiming): boolean {
-  if (!isPointAligned(start, timing) || !isPointAligned(end, timing)) return false
-  for (let index = 1; index < timing.grid_sections.length; index += 1) {
-    const boundary = timing.grid_sections[index]
-    const previous = timing.grid_sections[index - 1]
-    if (
-      boundary !== undefined &&
-      previous !== undefined &&
-      compareBeats(boundary.at, start) > 0 &&
-      compareBeats(boundary.at, end) < 0 &&
-      !isGridAligned(subtractBeat(boundary.at, previous.at), previous.rows_per_measure)
-    )
-      return false
+  return isPointAligned(start, timing) && isPointAligned(end, timing)
+}
+
+function activeGridSection(beat: Beat, timing: BeatTiming) {
+  let low = 0
+  let high = timing.grid_sections.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    const section = timing.grid_sections[middle]
+    if (section !== undefined && compareBeats(section.at, beat) <= 0) low = middle + 1
+    else high = middle
   }
-  return true
-}
-
-function subtractBeat(left: Beat, right: Beat): Beat {
-  const numerator = left.numerator * right.denominator - right.numerator * left.denominator
-  const denominator = left.denominator * right.denominator
-  const divisor = greatestCommonDivisor(numerator, denominator)
-  return { numerator: numerator / divisor, denominator: denominator / divisor }
-}
-
-function greatestCommonDivisor(left: number, right: number): number {
-  let dividend = left
-  let divisor = right
-  while (divisor !== 0) [dividend, divisor] = [divisor, dividend % divisor]
-  return dividend
+  return timing.grid_sections[Math.max(0, low - 1)]
 }

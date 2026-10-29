@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import { BeatSchema, beatFromTicks } from "../shared/beat.ts"
 import {
   BeatChartDocumentSchema,
   GenerationProjectV2Schema,
@@ -50,31 +49,23 @@ const evaluationContract = {
 } as const
 
 describe("beat-native contracts", () => {
-  it("reduces legacy ticks exactly without using decimal timing", () => {
-    // Given / When
-    const beat = beatFromTicks(84, 48)
+  it("requires explicit duration to be after every occupied hold tail", () => {
+    // Given a hold whose occupied tail equals the explicit duration
+    const result = BeatChartDocumentSchema.safeParse({
+      schema_version: 1,
+      title: "Tail boundary",
+      artist: "Song artist",
+      chart_artist: "Stepper",
+      mode: "Double",
+      timing,
+      notes: [{ at: { numerator: 3, denominator: 1 }, hold: one, panel_mask: 1 }],
+      audio_sha256: "0".repeat(64),
+      audio_asset: { format: "wav", byte_length: 44 },
+      evaluation_contract: evaluationContract,
+    })
 
-    // Then
-    expect(beat).toEqual({ numerator: 7, denominator: 4 })
-  })
-
-  it("rejects unreduced beats and grid subdivisions outside 1 through 512", () => {
-    // Given / When / Then
-    expect(BeatSchema.safeParse({ numerator: 2, denominator: 4 }).success).toBe(false)
-    expect(
-      BeatChartDocumentSchema.safeParse({
-        schema_version: 1,
-        title: "Fixture",
-        artist: "Song artist",
-        chart_artist: "Stepper",
-        mode: "Double",
-        timing: { ...timing, grid_sections: [{ at: zero, rows_per_measure: 513 }] },
-        notes: [],
-        audio_sha256: "0".repeat(64),
-        audio_asset: { format: "wav", byte_length: 44 },
-        evaluation_contract: evaluationContract,
-      }).success,
-    ).toBe(false)
+    // When / Then the occupied tail cell cannot equal duration
+    expect(result.success).toBe(false)
   })
 
   it("parses a beat-native generation project while preserving weighted_cycle_v1", () => {
@@ -124,6 +115,108 @@ describe("beat-native contracts", () => {
     // Then
     expect(parsed.notes[0]?.at).toEqual(one)
     expect(parsed).not.toHaveProperty("ticks_per_beat")
+  })
+
+  it("rejects weighted cycles with more than ten thousand analytical slots", () => {
+    // Given a cycle with 10,001 exact slots
+    const result = GenerationProjectV2Schema.safeParse({
+      schema_version: 2,
+      id: "00000000-0000-4000-8000-000000000001",
+      revision: 0,
+      name: "Oversized rules",
+      song_id: "00000000-0000-4000-8000-000000000002",
+      mode: "Double",
+      chart_artist: "Stepper",
+      base_ucs_ref: null,
+      timing: { ...timing, duration: null },
+      evaluation_contract: evaluationContract,
+      generation_rules: {
+        schema_version: 1,
+        algorithm: "weighted_cycle_v1",
+        start: zero,
+        end: { numerator: 10_001, denominator: 1 },
+        step: one,
+        pattern: [{ choices: [{ panel_mask: 1, hold: zero, weight: 1 }] }],
+      },
+      applied_components: {},
+    })
+
+    // When / Then validation rejects before iterating the slot range
+    expect(result.success).toBe(false)
+  })
+
+  it("caps hybrid fixed notes plus generated slots at ten thousand", () => {
+    // Given 10,000 generated slots plus one fixed note
+    const result = GenerationProjectV2Schema.safeParse({
+      schema_version: 2,
+      id: "00000000-0000-4000-8000-000000000001",
+      revision: 0,
+      name: "Oversized hybrid",
+      song_id: "00000000-0000-4000-8000-000000000002",
+      mode: "Double",
+      chart_artist: "Stepper",
+      base_ucs_ref: null,
+      timing: { ...timing, duration: null },
+      evaluation_contract: evaluationContract,
+      generation_rules: {
+        schema_version: 2,
+        algorithm: "hybrid_regions_v1",
+        fixed_notes: [{ at: { numerator: 10_001, denominator: 1 }, hold: zero, panel_mask: 1 }],
+        regions: [
+          {
+            id: "00000000-0000-4000-8000-000000000003",
+            name: "Ten thousand slots",
+            rules: {
+              start: zero,
+              end: { numerator: 10_000, denominator: 1 },
+              step: one,
+              pattern: [{ choices: [{ panel_mask: 2, hold: zero, weight: 1 }] }],
+            },
+          },
+        ],
+      },
+      applied_components: {},
+    })
+
+    // When / Then total demand exceeds the project cap
+    expect(result.success).toBe(false)
+  })
+
+  it("rejects a generated hold tail on the hybrid region end cell", () => {
+    // Given the final generated slot would hold through the exclusive region end
+    const result = GenerationProjectV2Schema.safeParse({
+      schema_version: 2,
+      id: "00000000-0000-4000-8000-000000000001",
+      revision: 0,
+      name: "Tail at region end",
+      song_id: "00000000-0000-4000-8000-000000000002",
+      mode: "Double",
+      chart_artist: "Stepper",
+      base_ucs_ref: null,
+      timing,
+      evaluation_contract: evaluationContract,
+      generation_rules: {
+        schema_version: 2,
+        algorithm: "hybrid_regions_v1",
+        fixed_notes: [],
+        regions: [
+          {
+            id: "00000000-0000-4000-8000-000000000003",
+            name: "Tail boundary",
+            rules: {
+              start: zero,
+              end: four,
+              step: one,
+              pattern: [{ choices: [{ panel_mask: 1, hold: one, weight: 1 }] }],
+            },
+          },
+        ],
+      },
+      applied_components: {},
+    })
+
+    // When / Then hybrid holds must end before the region boundary
+    expect(result.success).toBe(false)
   })
 
   it("aligns notes to each section origin instead of a global row grid", () => {

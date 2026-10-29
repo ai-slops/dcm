@@ -1,11 +1,15 @@
 import { z } from "zod"
 
+import { addBeats, compareBeats, isGridAligned, subtractBeats } from "./beat-arithmetic.ts"
 import { FractionSchema, NonNegativeIntegerSchema, PositiveIntegerSchema } from "./native.ts"
 import { UcsModeSchema } from "./project.ts"
 
+export { addBeats, compareBeats, isGridAligned, subtractBeats } from "./beat-arithmetic.ts"
+
 export const MAX_BEAT_NOTES = 10_000
 export const MAX_BEAT_TIMING_SECTIONS = 4_096
-export const MAX_ROWS_PER_MEASURE = 512
+export const MAX_ROWS_PER_MEASURE = 16_384
+export const MAX_EDIT_ROWS_PER_MEASURE = 512
 
 export const BeatSchema = z
   .strictObject({ numerator: NonNegativeIntegerSchema, denominator: PositiveIntegerSchema })
@@ -106,6 +110,12 @@ export const BaseUcsRefSchema = z.discriminatedUnion("source", [
       chart_id: z.uuid().brand("ChartId"),
     })
     .readonly(),
+  z
+    .strictObject({
+      source: z.literal("retained_timing"),
+      song_id: z.uuid().brand("SongId"),
+    })
+    .readonly(),
 ])
 
 export const BeatChartCoreSchema = z
@@ -130,35 +140,6 @@ export function beatFromTicks(tick: number, ticksPerBeat: number): Beat {
   return BeatSchema.parse({ numerator: tick / divisor, denominator: ticksPerBeat / divisor })
 }
 
-export function compareBeats(left: Beat, right: Beat): number {
-  const leftScaled = BigInt(left.numerator) * BigInt(right.denominator)
-  const rightScaled = BigInt(right.numerator) * BigInt(left.denominator)
-  return leftScaled < rightScaled ? -1 : leftScaled > rightScaled ? 1 : 0
-}
-
-export function addBeats(left: Beat, right: Beat): Beat {
-  const numerator = left.numerator * right.denominator + right.numerator * left.denominator
-  const denominator = left.denominator * right.denominator
-  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator))
-    throw new RangeError("Beat arithmetic exceeds JSON-safe integer range")
-  const divisor = greatestCommonDivisor(numerator, denominator)
-  return BeatSchema.parse({ numerator: numerator / divisor, denominator: denominator / divisor })
-}
-
-export function subtractBeats(left: Beat, right: Beat): Beat {
-  const numerator = left.numerator * right.denominator - right.numerator * left.denominator
-  const denominator = left.denominator * right.denominator
-  if (numerator < 0) throw new RangeError("Beat subtraction cannot produce a negative beat")
-  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator))
-    throw new RangeError("Beat arithmetic exceeds JSON-safe integer range")
-  const divisor = greatestCommonDivisor(numerator, denominator)
-  return BeatSchema.parse({ numerator: numerator / divisor, denominator: denominator / divisor })
-}
-
-export function isGridAligned(beat: Beat, rowsPerMeasure: number): boolean {
-  return (BigInt(beat.numerator) * BigInt(rowsPerMeasure)) % (4n * BigInt(beat.denominator)) === 0n
-}
-
 function validateBeatNotes(
   chart: {
     readonly timing: BeatTiming
@@ -171,7 +152,11 @@ function validateBeatNotes(
   let previous: BeatNote | undefined
   for (const [index, note] of chart.notes.entries()) {
     const end = addBeats(note.at, note.hold)
-    if (previous !== undefined && compareNotes(previous, note) >= 0)
+    if (
+      previous !== undefined &&
+      (compareNotes(previous, note) >= 0 ||
+        (compareBeats(previous.at, note.at) === 0 && compareBeats(previous.hold, note.hold) === 0))
+    )
       context.addIssue({
         code: "custom",
         path: ["notes", index],
@@ -180,7 +165,7 @@ function validateBeatNotes(
     previous = note
     if (chart.timing.duration !== null) {
       const comparison = compareBeats(end, chart.timing.duration)
-      if (comparison > 0 || (note.hold.numerator === 0 && comparison === 0))
+      if (comparison >= 0)
         context.addIssue({
           code: "custom",
           path: ["notes", index],

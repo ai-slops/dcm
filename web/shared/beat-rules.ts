@@ -1,6 +1,14 @@
 import { z } from "zod"
 
-import { addBeats, BeatNoteSchema, BeatSchema, compareBeats, PositiveBeatSchema } from "./beat.ts"
+import {
+  addBeats,
+  BeatNoteSchema,
+  BeatSchema,
+  compareBeats,
+  MAX_BEAT_NOTES,
+  PositiveBeatSchema,
+  subtractBeats,
+} from "./beat.ts"
 import { NonNegativeIntegerSchema, PositiveIntegerSchema } from "./native.ts"
 
 const ChoiceSchema = z
@@ -25,8 +33,13 @@ export const BeatCycleRulesSchema = z
       .max(128)
       .readonly(),
   })
-  .refine((rules) => compareBeats(rules.start, rules.end) < 0, {
-    message: "Generation range must be nonempty",
+  .superRefine((rules, context) => {
+    if (compareBeats(rules.start, rules.end) >= 0) {
+      context.addIssue({ code: "custom", message: "Generation range must be nonempty" })
+      return
+    }
+    if (beatCycleSlotCount(rules) > BigInt(MAX_BEAT_NOTES))
+      context.addIssue({ code: "custom", message: "Generation range exceeds 10000 slots" })
   })
   .readonly()
 
@@ -52,6 +65,7 @@ export const BeatHybridRulesSchema = z
   .superRefine((rules, context) => {
     const ids = new Set<string>()
     let previousEnd: z.infer<typeof BeatSchema> | undefined
+    let totalDemand = BigInt(rules.fixed_notes.length)
     for (const [index, region] of rules.regions.entries()) {
       if (ids.has(region.id))
         context.addIssue({
@@ -67,6 +81,8 @@ export const BeatHybridRulesSchema = z
           message: "Automatic ranges overlap",
         })
       previousEnd = region.rules.end
+      if (compareBeats(region.rules.start, region.rules.end) < 0)
+        totalDemand += beatCycleSlotCount(region.rules)
       if (
         rules.fixed_notes.some(
           (note) =>
@@ -80,6 +96,8 @@ export const BeatHybridRulesSchema = z
           message: "Fixed notes intersect automatic ranges",
         })
     }
+    if (totalDemand > BigInt(MAX_BEAT_NOTES))
+      context.addIssue({ code: "custom", message: "Fixed notes and generated slots exceed 10000" })
   })
   .readonly()
 
@@ -90,3 +108,14 @@ export const BeatGenerationRulesSchema = z.discriminatedUnion("schema_version", 
 
 export type BeatCycleRules = z.infer<typeof BeatCycleRulesSchema>
 export type BeatGenerationRules = z.infer<typeof BeatGenerationRulesSchema>
+
+export function beatCycleSlotCount(rules: {
+  readonly start: z.infer<typeof BeatSchema>
+  readonly end: z.infer<typeof BeatSchema>
+  readonly step: z.infer<typeof PositiveBeatSchema>
+}): bigint {
+  const distance = subtractBeats(rules.end, rules.start)
+  const numerator = BigInt(distance.numerator) * BigInt(rules.step.denominator)
+  const denominator = BigInt(distance.denominator) * BigInt(rules.step.numerator)
+  return (numerator + denominator - 1n) / denominator
+}
