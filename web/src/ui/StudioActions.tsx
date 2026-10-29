@@ -2,11 +2,11 @@ import { ArrowLeftRight, FolderKanban, LibraryBig, Settings, WandSparkles } from
 import { useState } from "react"
 
 import type {
+  BeatChartDocument,
   Bootstrap,
   ChartProposal,
   CurrentDocument,
   Revision,
-  StudioProjectV1,
 } from "../../shared/index.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { FileActionsDialog } from "./FileActionsDialog.tsx"
@@ -19,7 +19,7 @@ import { UcsActionsDialog } from "./UcsActionsDialog.tsx"
 
 type ActionsProps = {
   readonly bootstrap: Bootstrap
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly revision: Revision
   readonly dirty: boolean
   readonly onDocument: (document: CurrentDocument) => void
@@ -98,7 +98,6 @@ export function StudioActions(props: ActionsProps) {
       />
       <ProjectManagerDialog
         csrfToken={props.bootstrap.csrf_token}
-        currentChart={props.project}
         dirty={props.dirty}
         open={open === "projects"}
         revision={props.revision}

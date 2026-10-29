@@ -1,24 +1,21 @@
-import type { AutomaticRegionView, NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
+import type { Beat, BeatNote, BeatTiming, UcsMode } from "../../shared/index.ts"
 import type { PanelIndex } from "../domain/editor.ts"
 import type { MobileTab } from "./MobileTabs.tsx"
 import { Preview } from "./StudioPanels.tsx"
 import { Timeline } from "./Timeline.tsx"
+import type { TimelineRegion } from "./TimelineRows.tsx"
 import type { AudioPlaybackController } from "./useAudioPlayback.ts"
 
 type CenterStudioProps = {
   readonly tab: MobileTab
-  readonly chart: NativeChart
-  readonly music: NativeMusic
-  readonly ucsMode: UcsMode
+  readonly notes: readonly BeatNote[]
+  readonly timing: BeatTiming
+  readonly mode: UcsMode
   readonly playback: AudioPlaybackController
-  readonly selectedTick: number
-  readonly selectedLane: PanelIndex
-  readonly quantize: number
-  readonly automaticRegions?: readonly AutomaticRegionView[] | undefined
-  readonly onQuantize: (ticks: number) => void
-  readonly onCell: (tick: number, lane: PanelIndex) => void
-  readonly onHold: (startTick: number, endTick: number, lane: PanelIndex) => void
-  readonly onSelect: (tick: number, lane: PanelIndex) => void
+  readonly automaticRegions?: readonly TimelineRegion[]
+  readonly onToggleTap: (at: Beat, lane: PanelIndex) => void
+  readonly onPlaceHold: (head: Beat, tail: Beat, lane: PanelIndex) => void
+  readonly onRowsPerMeasureChange: (at: Beat, rowsPerMeasure: number) => void
 }
 
 export function CenterStudio(props: CenterStudioProps) {
@@ -31,24 +28,21 @@ export function CenterStudio(props: CenterStudioProps) {
       aria-labelledby={`${panel}-tab`}
     >
       <Timeline
-        chart={props.chart}
-        music={props.music}
-        ucsMode={props.ucsMode}
+        notes={props.notes}
+        timing={props.timing}
+        mode={props.mode}
         playback={props.playback}
-        selectedTick={props.selectedTick}
-        selectedLane={props.selectedLane}
-        quantize={props.quantize}
-        automaticRegions={props.automaticRegions}
-        onQuantize={props.onQuantize}
-        onCell={props.onCell}
-        onHold={props.onHold}
-        onSelect={props.onSelect}
+        {...(props.automaticRegions === undefined
+          ? {}
+          : { automaticRegions: props.automaticRegions })}
+        onToggleTap={props.onToggleTap}
+        onPlaceHold={props.onPlaceHold}
+        onRowsPerMeasureChange={props.onRowsPerMeasureChange}
       />
       <Preview
-        chart={props.chart}
-        ucsMode={props.ucsMode}
-        music={props.music}
-        selectedTick={props.selectedTick}
+        notes={props.notes}
+        timing={props.timing}
+        mode={props.mode}
         playback={props.playback}
       />
     </section>

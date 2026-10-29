@@ -1,7 +1,7 @@
 import { Download, Upload } from "lucide-react"
 import { useState } from "react"
 
-import type { CurrentDocument, Revision, StudioProjectV1 } from "../../shared/index.ts"
+import type { BeatChartDocument, CurrentDocument, Revision } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { downloadBlob, errorMessage } from "./action-utils.ts"
@@ -12,7 +12,7 @@ type UcsActionsProps = {
   readonly csrfToken: string
   readonly dirty: boolean
   readonly open: boolean
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly revision: Revision
   readonly onClose: () => void
   readonly onDocument: (document: CurrentDocument) => void
@@ -21,7 +21,7 @@ type UcsActionsProps = {
 
 export function UcsActionsDialog(props: UcsActionsProps) {
   const [busy, setBusy] = useState<"import" | "export" | null>(null)
-  const mode = props.project.ucs_mode ?? "Double"
+  const mode = props.project.mode
   const [error, setError] = useState("")
 
   async function importUcs(chart: File, audio?: File): Promise<void> {
@@ -73,7 +73,8 @@ export function UcsActionsDialog(props: UcsActionsProps) {
   }
 
   const replacementEnabled = !props.dirty && busy === null
-  const exportEnabled = !props.dirty && busy === null
+  const hasExportExtent = props.project.timing.duration !== null || props.project.notes.length > 0
+  const exportEnabled = !props.dirty && busy === null && hasExportExtent
   return (
     <ActionDialog
       open={props.open}
@@ -134,13 +135,19 @@ export function UcsActionsDialog(props: UcsActionsProps) {
           <div>
             <h3 id="ucs-export-heading">Export UCS</h3>
             <p className="status-copy">
-              Single exports the left five panels. Double exports all ten panels. Audio is never
-              included.
+              Direct beat-source export preserves section-local grids exactly and remains available
+              when native evaluation is unsupported. Audio is never included.
             </p>
           </div>
           {props.dirty && (
             <p className="status-copy" role="status">
               Save your changes before exporting UCS.
+            </p>
+          )}
+          {!props.dirty && !hasExportExtent && (
+            <p className="status-copy" role="status">
+              Add a note or set an explicit duration before exporting UCS. Empty automatic charts
+              have no output extent.
             </p>
           )}
           <p className="status-copy">

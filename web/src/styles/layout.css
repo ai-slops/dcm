@@ -52,12 +52,17 @@
   gap: var(--space-2);
 }
 .studio-body {
+  position: relative;
   min-block-size: 0;
   min-inline-size: 0;
   display: grid;
   grid-template-columns: var(--inspector-width) minmax(0, 1fr) var(--agent-width);
   gap: 1px;
   background: var(--border-subtle);
+}
+.mobile-inspector-trigger,
+.mobile-inspector-close {
+  display: none;
 }
 .inspector,
 .agent-rail,

@@ -109,8 +109,8 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
   .studio-body:has(.center-studio.mobile-editor) {
-    grid-template-columns: min(248px, 32vw) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--control-touch) minmax(0, 1fr);
   }
   .inspector,
   .agent-rail {
@@ -125,21 +125,63 @@
   .document-title {
     inline-size: min(240px, 28vw);
   }
-  .inspector.mobile-editor {
+  .mobile-inspector-trigger {
+    z-index: var(--layer-sticky);
+    grid-row: 1;
+    justify-self: end;
     display: block;
-    max-block-size: none;
+    min-block-size: var(--control-touch);
+    border: var(--stroke-hairline) solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    padding-inline: var(--space-3);
+  }
+  .mobile-inspector-close {
+    display: block;
+    inline-size: 100%;
+    min-block-size: var(--control-touch);
+    border: var(--stroke-hairline) solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+  .inspector.mobile-editor {
+    position: absolute;
+    z-index: var(--layer-drawer);
+    inset: var(--space-2) auto var(--space-2) var(--space-2);
+    display: none;
+    inline-size: min(var(--inspector-width), 88vw);
+    max-block-size: calc(100% - var(--space-4));
+    border: var(--stroke-hairline) solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface-panel);
+    box-shadow: var(--depth-floating);
     padding: var(--space-2);
+  }
+  .inspector.mobile-editor[data-open="true"] {
+    display: block;
   }
   .center-studio.mobile-editor,
   .center-studio.mobile-preview {
     display: grid;
   }
+  .center-studio.mobile-editor {
+    grid-row: 2;
+  }
   .center-studio.mobile-preview .timeline {
     display: none;
   }
   .center-studio.mobile-preview .preview {
-    display: block;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-self: stretch;
+    max-block-size: none;
     margin: var(--space-4);
+  }
+  .center-studio.mobile-preview .preview .panel__body {
+    min-block-size: 0;
+    overflow: auto;
   }
   .center-studio.mobile-preview .playfields {
     max-inline-size: 440px;

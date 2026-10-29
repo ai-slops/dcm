@@ -1,8 +1,8 @@
 import { Download } from "lucide-react"
 import { useState } from "react"
 
-import type { CurrentDocument, Revision, StudioProjectV1 } from "../../shared/index.ts"
-import { StudioProjectV1Schema } from "../../shared/index.ts"
+import type { BeatChartDocument, CurrentDocument, Revision } from "../../shared/index.ts"
+import { BeatChartDocumentSchema } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { downloadBlob, errorMessage } from "./action-utils.ts"
@@ -12,7 +12,7 @@ type FileActionsProps = {
   readonly csrfToken: string
   readonly dirty: boolean
   readonly open: boolean
-  readonly project: StudioProjectV1
+  readonly project: BeatChartDocument
   readonly revision: Revision
   readonly onClose: () => void
   readonly onDocument: (document: CurrentDocument) => void
@@ -39,7 +39,7 @@ export function FileActionsDialog(props: FileActionsProps) {
     setBusy("import")
     props.onStatus("Importing")
     try {
-      const project = StudioProjectV1Schema.parse(JSON.parse(await projectFile.text()))
+      const project = BeatChartDocumentSchema.parse(JSON.parse(await projectFile.text()))
       props.onDocument(
         await studioApi.importProject(props.csrfToken, props.revision, project, audioFile),
       )

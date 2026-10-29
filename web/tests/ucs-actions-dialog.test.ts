@@ -3,13 +3,24 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
+import { StudioProjectV1Schema } from "../shared/index.ts"
 import { UcsActionsDialog } from "../src/ui/UcsActionsDialog.tsx"
 import { repoRoot } from "./support/paths.ts"
+
+async function beatDemo() {
+  const demo = await loadDemo(repoRoot)
+  const legacy = StudioProjectV1Schema.parse(demo.document.project)
+  return {
+    project: migrateLegacyChart({ ...legacy, chart: { ...legacy.chart, notes: [] } }),
+    revision: demo.document.revision,
+  }
+}
 
 describe("UCS transfer dialog", () => {
   it("defaults older projects to Double export mode", async () => {
     // Given a persisted project without a UCS mode preference
-    const demo = await loadDemo(repoRoot)
+    const demo = await beatDemo()
 
     // When the dedicated transfer dialog is rendered
     const markup = renderToStaticMarkup(
@@ -17,8 +28,8 @@ describe("UCS transfer dialog", () => {
         csrfToken: "csrf",
         dirty: false,
         open: true,
-        project: demo.document.project,
-        revision: demo.document.revision,
+        project: demo.project,
+        revision: demo.revision,
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
@@ -36,7 +47,7 @@ describe("UCS transfer dialog", () => {
 
   it("disables replacement import for a dirty draft", async () => {
     // Given a project with unsaved edits
-    const demo = await loadDemo(repoRoot)
+    const demo = await beatDemo()
 
     // When the transfer dialog is rendered in dirty state
     const markup = renderToStaticMarkup(
@@ -44,8 +55,8 @@ describe("UCS transfer dialog", () => {
         csrfToken: "csrf",
         dirty: true,
         open: true,
-        project: demo.document.project,
-        revision: demo.document.revision,
+        project: demo.project,
+        revision: demo.revision,
         onClose: () => undefined,
         onDocument: () => undefined,
         onStatus: () => undefined,
@@ -58,5 +69,63 @@ describe("UCS transfer dialog", () => {
     expect(markup).toMatch(/<input[^>]*disabled=""[^>]*name="ucs-zip"/)
     expect(markup).toContain("Save your changes before exporting UCS")
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Download UCS/s)
+  })
+
+  it("keeps direct UCS export available for automatic duration", async () => {
+    // Given a clean beat document whose authored duration is automatic
+    const demo = await beatDemo()
+    const project = {
+      ...demo.project,
+      timing: { ...demo.project.timing, duration: null },
+      notes: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          hold: { numerator: 0, denominator: 1 },
+          panel_mask: 1,
+        },
+      ],
+    }
+
+    // When the transfer dialog renders
+    const markup = renderToStaticMarkup(
+      createElement(UcsActionsDialog, {
+        csrfToken: "csrf",
+        dirty: false,
+        open: true,
+        project,
+        revision: demo.revision,
+        onClose: () => undefined,
+        onDocument: () => undefined,
+        onStatus: () => undefined,
+      }),
+    )
+
+    // Then export uses the backend's derived occupied extent without persisting fake duration
+    expect(markup).toMatch(/<button(?![^>]*disabled)[^>]*>.*Download UCS/s)
+    expect(markup).not.toContain("Set a concrete duration")
+  })
+
+  it("explains why an empty automatic chart cannot export", async () => {
+    // Given a clean automatic-duration document with no occupied extent
+    const demo = await beatDemo()
+    const project = { ...demo.project, timing: { ...demo.project.timing, duration: null } }
+
+    // When the transfer dialog renders
+    const markup = renderToStaticMarkup(
+      createElement(UcsActionsDialog, {
+        csrfToken: "csrf",
+        dirty: false,
+        open: true,
+        project,
+        revision: demo.revision,
+        onClose: () => undefined,
+        onDocument: () => undefined,
+        onStatus: () => undefined,
+      }),
+    )
+
+    // Then export is disabled until an automatic extent exists
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Download UCS/s)
+    expect(markup).toContain("Add a note or set an explicit duration before exporting UCS")
   })
 })
