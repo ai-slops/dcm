@@ -106,6 +106,9 @@
   --control-touch: 44px;
   --timeline-row-compact: 34px;
   --timeline-row-touch: 44px;
+  --timeline-header-size: 40px;
+  --timeline-beat-gutter: 72px;
+  --timeline-tempo-gutter: 88px;
   --toolbar-height: 56px;
   --transport-height: 64px;
   --transport-height-mobile: 112px;
@@ -146,7 +149,9 @@
   --radius-lg: 14px;
   --radius-pill: 999px;
   --stroke-hairline: 1px;
+  --stroke-strong: 2px;
   --layer-sticky: 10;
+  --layer-drawer: 50;
   --layer-modal: 70;
   --depth-control:
     0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.08),

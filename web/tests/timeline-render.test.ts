@@ -3,106 +3,101 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
 
 import { loadDemo } from "../server/demo.ts"
-import { AutomaticRegionViewSchema } from "../shared/index.ts"
+import { migrateLegacyChart } from "../server/library/legacy-beat-migration.ts"
+import { BeatAutomaticRegionViewSchema, StudioProjectV1Schema } from "../shared/index.ts"
 import { Timeline } from "../src/ui/Timeline.tsx"
 import { AudioPlaybackController } from "../src/ui/useAudioPlayback.ts"
 import { repoRoot } from "./support/paths.ts"
 
-it.each([2, 4, 8])(
-  "keeps off-grid taps and complete holds visible at quantization %s",
-  async (quantize) => {
-    // Given valid native notes that do not fall on the editing snap grid
-    const demo = await loadDemo(repoRoot)
-    const chart = {
-      ...demo.document.project.chart,
-      notes: [
-        { tick: 1, panel_mask: 1, hold_ticks: 0 },
-        { tick: 3, panel_mask: 2, hold_ticks: 4 },
-      ],
-    }
-    // When the editor uses a coarser future-edit quantization
-    const markup = renderToStaticMarkup(
-      createElement(Timeline, {
-        chart,
-        music: demo.document.project.music,
-        ucsMode: "Double",
-        playback: new AudioPlaybackController(demo.document.project),
-        selectedTick: 0,
-        selectedLane: 0,
-        quantize,
-        onQuantize: () => undefined,
-        onCell: () => undefined,
-        onSelect: () => undefined,
-      }),
-    )
-    // Then existing data retains its actual native row and note type
-    expect(markup.includes('aria-label="L DL, tick 1, tap"')).toBe(true)
-    expect(markup.includes('aria-label="L UL, tick 3, hold-head"')).toBe(true)
-    expect(markup.includes('aria-label="L UL, tick 4, hold-body"')).toBe(true)
-    expect(markup.includes('aria-label="L UL, tick 7, hold-tail"')).toBe(true)
-  },
-)
+const beat = (numerator: number, denominator = 1) => ({ numerator, denominator })
 
-it("renders only the five playable lanes for a Single chart", async () => {
-  // Given a chart whose required mode is Single
+async function beatDemo() {
   const demo = await loadDemo(repoRoot)
-  const playback = new AudioPlaybackController(demo.document.project)
+  const legacy = StudioProjectV1Schema.parse(demo.document.project)
+  return migrateLegacyChart({ ...legacy, chart: { ...legacy.chart, notes: [] } })
+}
+
+it("renders exact off-section notes and complete holds without moving imported data", async () => {
+  // Given valid notes with exact beat fractions on different section rows
+  const demo = await beatDemo()
+  const project = {
+    ...demo,
+    notes: [
+      { at: beat(1, 3), hold: beat(0), panel_mask: 1 },
+      { at: beat(3, 2), hold: beat(1, 2), panel_mask: 2 },
+    ],
+  }
+
+  // When the beat-native timeline renders the document
+  const markup = renderToStaticMarkup(
+    createElement(Timeline, {
+      notes: project.notes,
+      timing: project.timing,
+      mode: project.mode,
+      playback: new AudioPlaybackController(project),
+      onToggleTap: () => undefined,
+      onPlaceHold: () => undefined,
+      onRowsPerMeasureChange: () => undefined,
+    }),
+  )
+
+  // Then the structured note alternative preserves every exact fraction
+  expect(markup).toContain("Beat 1/3, mask 1, hold 0")
+  expect(markup).toContain("Beat 3/2, mask 2, hold 1/2")
+})
+
+it("renders only five playable lanes for a Single chart", async () => {
+  // Given a beat chart whose mode is Single
+  const demo = await beatDemo()
+  const project = { ...demo, mode: "Single" as const }
 
   // When the timeline is rendered
   const markup = renderToStaticMarkup(
     createElement(Timeline, {
-      chart: demo.document.project.chart,
-      music: demo.document.project.music,
-      ucsMode: "Single",
-      playback,
-      selectedTick: 0,
-      selectedLane: 0,
-      quantize: 1,
-      onQuantize: () => undefined,
-      onCell: () => undefined,
-      onSelect: () => undefined,
+      notes: project.notes,
+      timing: project.timing,
+      mode: project.mode,
+      playback: new AudioPlaybackController(project),
+      onToggleTap: () => undefined,
+      onPlaceHold: () => undefined,
+      onRowsPerMeasureChange: () => undefined,
     }),
   )
 
-  // Then the editor and constraints expose one five-panel pad
+  // Then the editor exposes one five-panel pad
   expect(markup).toContain("Single · 5 lanes · left pad")
   expect(markup).toContain("L DR")
   expect(markup).not.toContain("R DR")
 })
 
-it("renders named automatic regions as read-only cells and repeating lane tones", async () => {
+it("renders named automatic regions as protected beat cells with synchronized tempo gutter", async () => {
   // Given a named automatic region intersecting the first virtual window
-  const demo = await loadDemo(repoRoot)
-  const region = AutomaticRegionViewSchema.parse({
+  const project = await beatDemo()
+  const region = BeatAutomaticRegionViewSchema.parse({
     id: "00000000-0000-4000-8000-000000000001",
     name: "Chorus cycle",
-    start_tick: 0,
-    end_tick: 8,
+    start: beat(0),
+    end: beat(2),
   })
 
-  // When the project timeline renders the region in read-only mode
+  // When the project timeline renders that region in read-only mode
   const markup = renderToStaticMarkup(
     createElement(Timeline, {
-      chart: demo.document.project.chart,
-      music: demo.document.project.music,
-      ucsMode: "Double",
-      playback: new AudioPlaybackController(demo.document.project),
-      selectedTick: 4,
-      selectedLane: 0,
-      quantize: 1,
-      onQuantize: () => undefined,
-      onCell: () => undefined,
-      onSelect: () => undefined,
+      notes: project.notes,
+      timing: project.timing,
+      mode: project.mode,
+      playback: new AudioPlaybackController(project),
       automaticRegions: [region],
       regionsReadOnly: true,
+      onToggleTap: () => undefined,
+      onPlaceHold: () => undefined,
+      onRowsPerMeasureChange: () => undefined,
     }),
   )
 
-  // Then its name, mutation state, and BRYRB lane semantics are explicit in the DOM
+  // Then region protection, tempo, and exact beat semantics share the same row DOM
   expect(markup).toContain("Chorus cycle · automatic")
-  expect(markup).toContain('class="timeline__active-region"')
   expect(markup).toContain('aria-disabled="true"')
-  expect(markup).toContain('data-tone="blue"')
-  expect(markup).toContain('data-tone="red"')
-  expect(markup).toContain('data-tone="yellow"')
+  expect(markup).toContain("120 BPM")
+  expect(markup).toContain("Lane L DL, beat 0/1, empty, automatic region Chorus cycle")
 })

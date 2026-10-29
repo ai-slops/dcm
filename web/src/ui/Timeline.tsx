@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-
-import type { AutomaticRegionView, NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
-import type { PanelIndex } from "../domain/editor.ts"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { compareBeats } from "../../shared/beat.ts"
+import type { Beat, BeatNote, BeatTiming, UcsMode } from "../../shared/index.ts"
 import {
-  buildVisibleCellIndex,
+  beatAtTimelineRow,
+  formatBeat,
   laneTone,
-  timelineRangeIntersectsRegions,
-} from "../domain/timeline.ts"
+  timelineRowAtBeat,
+  timelineRowPositionAtBeatNumber,
+} from "../domain/beat-timeline.ts"
+import { audioMicrosToBeatPosition } from "../domain/beat-timing.ts"
+import type { PanelIndex } from "../domain/editor.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { laneLabels } from "./studio-types.ts"
 import { TimelineControls } from "./TimelineControls.tsx"
 import { TimelinePlayhead } from "./TimelinePlayhead.tsx"
+import { type TimelineRegion, TimelineRows } from "./TimelineRows.tsx"
 import type { AudioPlaybackController } from "./useAudioPlayback.ts"
 import { usePlaybackSnapshot } from "./useAudioPlayback.ts"
 import { useTimelineGesture } from "./useTimelineGesture.ts"
@@ -18,196 +22,186 @@ import { useTimelineVirtualScroll } from "./useTimelineVirtualScroll.ts"
 
 const laneIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const singleLaneIndices = [0, 1, 2, 3, 4] as const
+const zero = { numerator: 0, denominator: 1 } as const satisfies Beat
 
 export type TimelineProps = {
-  readonly chart: NativeChart
-  readonly music: NativeMusic
-  readonly ucsMode: UcsMode
+  readonly notes: readonly BeatNote[]
+  readonly timing: BeatTiming
+  readonly mode: UcsMode
   readonly playback: AudioPlaybackController
-  readonly selectedTick: number
-  readonly selectedLane: PanelIndex
-  readonly quantize: number
-  readonly onQuantize: (ticks: number) => void
-  readonly onCell: (tick: number, lane: PanelIndex) => void
-  readonly onSelect: (tick: number, lane: PanelIndex) => void
-  readonly onHold?: (startTick: number, endTick: number, lane: PanelIndex) => void
-  readonly automaticRegions?: readonly AutomaticRegionView[] | undefined
+  readonly onToggleTap: (at: Beat, lane: PanelIndex) => void
+  readonly onPlaceHold: (head: Beat, tail: Beat, lane: PanelIndex) => void
+  readonly onRowsPerMeasureChange: (at: Beat, rowsPerMeasure: number) => void
+  readonly automaticRegions?: readonly TimelineRegion[]
   readonly regionsReadOnly?: boolean
+  readonly readOnly?: boolean
+  readonly anchorBeat?: Beat
 }
 
 export function Timeline(props: TimelineProps) {
-  const playableLanes = props.ucsMode === "Single" ? singleLaneIndices : laneIndices
+  const lanes: readonly PanelIndex[] = props.mode === "Single" ? singleLaneIndices : laneIndices
   const [followAudio, setFollowAudio] = useState(true)
-  const cellRefs = useRef(new Map<string, HTMLButtonElement>())
-  const previousSelectedTick = useRef(props.selectedTick)
+  const [cursorRow, setCursorRow] = useState(0)
+  const [cursorBeat, setCursorBeat] = useState(props.anchorBeat ?? zero)
+  const [cursorLane, setCursorLane] = useState<PanelIndex>(0)
+  const [keyboardHoldRows, setKeyboardHoldRows] = useState(1)
+  const regions = props.automaticRegions ?? []
   const virtual = useTimelineVirtualScroll({
-    spanTicks: props.chart.span_ticks,
-    anchorTick: props.selectedTick,
+    timing: props.timing,
+    anchorBeat: props.anchorBeat ?? zero,
   })
   const snapshot = usePlaybackSnapshot(props.playback)
-  const cells = useMemo(
-    () =>
-      buildVisibleCellIndex(
-        props.chart,
-        virtual.virtualWindow.startTick,
-        virtual.virtualWindow.rows.length,
-      ),
-    [props.chart, virtual.virtualWindow.rows.length, virtual.virtualWindow.startTick],
+  const activeRegion = regionAtBeat(
+    regions,
+    beatAtTimelineRow(props.timing, Math.max(0, Math.floor(virtual.virtualWindow.visibleRow))),
   )
-  const regionAtTick = useCallback(
-    (tick: number) =>
-      props.automaticRegions?.find((region) => tick >= region.start_tick && tick < region.end_tick),
-    [props.automaticRegions],
-  )
+
   const isReadOnly = useCallback(
-    (tick: number) => props.regionsReadOnly === true && regionAtTick(tick) !== undefined,
-    [props.regionsReadOnly, regionAtTick],
+    (at: Beat) =>
+      props.readOnly === true ||
+      (props.regionsReadOnly === true && regionAtBeat(regions, at) !== undefined),
+    [props.readOnly, props.regionsReadOnly, regions],
   )
-  const activeRegion = regionAtTick(virtual.virtualWindow.visibleTick)
+  const isRangeReadOnly = useCallback(
+    (first: Beat, last: Beat) => {
+      if (props.readOnly === true) return true
+      if (props.regionsReadOnly !== true) return false
+      const head = compareBeats(first, last) <= 0 ? first : last
+      const tail = compareBeats(first, last) <= 0 ? last : first
+      return regions.some(
+        (region) => compareBeats(region.start, tail) <= 0 && compareBeats(region.end, head) > 0,
+      )
+    },
+    [props.readOnly, props.regionsReadOnly, regions],
+  )
   const gesture = useTimelineGesture({
-    onCell: props.onCell,
-    onHold: props.onHold,
+    onToggle: props.onToggleTap,
+    onHold: props.onPlaceHold,
     isReadOnly,
-    isRangeReadOnly: (startTick, endTick) =>
-      props.regionsReadOnly === true &&
-      timelineRangeIntersectsRegions(startTick, endTick, props.automaticRegions ?? []),
+    isRangeReadOnly,
   })
 
   useEffect(() => {
-    if (previousSelectedTick.current === props.selectedTick) return
-    previousSelectedTick.current = props.selectedTick
-    virtual.revealTick(props.selectedTick)
-  }, [props.selectedTick, virtual.revealTick])
-  useEffect(() => {
-    if (followAudio && showsPlaybackClock(snapshot.status) && snapshot.chartTick !== null)
-      virtual.followTick(snapshot.chartTick)
-  }, [followAudio, snapshot.chartTick, snapshot.status, virtual.followTick])
+    if (!followAudio || !showsPlaybackClock(snapshot.status)) return
+    const beatPosition = audioMicrosToBeatPosition(props.timing, snapshot.audioMicros)
+    if (beatPosition !== null)
+      virtual.followRow(timelineRowPositionAtBeatNumber(props.timing, beatPosition))
+  }, [followAudio, props.timing, snapshot.audioMicros, snapshot.status, virtual.followRow])
 
-  function select(nextTick: number, nextLane: PanelIndex): void {
+  const focusCell = useCallback((row: number, beat: Beat, lane: PanelIndex) => {
     setFollowAudio(false)
-    virtual.revealTick(nextTick)
-    props.onSelect(nextTick, nextLane)
-  }
+    setCursorRow(row)
+    setCursorBeat(beat)
+    setCursorLane(lane)
+  }, [])
 
-  function moveCursor(tickDelta: number, laneDelta: number): void {
-    const nextTick = Math.min(
-      Math.max(props.selectedTick + tickDelta, 0),
-      props.chart.span_ticks - 1,
-    )
-    const nextLane =
-      playableLanes[Math.min(Math.max(props.selectedLane + laneDelta, 0), playableLanes.length - 1)]
-    if (nextLane === undefined) return
-    select(nextTick, nextLane)
-    requestAnimationFrame(() => cellRefs.current.get(`${nextTick}:${nextLane}`)?.focus())
-  }
+  const moveCursor = useCallback(
+    (rowDelta: number, laneDelta: number) => {
+      const maximumRow =
+        props.timing.duration === null
+          ? Number.POSITIVE_INFINITY
+          : virtualRowForDuration(props.timing)
+      const nextRow = Math.min(Math.max(cursorRow + rowDelta, 0), maximumRow)
+      const laneIndex = Math.min(
+        Math.max(lanes.indexOf(cursorLane) + laneDelta, 0),
+        lanes.length - 1,
+      )
+      const nextLane = lanes[laneIndex]
+      if (nextLane === undefined) return
+      const nextBeat = beatAtTimelineRow(props.timing, nextRow)
+      setCursorRow(nextRow)
+      setCursorBeat(nextBeat)
+      setCursorLane(nextLane)
+      virtual.revealBeat(nextBeat)
+    },
+    [cursorLane, cursorRow, lanes, props.timing, virtual.revealBeat],
+  )
 
+  const keyboardHold = useCallback(
+    (row: number, lane: PanelIndex) => {
+      const head = beatAtTimelineRow(props.timing, row)
+      const tail = beatAtTimelineRow(props.timing, row + keyboardHoldRows)
+      if (!isRangeReadOnly(head, tail)) props.onPlaceHold(head, tail, lane)
+    },
+    [isRangeReadOnly, keyboardHoldRows, props.onPlaceHold, props.timing],
+  )
+
+  const measureRows = rowsPerMeasureAtBeat(props.timing, cursorBeat)
+  const headerLabels = useMemo(() => lanes.map((lane) => laneLabels[lane]), [lanes])
   return (
     <section
-      className={`timeline timeline--${props.ucsMode.toLowerCase()}`}
+      className={`timeline timeline--${props.mode.toLowerCase()}`}
       id="chart-editor"
-      aria-label={`${playableLanes.length}-lane ${props.ucsMode} chart editor`}
+      aria-label={`${lanes.length}-lane ${props.mode} beat chart editor`}
     >
       <TimelineControls
-        chart={props.chart}
-        music={props.music}
-        ucsMode={props.ucsMode}
+        timing={props.timing}
+        mode={props.mode}
         playback={props.playback}
-        selectedTick={props.selectedTick}
-        selectedLane={props.selectedLane}
-        quantize={props.quantize}
-        onQuantize={props.onQuantize}
+        cursorBeat={cursorBeat}
+        keyboardHoldRows={keyboardHoldRows}
+        onKeyboardHoldRows={setKeyboardHoldRows}
+        onRowsPerMeasureChange={props.onRowsPerMeasureChange}
+        onPreviousMeasure={() => moveCursor(-measureRows, 0)}
+        onNextMeasure={() => moveCursor(measureRows, 0)}
         followAudio={followAudio}
         setFollowAudio={setFollowAudio}
-        select={select}
       />
       <section
         className="timeline__scroller"
-        aria-label="Scrollable chart lanes"
+        aria-label="Scrollable beat chart lanes"
         ref={virtual.scrollerRef}
         onScroll={virtual.onScroll}
         onWheel={() => setFollowAudio(false)}
         {...gesture}
       >
         <div className="timeline__header" aria-hidden="true">
-          <span>Tick</span>
-          {playableLanes.map((lane) => (
-            <span data-tone={laneTone(lane)} key={laneLabels[lane]}>
-              {laneLabels[lane]}
+          <span>Beat</span>
+          <span>Tempo</span>
+          {headerLabels.map((label, index) => (
+            <span data-tone={laneTone(lanes[index] ?? 0)} key={label}>
+              {label}
             </span>
           ))}
         </div>
         {activeRegion === undefined ? null : (
-          <div className="timeline__active-region" aria-hidden="true">
+          <div className="timeline__active-region">
             <span>{activeRegion.name} · automatic</span>
           </div>
         )}
+        <TimelinePlayhead />
         <div className="timeline__rows" style={{ blockSize: virtual.runwaySize }}>
-          <TimelinePlayhead
-            playback={props.playback}
-            originTick={virtual.originTick}
-            rowSize={virtual.rowSize}
-          />
           <div
             className="timeline__virtual-window"
             style={{ transform: `translateY(${virtual.virtualWindow.offset}px)` }}
           >
-            {virtual.virtualWindow.rows.map((rowTick, index) => {
-              const region = regionAtTick(rowTick)
-              const showRegionName =
-                region !== undefined && (index === 0 || regionAtTick(rowTick - 1)?.id !== region.id)
-              return (
-                <div
-                  className={`timeline__row ${rowTick % props.chart.ticks_per_beat === 0 ? "is-beat" : ""}`}
-                  data-region={region === undefined ? undefined : "automatic"}
-                  key={rowTick}
-                  style={{ transform: `translateY(${index * virtual.rowSize}px)` }}
-                >
-                  <span className="mono timeline__tick">{rowTick}</span>
-                  {showRegionName ? (
-                    <span className="timeline__region-label">{region.name} · automatic</span>
-                  ) : null}
-                  {playableLanes.map((panel) => {
-                    const state = cells.get(`${rowTick}:${panel}`) ?? "empty"
-                    const selected = props.selectedTick === rowTick && props.selectedLane === panel
-                    return (
-                      <button
-                        type="button"
-                        aria-label={`${laneLabels[panel]}, tick ${rowTick}, ${state}${region === undefined ? "" : `, automatic region ${region.name}`}`}
-                        aria-disabled={isReadOnly(rowTick) || undefined}
-                        className={`timeline__cell note-${state}`}
-                        data-lane={panel}
-                        data-read-only={isReadOnly(rowTick) || undefined}
-                        data-selected={selected}
-                        data-tick={rowTick}
-                        data-tone={laneTone(panel)}
-                        key={laneLabels[panel]}
-                        ref={(element) => setCellRef(cellRefs.current, rowTick, panel, element)}
-                        tabIndex={selected ? 0 : -1}
-                        onFocus={() => select(rowTick, panel)}
-                        onKeyDown={(event) =>
-                          handleCellKey(
-                            event.key,
-                            event.preventDefault.bind(event),
-                            () => props.onCell(rowTick, panel),
-                            (tickDelta, laneDelta) => moveCursor(tickDelta, laneDelta),
-                            props.quantize,
-                            isReadOnly(rowTick),
-                          )
-                        }
-                      />
-                    )
-                  })}
-                </div>
-              )
-            })}
+            <TimelineRows
+              rows={virtual.virtualWindow.rows}
+              notes={props.notes}
+              timing={props.timing}
+              lanes={lanes}
+              rowSize={virtual.rowSize}
+              cursorRow={cursorRow}
+              cursorLane={cursorLane}
+              regions={regions}
+              regionsReadOnly={props.regionsReadOnly === true}
+              readOnly={props.readOnly === true}
+              onFocusCell={focusCell}
+              onToggle={props.onToggleTap}
+              onKeyboardHold={keyboardHold}
+              onMoveCursor={moveCursor}
+            />
           </div>
         </div>
         <details className="note-list">
-          <summary>Structured note list ({props.chart.notes.length})</summary>
+          <summary>Structured note list ({props.notes.length})</summary>
           <ol>
-            {props.chart.notes.map((note) => (
-              <li className="mono" key={`${note.tick}:${note.panel_mask}:${note.hold_ticks}`}>
-                Tick {note.tick}, mask {note.panel_mask}, duration {note.hold_ticks}
+            {props.notes.map((note) => (
+              <li
+                className="mono"
+                key={`${formatBeat(note.at)}:${note.panel_mask}:${formatBeat(note.hold)}`}
+              >
+                Beat {formatBeat(note.at)}, mask {note.panel_mask}, hold {formatBeat(note.hold)}
               </li>
             ))}
           </ol>
@@ -217,30 +211,23 @@ export function Timeline(props: TimelineProps) {
   )
 }
 
-function setCellRef(
-  refs: Map<string, HTMLButtonElement>,
-  tick: number,
-  panel: PanelIndex,
-  element: HTMLButtonElement | null,
-): void {
-  const key = `${tick}:${panel}`
-  if (element === null) refs.delete(key)
-  else refs.set(key, element)
+function regionAtBeat(regions: readonly TimelineRegion[], at: Beat): TimelineRegion | undefined {
+  return regions.find(
+    (region) => compareBeats(region.start, at) <= 0 && compareBeats(at, region.end) < 0,
+  )
 }
 
-function handleCellKey(
-  key: string,
-  preventDefault: () => void,
-  activate: () => void,
-  move: (tickDelta: number, laneDelta: number) => void,
-  quantize: number,
-  readOnly: boolean,
-): void {
-  if ((key === "Enter" || key === " ") && !readOnly) activate()
-  else if (key === "ArrowDown") move(quantize, 0)
-  else if (key === "ArrowUp") move(-quantize, 0)
-  else if (key === "ArrowRight") move(0, 1)
-  else if (key === "ArrowLeft") move(0, -1)
-  else return
-  preventDefault()
+function rowsPerMeasureAtBeat(timing: BeatTiming, at: Beat): number {
+  let rows = timing.grid_sections[0]?.rows_per_measure ?? 1
+  for (const section of timing.grid_sections) {
+    if (compareBeats(section.at, at) > 0) break
+    rows = section.rows_per_measure
+  }
+  return rows
+}
+
+function virtualRowForDuration(timing: BeatTiming): number {
+  return timing.duration === null
+    ? Number.POSITIVE_INFINITY
+    : timelineRowAtBeat(timing, timing.duration)
 }

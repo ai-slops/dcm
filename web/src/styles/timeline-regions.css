@@ -9,7 +9,8 @@
 .timeline__region-label {
   position: absolute;
   z-index: 1;
-  inset: 0 var(--space-2) auto calc(var(--timeline-tick-size) + var(--space-2));
+  inset: 0 var(--space-2) auto
+    calc(var(--timeline-beat-gutter) + var(--timeline-tempo-gutter) + var(--space-2));
   overflow: hidden;
   color: var(--status-info);
   font-size: var(--type-caption);
@@ -30,8 +31,14 @@
 
 .timeline__active-region span {
   display: inline-block;
-  max-inline-size: calc(100% - var(--timeline-tick-size) - var(--space-4));
-  margin: var(--space-1) var(--space-2) 0 calc(var(--timeline-tick-size) + var(--space-2));
+  max-inline-size: calc(
+    100% -
+    var(--timeline-beat-gutter) -
+    var(--timeline-tempo-gutter) -
+    var(--space-4)
+  );
+  margin: var(--space-1) var(--space-2) 0
+    calc(var(--timeline-beat-gutter) + var(--timeline-tempo-gutter) + var(--space-2));
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--status-info), transparent 56%);
   border-radius: var(--radius-xs);

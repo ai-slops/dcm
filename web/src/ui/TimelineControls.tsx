@@ -1,81 +1,64 @@
-import type { NativeChart, NativeMusic, UcsMode } from "../../shared/index.ts"
-import type { PanelIndex } from "../domain/editor.ts"
+import { useEffect, useState } from "react"
+
+import { compareBeats } from "../../shared/beat.ts"
+import {
+  type Beat,
+  type BeatTiming,
+  MAX_EDIT_ROWS_PER_MEASURE,
+  type UcsMode,
+} from "../../shared/index.ts"
+import { formatBeat } from "../domain/beat-timeline.ts"
 import { TimelineClock } from "./TimelineClock.tsx"
 import type { AudioPlaybackController } from "./useAudioPlayback.ts"
 
-const quantizeOptions = [1, 2, 4, 8] as const
-
 type TimelineControlsProps = {
-  readonly chart: NativeChart
-  readonly music: NativeMusic
-  readonly ucsMode: UcsMode
+  readonly timing: BeatTiming
+  readonly mode: UcsMode
   readonly playback: AudioPlaybackController
-  readonly selectedTick: number
-  readonly selectedLane: PanelIndex
-  readonly quantize: number
+  readonly cursorBeat: Beat
+  readonly keyboardHoldRows: number
+  readonly onKeyboardHoldRows: (rows: number) => void
+  readonly onRowsPerMeasureChange: (at: Beat, rowsPerMeasure: number) => void
+  readonly onPreviousMeasure: () => void
+  readonly onNextMeasure: () => void
   readonly followAudio: boolean
-  readonly onQuantize: (ticks: number) => void
   readonly setFollowAudio: (value: boolean) => void
-  readonly select: (tick: number, lane: PanelIndex) => void
 }
 
 export function TimelineControls(props: TimelineControlsProps) {
+  const section = activeGridSection(props.timing, props.cursorBeat)
   return (
     <div className="timeline__controls">
-      <label>
-        Quantize
-        <select
-          value={props.quantize}
-          onChange={(event) => {
-            const value = quantizeOptions[event.currentTarget.selectedIndex]
-            if (value !== undefined) props.onQuantize(value)
-          }}
-        >
-          {quantizeOptions
-            .filter((step) => step <= props.chart.ticks_per_beat * 2)
-            .map((step) => (
-              <option key={step} value={step}>
-                {step} tick{step === 1 ? "" : "s"}
-              </option>
-            ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        onClick={() =>
-          props.select(
-            Math.max(0, props.selectedTick - props.chart.ticks_per_beat),
-            props.selectedLane,
-          )
-        }
-      >
-        Previous beat
+      <SplitInput
+        at={section.at}
+        rowsPerMeasure={section.rows_per_measure}
+        onCommit={props.onRowsPerMeasureChange}
+      />
+      <button type="button" onClick={props.onPreviousMeasure}>
+        Previous measure
+      </button>
+      <output className="mono timeline__cursor-beat" aria-label="Keyboard cursor beat">
+        Beat {formatBeat(props.cursorBeat)}
+      </output>
+      <button type="button" onClick={props.onNextMeasure}>
+        Next measure
       </button>
       <label>
-        Go to tick
+        Keyboard hold rows
         <input
           className="mono"
-          min="0"
-          max={props.chart.span_ticks - 1}
+          min="1"
+          max="512"
           type="number"
-          value={props.selectedTick}
+          value={props.keyboardHoldRows}
           onChange={(event) => {
-            if (Number.isFinite(event.currentTarget.valueAsNumber))
-              props.select(event.currentTarget.valueAsNumber, props.selectedLane)
+            const value = event.currentTarget.valueAsNumber
+            if (Number.isSafeInteger(value) && value >= 1 && value <= MAX_EDIT_ROWS_PER_MEASURE)
+              props.onKeyboardHoldRows(value)
           }}
         />
       </label>
-      <button
-        type="button"
-        onClick={() =>
-          props.select(
-            Math.min(props.chart.span_ticks - 1, props.selectedTick + props.chart.ticks_per_beat),
-            props.selectedLane,
-          )
-        }
-      >
-        Next beat
-      </button>
+      <span className="timeline__shortcut">Enter toggles · H places hold</span>
       <label className="timeline__follow">
         <input
           type="checkbox"
@@ -85,14 +68,54 @@ export function TimelineControls(props: TimelineControlsProps) {
         Follow audio
       </label>
       <span className="badge badge--info">
-        {props.ucsMode} ·{" "}
-        {props.ucsMode === "Single" ? "5 lanes · left pad" : "10 lanes · two pads"}
+        {props.mode} · {props.mode === "Single" ? "5 lanes · left pad" : "10 lanes · two pads"}
       </span>
       <TimelineClock
-        music={props.music}
+        timing={props.timing}
         playback={props.playback}
-        selectedTick={props.selectedTick}
+        cursorBeat={props.cursorBeat}
       />
     </div>
   )
+}
+
+function SplitInput(props: {
+  readonly at: Beat
+  readonly rowsPerMeasure: number
+  readonly onCommit: (at: Beat, rowsPerMeasure: number) => void
+}) {
+  const [draft, setDraft] = useState(String(props.rowsPerMeasure))
+  useEffect(() => setDraft(String(props.rowsPerMeasure)), [props.rowsPerMeasure])
+  function commit(): void {
+    const value = Number(draft)
+    if (Number.isSafeInteger(value) && value >= 1 && value <= 512) props.onCommit(props.at, value)
+  }
+  return (
+    <label>
+      Split (rows per measure)
+      <input
+        className="mono"
+        aria-label="Split rows per four-beat measure"
+        inputMode="numeric"
+        max={MAX_EDIT_ROWS_PER_MEASURE}
+        min="1"
+        value={draft}
+        onBlur={commit}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit()
+        }}
+      />
+    </label>
+  )
+}
+
+function activeGridSection(timing: BeatTiming, at: Beat): BeatTiming["grid_sections"][number] {
+  let active = timing.grid_sections[0]
+  if (active === undefined) throw new RangeError("Beat timing requires a grid section")
+  for (const section of timing.grid_sections) {
+    if (compareBeats(section.at, at) > 0) break
+    active = section
+  }
+  return active
 }
