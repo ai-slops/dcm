@@ -80,9 +80,9 @@ describe("Studio library API", () => {
       byte_length: 0,
       sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     })
-    expect(mutation.document.project.music).toMatchObject({
-      duration_ticks: 768,
-      ticks_per_beat: 48,
+    expect(mutation.document.project.timing).toMatchObject({
+      duration: { numerator: 16, denominator: 1 },
+      grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 192 }],
     })
   })
 
@@ -260,9 +260,7 @@ describe("Studio library API", () => {
           ).project,
       ),
     )
-    expect(
-      new Set(projects.map((project) => JSON.stringify(project.music.audio_sha256))).size,
-    ).toBe(1)
+    expect(new Set(projects.map((project) => project.audio_sha256)).size).toBe(1)
     expect(projects.every((project) => project.audio_asset.byte_length === audio.byteLength)).toBe(
       true,
     )

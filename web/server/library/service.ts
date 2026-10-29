@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { RevisionSchema, StudioProjectV1Schema, type UcsChart } from "../../shared/index.ts"
+import { type BeatChartCore, BeatChartDocumentSchema, RevisionSchema } from "../../shared/index.ts"
 import {
   ChartIdSchema,
   type LibraryMutation,
@@ -20,7 +20,7 @@ import {
   requireSong,
   storedChart,
 } from "./mutation-helpers.ts"
-import { bindingFor, digestBytes, newSongProject } from "./project-factory.ts"
+import { bindingFor, compatibleEvaluationContract, newSongProject } from "./project-factory.ts"
 
 export class LibraryService {
   constructor(readonly store: StudioStore) {}
@@ -49,7 +49,7 @@ export class LibraryService {
           ],
           charts: [
             ...state.library.charts,
-            storedChart(chartId, songId, input.chart_name, input.mode, project),
+            storedChart(chartId, songId, input.chart_name, project),
           ],
         },
       }
@@ -77,14 +77,13 @@ export class LibraryService {
       const activeSong = active?.song_id === song.id
       if (activeSong) expectRevision(state, requiredBase(baseRevision))
       const binding = bindingFor(audio.bytes, audio.format)
-      const digest = digestBytes(binding.sha256)
       const charts = state.library.charts.map((chart) =>
         chart.song_id === song.id
           ? {
               ...chart,
-              project: StudioProjectV1Schema.parse({
+              project: BeatChartDocumentSchema.parse({
                 ...chart.project,
-                music: { ...chart.project.music, audio_sha256: digest },
+                audio_sha256: binding.sha256,
                 audio_asset: { format: binding.format, byte_length: binding.byte_length },
               }),
             }
@@ -98,6 +97,9 @@ export class LibraryService {
             ? {
                 revision: RevisionSchema.parse(state.document.revision + 1),
                 project: activeChart.project,
+                ...(activeChart.generated_from === undefined
+                  ? {}
+                  : { origin: activeChart.generated_from }),
               }
             : state.document,
         library: {
@@ -119,18 +121,29 @@ export class LibraryService {
     })
   }
 
-  importChart(songId: SongId, input: ImportChart, imported: UcsChart): Promise<LibraryMutation> {
+  importChart(
+    songId: SongId,
+    input: ImportChart,
+    imported: BeatChartCore,
+  ): Promise<LibraryMutation> {
     return this.store.transact(input.library_revision, (state) => {
       const song = requireSong(state, songId)
       const source = state.library.charts.find((chart) => chart.song_id === song.id)
       if (source === undefined)
         throw new StudioError(409, "song_chart_missing", "Song has no chart metadata")
-      const project = StudioProjectV1Schema.safeParse({
+      if (imported.timing.duration === null)
+        throw new StudioError(
+          422,
+          "ucs_duration_unresolved",
+          "Imported UCS must have an explicit duration",
+        )
+      const project = BeatChartDocumentSchema.safeParse({
         ...source.project,
-        chart: imported.chart,
-        music: imported.music,
+        timing: imported.timing,
+        notes: imported.notes,
+        mode: imported.mode,
+        evaluation_contract: compatibleEvaluationContract(source.project, imported.timing.duration),
         audio_asset: { format: song.audio.format, byte_length: song.audio.byte_length },
-        ucs_mode: imported.mode,
       })
       if (!project.success)
         throw new StudioError(
@@ -142,7 +155,6 @@ export class LibraryService {
         ChartIdSchema.parse(randomUUID()),
         song.id,
         input.name,
-        imported.mode,
         project.data,
       )
       const next = bumpLibrary(state, { charts: [...state.library.charts, chart] })

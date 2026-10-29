@@ -82,7 +82,7 @@ function newChart(
       throw new StudioError(409, "song_chart_missing", "Song has no chart to copy timing from")
     const id = ChartIdSchema.parse(randomUUID())
     const project = emptyChartProject(source.project, command.mode)
-    const chart = storedChart(id, song.id, command.name, command.mode, project)
+    const chart = storedChart(id, song.id, command.name, project)
     const next = switchActive(
       { ...state, library: { ...state.library, charts: [...state.library.charts, chart] } },
       chart,

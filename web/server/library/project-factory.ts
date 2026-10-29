@@ -1,52 +1,55 @@
 import { createHash } from "node:crypto"
-
-import { type StudioProjectV1, StudioProjectV1Schema, type UcsMode } from "../../shared/index.ts"
+import { compareBeats } from "../../shared/beat.ts"
+import { type BeatChartDocument, BeatChartDocumentSchema } from "../../shared/beat-projects.ts"
+import type { UcsMode } from "../../shared/index.ts"
 import type { AudioBinding } from "../../shared/library.ts"
 import type { NewSong } from "../../shared/library-commands.ts"
 
 export function newSongProject(
   input: NewSong,
   audio: AudioBinding,
-  template: StudioProjectV1,
-): StudioProjectV1 {
-  const duration = input.beats * 48
+  template: BeatChartDocument,
+): BeatChartDocument {
+  const duration = { numerator: input.beats, denominator: 1 } as const
   const tempo = microsPerBeat(input.bpm)
-  return StudioProjectV1Schema.parse({
+  return BeatChartDocumentSchema.parse({
     schema_version: 1,
-    title: nativeMetadata(input.title),
-    artist: nativeMetadata(input.artist),
-    music: {
-      duration_ticks: duration,
-      ticks_per_beat: 48,
+    title: input.title,
+    artist: input.artist,
+    chart_artist: null,
+    mode: input.mode,
+    timing: {
+      schema_version: 1,
+      duration,
+      grid_sections: [{ at: { numerator: 0, denominator: 1 }, rows_per_measure: 192 }],
       offset_micros: 0,
-      tempo: [{ start_tick: 0, micros_per_beat: tempo }],
-      audio_sha256: digestBytes(audio.sha256),
+      tempo: [{ at: { numerator: 0, denominator: 1 }, micros_per_beat: tempo }],
       reference_accents: [],
     },
-    chart: { ticks_per_beat: 48, span_ticks: duration, notes: [] },
+    notes: [],
+    audio_sha256: audio.sha256,
     evaluation_contract: compatibleEvaluationContract(template, duration),
     audio_asset: { format: audio.format, byte_length: audio.byte_length },
-    ucs_mode: input.mode,
   })
 }
 
-export function emptyChartProject(source: StudioProjectV1, mode: UcsMode): StudioProjectV1 {
-  return StudioProjectV1Schema.parse({
+export function emptyChartProject(source: BeatChartDocument, mode: UcsMode): BeatChartDocument {
+  return BeatChartDocumentSchema.parse({
     ...source,
-    chart: { ...source.chart, notes: [] },
-    ucs_mode: mode,
+    notes: [],
+    mode,
   })
 }
 
 export function withNativeIdentity(
-  project: StudioProjectV1,
+  project: BeatChartDocument,
   title: string,
   artist: string,
-): StudioProjectV1 {
-  return StudioProjectV1Schema.parse({
+): BeatChartDocument {
+  return BeatChartDocumentSchema.parse({
     ...project,
-    title: nativeMetadata(title),
-    artist: nativeMetadata(artist),
+    title,
+    artist,
   })
 }
 
@@ -70,19 +73,23 @@ export function bindingFor(bytes: Uint8Array, format: AudioBinding["format"]): A
   }
 }
 
-export function compatibleEvaluationContract(template: StudioProjectV1, duration: number) {
+export function compatibleEvaluationContract(
+  template: BeatChartDocument,
+  duration: { readonly numerator: number; readonly denominator: number },
+) {
   const contract = template.evaluation_contract
   return {
     ...contract,
     difficulty: {
       ...contract.difficulty,
       local_windows: contract.difficulty.local_windows.filter(
-        (window) => window.width_ticks <= duration,
+        (window) => compareBeats(window.width, duration) <= 0,
       ),
     },
     intents: contract.intents.filter((intent) => {
-      if (intent.kind.kind === "reference_accents") return intent.kind.tolerance_ticks <= duration
-      if (intent.kind.kind === "negative_space") return intent.kind.end_tick <= duration
+      if (intent.kind.kind === "reference_accents")
+        return compareBeats(intent.kind.tolerance, duration) <= 0
+      if (intent.kind.kind === "negative_space") return compareBeats(intent.kind.end, duration) <= 0
       return true
     }),
   }
@@ -106,10 +113,4 @@ function gcd(left: number, right: number): number {
     divisor = remainder
   }
   return dividend
-}
-
-export function digestBytes(hex: string): readonly number[] {
-  return Array.from({ length: 32 }, (_, index) =>
-    Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16),
-  )
 }
