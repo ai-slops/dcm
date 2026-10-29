@@ -1,11 +1,11 @@
-import type { GenerationProject } from "../../shared/generation-projects.ts"
+import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { ProjectCommand, ProjectMutation } from "../../shared/project-commands.ts"
 import type { StudioStore } from "../store.ts"
 import { bumpProjects, expectProjectRevision, projectResult, requireProject } from "./mutations.ts"
 
 export function selectProject(
   store: StudioStore,
-  id: GenerationProject["id"] | null,
+  id: GenerationProjectV2["id"] | null,
   signal?: AbortSignal,
 ): Promise<ProjectMutation> {
   return store.transact(

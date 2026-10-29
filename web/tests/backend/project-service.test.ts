@@ -69,26 +69,35 @@ describe("ProjectService", () => {
     })
     const song = store.library().songs[0]
     if (song === undefined) throw new Error("Expected initial song")
+    const sourceChart = store.library().charts[0]
+    if (sourceChart === undefined) throw new Error("Expected initial chart")
+    const source = store.document().project
     const create = ProjectCommandSchema.parse({
       type: "create_project",
       song_id: song.id,
       mode: "Double",
       name: "Rules",
-      timing: {
-        duration_ticks: demo.document.project.music.duration_ticks,
-        ticks_per_beat: demo.document.project.music.ticks_per_beat,
-        offset_micros: demo.document.project.music.offset_micros,
-        tempo: demo.document.project.music.tempo,
-        reference_accents: demo.document.project.music.reference_accents,
-      },
-      evaluation_contract: demo.document.project.evaluation_contract,
+      chart_artist: "Route Author",
+      base_ucs_ref: { source: "saved_chart", chart_id: sourceChart.id },
+      timing: source.timing,
+      evaluation_contract: source.evaluation_contract,
       generation_rules: {
         schema_version: 1,
         algorithm: "weighted_cycle_v1",
-        start_tick: 0,
-        end_tick: 32,
-        step_ticks: 8,
-        pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+        start: { numerator: 0, denominator: 1 },
+        end: source.timing.duration,
+        step: { numerator: 2, denominator: 1 },
+        pattern: [
+          {
+            choices: [
+              {
+                panel_mask: 1,
+                hold: { numerator: 0, denominator: 1 },
+                weight: 1,
+              },
+            ],
+          },
+        ],
       },
     })
     const created = await service.command(create)
@@ -102,6 +111,7 @@ describe("ProjectService", () => {
         project_id: project.id,
         base_revision: project.revision + 1,
         name: project.name,
+        chart_artist: project.chart_artist,
         timing: project.timing,
         evaluation_contract: project.evaluation_contract,
         generation_rules: project.generation_rules,
@@ -134,26 +144,44 @@ describe("ProjectService", () => {
     const song = studio.store.library().songs[0]
     if (song === undefined) throw new Error("Expected initial song")
     const source = bootstrap.document.project
+    const sourceChart = studio.store.library().charts[0]
+    if (sourceChart === undefined) throw new Error("Expected initial chart")
+    const baseSources = await studio.app.request(
+      `http://127.0.0.1:4173/api/v1/projects/base-sources/${song.id}`,
+      { headers: { cookie } },
+    )
+    expect(await baseSources.json()).toContainEqual({
+      ref: { source: "saved_chart", chart_id: sourceChart.id },
+      label: sourceChart.name,
+      mode: sourceChart.mode,
+      timing: source.timing,
+    })
     const command = ProjectCommandSchema.parse({
       type: "create_project",
       song_id: song.id,
       mode: "Double",
       name: "API rules",
-      timing: {
-        duration_ticks: source.music.duration_ticks,
-        ticks_per_beat: source.music.ticks_per_beat,
-        offset_micros: source.music.offset_micros,
-        tempo: source.music.tempo,
-        reference_accents: source.music.reference_accents,
-      },
+      chart_artist: "API Author",
+      base_ucs_ref: { source: "saved_chart", chart_id: sourceChart.id },
+      timing: source.timing,
       evaluation_contract: source.evaluation_contract,
       generation_rules: {
         schema_version: 1,
         algorithm: "weighted_cycle_v1",
-        start_tick: 0,
-        end_tick: source.music.duration_ticks,
-        step_ticks: 8,
-        pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+        start: { numerator: 0, denominator: 1 },
+        end: source.timing.duration,
+        step: { numerator: 2, denominator: 1 },
+        pattern: [
+          {
+            choices: [
+              {
+                panel_mask: 1,
+                hold: { numerator: 0, denominator: 1 },
+                weight: 1,
+              },
+            ],
+          },
+        ],
       },
     })
 
