@@ -1,20 +1,19 @@
 import { randomUUID } from "node:crypto"
-import { ProjectWorkspaceSchema } from "../../shared/generation-projects.ts"
-import { automaticRegionViews } from "../../shared/generation-rules.ts"
+import { nativeChartToBeatCore } from "../../shared/beat-native-projection.ts"
+import { BeatChartDocumentSchema, BeatProjectWorkspaceSchema } from "../../shared/beat-projects.ts"
 import { ChartIdSchema, LibraryRevisionSchema } from "../../shared/library.ts"
-import { ChartDocumentSchema } from "../../shared/project.ts"
 import {
   type ProjectCommand,
   type ProjectMutation,
   ProjectMutationSchema,
 } from "../../shared/project-commands.ts"
 import { StudioError } from "../errors.ts"
-import { chartSummary } from "../library/chart-summary.ts"
-import { nativeMetadata } from "../library/project-factory.ts"
+import { beatChartSummary } from "../library/state-v4.ts"
+import { projectBeatGenerationNative } from "../native/beat-project-adapter.ts"
 import type { StudioStore } from "../store.ts"
 import { expectProjectRevision, requireProject } from "./mutations.ts"
 import type { ProjectNativeService } from "./service.ts"
-import { componentSummary, projectSummary } from "./views.ts"
+import { projectSummary } from "./views.ts"
 
 export async function generateProject(
   store: StudioStore,
@@ -29,8 +28,17 @@ export async function generateProject(
   expectProjectRevision(project, command.base_revision)
   const song = store.library().songs.find((candidate) => candidate.id === project.song_id)
   if (song === undefined) throw new StudioError(404, "song_not_found", "Song was not found")
+  if (project.chart_artist === null)
+    throw new StudioError(
+      409,
+      "chart_artist_required",
+      "Generation requires an explicit chart artist",
+    )
   const audio = await store.songAudio(song.id)
-  const generated = await nativeRules.generate(project, audio, command.seed, signal)
+  const projection = projectBeatGenerationNative(project)
+  if (projection.kind === "unsupported")
+    throw new StudioError(422, projection.capability.code, JSON.stringify(projection.capability))
+  const generated = await nativeRules.generate(projection.project, audio, command.seed, signal)
   signal?.throwIfAborted()
   if (generated.mode !== project.mode)
     throw new StudioError(422, "generated_mode", "Native generation returned a different mode")
@@ -40,22 +48,7 @@ export async function generateProject(
       "generated_ucs_invalid",
       "Native generation did not produce valid UCS",
     )
-  const chartProject = ChartDocumentSchema.parse({
-    schema_version: 1,
-    title: nativeMetadata(song.title),
-    artist: nativeMetadata(song.artist),
-    music: {
-      ...project.timing,
-      audio_sha256: digestBytes(song.audio.sha256),
-    },
-    chart: generated.chart,
-    evaluation_contract: project.evaluation_contract,
-    audio_asset: {
-      format: song.audio.format,
-      byte_length: song.audio.byte_length,
-    },
-    ucs_mode: project.mode,
-  })
+  const beatChart = nativeChartToBeatCore(generated.chart, project.mode, project.timing)
   return store.transact(
     undefined,
     (state) => {
@@ -68,9 +61,25 @@ export async function generateProject(
         JSON.stringify(currentSong.audio) !== JSON.stringify(song.audio)
       )
         throw new StudioError(409, "song_binding_conflict", "Song audio changed during generation")
+      const chartProject = BeatChartDocumentSchema.parse({
+        schema_version: 1,
+        title: currentSong.title,
+        artist: currentSong.artist,
+        chart_artist: project.chart_artist,
+        mode: project.mode,
+        timing: beatChart.timing,
+        notes: beatChart.notes,
+        audio_sha256: currentSong.audio.sha256,
+        evaluation_contract: project.evaluation_contract,
+        audio_asset: {
+          format: currentSong.audio.format,
+          byte_length: currentSong.audio.byte_length,
+        },
+      })
       const chartId = ChartIdSchema.parse(randomUUID())
       const generation = {
         ...generated,
+        chart: beatChart,
         chart_id: chartId,
         project_id: project.id,
         project_revision: project.revision,
@@ -85,15 +94,22 @@ export async function generateProject(
             ...state.library.charts,
             {
               id: chartId,
-              song_id: song.id,
+              song_id: currentSong.id,
               name: command.name,
-              mode: project.mode,
-              ...chartSummary(chartProject),
+              ...beatChartSummary(chartProject),
               generated_from: {
                 project_id: project.id,
                 project_revision: project.revision,
                 seed: command.seed,
-                automatic_regions: automaticRegionViews(project.generation_rules),
+                automatic_regions:
+                  project.generation_rules.schema_version === 1
+                    ? []
+                    : project.generation_rules.regions.map((region) => ({
+                        id: region.id,
+                        name: region.name,
+                        start: region.rules.start,
+                        end: region.rules.end,
+                      })),
               },
               project: chartProject,
             },
@@ -103,22 +119,16 @@ export async function generateProject(
       return {
         state: next,
         result: ProjectMutationSchema.parse({
-          workspace: ProjectWorkspaceSchema.parse({
+          workspace: BeatProjectWorkspaceSchema.parse({
             revision: next.projects.revision,
             selected_project_id: next.projects.selected_project_id,
             projects: next.projects.records.map(projectSummary),
-            components: next.projects.components.map(componentSummary),
+            components: next.projects.components,
           }),
           generation,
         }),
       }
     },
     signal,
-  )
-}
-
-function digestBytes(hex: string): readonly number[] {
-  return Array.from({ length: 32 }, (_, index) =>
-    Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16),
   )
 }

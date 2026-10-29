@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import { buildAgentProposal } from "../../server/agent/proposal.ts"
 import { loadDemo } from "../../server/demo.ts"
+import { migrateLegacyChart } from "../../server/library/legacy-beat-migration.ts"
 import { LibraryService } from "../../server/library/service.ts"
 import { ProjectService } from "../../server/projects/service.ts"
 import { StudioStore } from "../../server/store.ts"
@@ -22,14 +23,16 @@ afterEach(async () => {
 })
 
 describe("hybrid backend boundaries", () => {
-  it("derives generated origin without persisting it in the V3 document", async () => {
+  it("persists generated origin with beat-native automatic region bounds", async () => {
     // Given
     const root = await mkdtemp(join(tmpdir(), "pump-hybrid-origin-"))
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
     const song = store.library().songs[0]
-    if (song === undefined) throw new TypeError("Expected initial song")
+    const baseChart = store.library().charts[0]
+    if (song === undefined || baseChart === undefined)
+      throw new TypeError("Expected initial library")
     const generatedFixture = generationMutation().generation
     if (generatedFixture === undefined) throw new TypeError("Expected generation fixture")
     const {
@@ -50,15 +53,18 @@ describe("hybrid backend boundaries", () => {
         },
       }),
     })
-    const { audio_sha256: _audioDigest, ...timing } = demo.document.project.music
+    const source = store.document().project
+    if (source.timing.duration === null) throw new TypeError("Expected explicit duration")
     const created = await service.command(
       ProjectCommandSchema.parse({
         type: "create_project",
         song_id: song.id,
         mode: "Double",
         name: "Hybrid",
-        timing,
-        evaluation_contract: demo.document.project.evaluation_contract,
+        chart_artist: "Hybrid Author",
+        base_ucs_ref: { source: "saved_chart", chart_id: baseChart.id },
+        timing: source.timing,
+        evaluation_contract: source.evaluation_contract,
         generation_rules: {
           schema_version: 2,
           algorithm: "hybrid_regions_v1",
@@ -68,10 +74,20 @@ describe("hybrid backend boundaries", () => {
               id: "00000000-0000-4000-8000-000000000010",
               name: "Verse",
               rules: {
-                start_tick: 0,
-                end_tick: demo.document.project.music.duration_ticks,
-                step_ticks: 8,
-                pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
+                start: { numerator: 0, denominator: 1 },
+                end: source.timing.duration,
+                step: { numerator: 2, denominator: 1 },
+                pattern: [
+                  {
+                    choices: [
+                      {
+                        panel_mask: 1,
+                        hold: { numerator: 0, denominator: 1 },
+                        weight: 1,
+                      },
+                    ],
+                  },
+                ],
               },
             },
           ],
@@ -108,16 +124,31 @@ describe("hybrid backend boundaries", () => {
     expect(saved.origin).toEqual({
       project_id: project.id,
       project_revision: project.revision,
+      seed: "0".repeat(64),
       automatic_regions: [
         {
           id: "00000000-0000-4000-8000-000000000010",
           name: "Verse",
-          start_tick: 0,
-          end_tick: demo.document.project.music.duration_ticks,
+          start: { numerator: 0, denominator: 1 },
+          end: source.timing.duration,
         },
       ],
     })
-    expect(persisted).not.toMatchObject({ document: { origin: expect.anything() } })
+    expect(persisted).toMatchObject({ document: { origin: saved.origin } })
+    const rebound = await new LibraryService(store).rebindAudio(
+      song.id,
+      store.library().revision,
+      saved.revision,
+      store.audio(),
+    )
+    expect(rebound.document.origin).toEqual(saved.origin)
+    const replaced = await store.replace(
+      rebound.document.revision,
+      { ...rebound.document.project, title: "Replacement" },
+      demo.audio,
+    )
+    expect(replaced.origin).toBeUndefined()
+    expect(store.chartDocument(chartId).chart.generated_from).toBeUndefined()
   })
 
   it("rejects inclusive UCS hold-tail collisions at save and agent proposal boundaries", async () => {
@@ -126,8 +157,22 @@ describe("hybrid backend boundaries", () => {
     roots.push(root)
     const demo = await loadDemo(repoRoot)
     const store = await StudioStore.open(root, demo.document, demo.audio)
-    const chart = {
-      ...demo.document.project.chart,
+    const current = store.document()
+    const notes = [
+      {
+        at: { numerator: 0, denominator: 1 },
+        panel_mask: 1,
+        hold: { numerator: 1, denominator: 1 },
+      },
+      {
+        at: { numerator: 1, denominator: 1 },
+        panel_mask: 1,
+        hold: { numerator: 0, denominator: 1 },
+      },
+    ]
+    const nativeChart = {
+      ticks_per_beat: 4,
+      span_ticks: 32,
       notes: [
         { tick: 0, panel_mask: 1, hold_ticks: 4 },
         { tick: 4, panel_mask: 1, hold_ticks: 0 },
@@ -135,11 +180,13 @@ describe("hybrid backend boundaries", () => {
     }
 
     // When / Then
-    await expect(store.save(0, { ...demo.document.project, chart })).rejects.toMatchObject({
-      code: "ucs_cell_conflict",
-    })
+    await expect(store.save(0, { ...current.project, notes })).rejects.toBeInstanceOf(Error)
     expect(() =>
-      buildAgentProposal(store.document(), { chart, summary: "Collision" }, crypto.randomUUID()),
+      buildAgentProposal(
+        store.document(),
+        { chart: nativeChart, summary: "Collision" },
+        crypto.randomUUID(),
+      ),
     ).toThrowError(expect.objectContaining({ code: "ucs_cell_conflict" }))
   })
 
@@ -150,7 +197,7 @@ describe("hybrid backend boundaries", () => {
     // When
     const forged = PutDocumentRequestSchema.safeParse({
       base_revision: demo.document.revision,
-      project: demo.document.project,
+      project: migrateLegacyChart(demo.document.project),
       origin: {
         project_id: "00000000-0000-4000-8000-000000000001",
         project_revision: 0,
