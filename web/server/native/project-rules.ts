@@ -124,7 +124,7 @@ function nativeCapabilityError(capability: BeatProjectNativeCapability): StudioE
       return new StudioError(
         422,
         capability.code,
-        `Exact native generation requires ${capability.required_tpb} ticks per beat; limit ${capability.limit}`,
+        `Exact native generation requires at least ${capability.required_tpb} ticks per beat; limit ${capability.limit}`,
       )
     case "native_limit_unsupported":
       return new StudioError(
@@ -132,6 +132,8 @@ function nativeCapabilityError(capability: BeatProjectNativeCapability): StudioE
         capability.code,
         `Exact native ${capability.field} ${capability.value} exceeds limit ${capability.limit}`,
       )
+    case "native_evaluation_extent_unsupported":
+      return new StudioError(422, capability.code, capability.message)
   }
 }
 

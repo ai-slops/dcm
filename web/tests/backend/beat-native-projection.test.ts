@@ -5,6 +5,11 @@ import {
   projectBeatChartNative,
 } from "../../server/native/beat-projection.ts"
 import type { BeatChartCore } from "../../shared/beat.ts"
+import type { BeatEvaluationContract } from "../../shared/beat-evaluation.ts"
+import {
+  nativeEvaluationExtentCapability,
+  nativeTicksPerBeatFor,
+} from "../../shared/beat-native-capability.ts"
 
 const beat = (numerator: number, denominator = 1) => ({ numerator, denominator })
 
@@ -48,8 +53,53 @@ describe("beat native projection", () => {
 
     expect(result).toEqual({
       kind: "unsupported",
-      capability: { code: "native_grid_unsupported", required_tpb: "43053", limit: 4_096 },
+      capability: { code: "native_grid_unsupported", required_tpb: "14351", limit: 4_096 },
     })
+  })
+
+  it("returns a bounded TPB lower bound before visiting later huge denominators", () => {
+    const result = nativeTicksPerBeatFor([beat(1, Number.MAX_SAFE_INTEGER)], [508, 452])
+
+    expect(result).toEqual({
+      kind: "unsupported",
+      capability: { code: "native_grid_unsupported", required_tpb: "14351", limit: 4_096 },
+    })
+  })
+
+  it("reports evaluation extent as a typed capability without trimming semantics", () => {
+    const contract = {
+      schema_version: 2,
+      history_policy: { recent_window: 0, max_request_history: 0 },
+      foot_model: {
+        version: 1,
+        micros_per_panel_unit: 1,
+        bracket_setup_micros: 1,
+        crossover_penalty: 0,
+        bracket_penalty: 0,
+      },
+      difficulty: {
+        label: "finite",
+        density: { minimum: 0, maximum: 1 },
+        movement: { minimum: 0, maximum: 1 },
+        brackets: { minimum: 0, maximum: 1 },
+        hold_occupancy: { minimum: 0, maximum: 1 },
+        local_load: { minimum: 0, maximum: 1 },
+        total: { minimum: 0, maximum: 1 },
+        local_windows: [{ width: beat(3), maximum_load: 1 }],
+      },
+      intents: [],
+      budgets: { max_notes: 10, max_frames: 10, max_dp_work: 10, max_matching_work: 10 },
+    } satisfies BeatEvaluationContract
+
+    const capability = nativeEvaluationExtentCapability(contract, beat(2))
+
+    expect(capability).toMatchObject({
+      code: "native_evaluation_extent_unsupported",
+      field: "difficulty.local_windows[0].width",
+      required_end: beat(3),
+      duration: beat(2),
+    })
+    expect(contract.difficulty.local_windows[0]?.width).toEqual(beat(3))
   })
 
   it("decodes a native result to reduced beats and concretizes automatic duration", () => {

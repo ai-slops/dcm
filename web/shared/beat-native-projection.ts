@@ -5,6 +5,12 @@ import {
   type BeatTiming,
   beatFromTicks,
 } from "./beat.ts"
+import {
+  type NativeDurationUnresolved,
+  type NativeGridUnsupported,
+  type NativeLimitUnsupported,
+  nativeTicksPerBeatFor,
+} from "./beat-native-capability.ts"
 import { resolveChartOutputTiming } from "./beat-output.ts"
 import {
   canonicalizeChart,
@@ -12,23 +18,6 @@ import {
   type NativeMusic,
   NativeMusicSchema,
 } from "./native.ts"
-
-const NATIVE_TPB_LIMIT = 4_096n
-
-export type NativeGridUnsupported = {
-  readonly code: "native_grid_unsupported"
-  readonly required_tpb: string
-  readonly limit: 4_096
-}
-
-export type NativeDurationUnresolved = { readonly code: "native_duration_unresolved" }
-
-export type NativeLimitUnsupported = {
-  readonly code: "native_limit_unsupported"
-  readonly field: "duration_ticks"
-  readonly value: number
-  readonly limit: 1_000_000
-}
 
 export type BeatNativeProjection =
   | { readonly kind: "supported"; readonly chart: NativeChart; readonly music: NativeMusic }
@@ -48,7 +37,6 @@ export function projectBeatChartNative(
   const duration = outputTiming.duration
   if (duration === null)
     return { kind: "unsupported", capability: { code: "native_duration_unresolved" } }
-  let ticksPerBeat = 1n
   const coordinates = [
     duration,
     ...source.notes.flatMap((note) => [note.at, note.hold]),
@@ -56,21 +44,12 @@ export function projectBeatChartNative(
     ...outputTiming.grid_sections.map((section) => section.at),
     ...outputTiming.reference_accents,
   ]
-  for (const coordinate of coordinates)
-    ticksPerBeat = leastCommonMultiple(ticksPerBeat, BigInt(coordinate.denominator))
-  for (const section of outputTiming.grid_sections) {
-    const rows = BigInt(section.rows_per_measure)
-    ticksPerBeat = leastCommonMultiple(ticksPerBeat, rows / greatestCommonDivisor(rows, 4n))
-  }
-  if (ticksPerBeat > NATIVE_TPB_LIMIT)
-    return {
-      kind: "unsupported",
-      capability: {
-        code: "native_grid_unsupported",
-        required_tpb: ticksPerBeat.toString(),
-        limit: 4_096,
-      },
-    }
+  const nativeGrid = nativeTicksPerBeatFor(
+    coordinates,
+    outputTiming.grid_sections.map((section) => section.rows_per_measure),
+  )
+  if (nativeGrid.kind === "unsupported") return nativeGrid
+  const ticksPerBeat = nativeGrid.ticks_per_beat
   const nativeTicksPerBeat = Number(ticksPerBeat)
   const durationTicks = beatToTicks(duration, ticksPerBeat)
   if (durationTicks > 1_000_000)
@@ -138,15 +117,4 @@ function beatToTicks(beat: Beat, ticksPerBeat: bigint): number {
   if (ticks > BigInt(Number.MAX_SAFE_INTEGER))
     throw new RangeError("Native tick coordinate exceeds JSON-safe integer range")
   return Number(ticks)
-}
-
-function leastCommonMultiple(left: bigint, right: bigint): bigint {
-  return (left / greatestCommonDivisor(left, right)) * right
-}
-
-function greatestCommonDivisor(left: bigint, right: bigint): bigint {
-  let dividend = left
-  let divisor = right
-  while (divisor !== 0n) [dividend, divisor] = [divisor, dividend % divisor]
-  return dividend
 }

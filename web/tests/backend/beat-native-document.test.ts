@@ -92,4 +92,45 @@ describe("native document boundary", () => {
       }),
     )
   })
+
+  it("returns a typed evaluation extent capability instead of a generic schema failure", async () => {
+    const demo = await loadDemo(repoRoot)
+    const source = migrateLegacyChart(demo.document.project)
+    const duration = source.timing.duration
+    if (duration === null) throw new Error("Expected explicit fixture duration")
+    const project = {
+      ...source,
+      evaluation_contract: {
+        ...source.evaluation_contract,
+        intents: [
+          {
+            id: "future-negative-space",
+            kind: {
+              kind: "negative_space" as const,
+              start: { numerator: 0, denominator: 1 },
+              end: {
+                numerator: duration.numerator + duration.denominator,
+                denominator: duration.denominator,
+              },
+            },
+            requiredness: "required" as const,
+            credit_policy: "exclusive" as const,
+            threshold: 1,
+            weight: 1,
+          },
+        ],
+      },
+    }
+
+    expect(() => nativeDocumentFor(project)).toThrowError(
+      expect.objectContaining({
+        code: "native_evaluation_extent_unsupported",
+        capability: expect.objectContaining({ field: "intents[0].negative_space.end" }),
+      }),
+    )
+    expect(project.evaluation_contract.intents[0]?.kind.end).toEqual({
+      numerator: duration.numerator + duration.denominator,
+      denominator: duration.denominator,
+    })
+  })
 })

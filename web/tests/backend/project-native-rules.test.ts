@@ -3,6 +3,8 @@ import { createHash } from "node:crypto"
 import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../../server/demo.ts"
+import { migrateLegacyProject } from "../../server/library/legacy-beat-migration.ts"
+import { projectBeatGenerationNative } from "../../server/native/beat-project-adapter.ts"
 import {
   materializeNativeMusic,
   ProjectNativeService,
@@ -171,5 +173,40 @@ describe("ProjectNativeService", () => {
     expect(() => parseNativeRuleGeneration(encoded, "Single", hybridRules)).toThrowError(
       "already contains a note or hold tail",
     )
+  })
+
+  it("returns typed evaluation extent capability before invoking native generation", async () => {
+    const { project } = await fixture()
+    const beatProject = migrateLegacyProject(project)
+    const duration = beatProject.timing.duration
+    if (duration === null) throw new Error("Expected explicit migrated duration")
+    const input = {
+      ...beatProject,
+      evaluation_contract: {
+        ...beatProject.evaluation_contract,
+        difficulty: {
+          ...beatProject.evaluation_contract.difficulty,
+          local_windows: [
+            {
+              width: {
+                numerator: duration.numerator + duration.denominator,
+                denominator: duration.denominator,
+              },
+              maximum_load: 1,
+            },
+          ],
+        },
+      },
+    }
+
+    const result = projectBeatGenerationNative(input)
+
+    expect(result).toMatchObject({
+      kind: "unsupported",
+      capability: {
+        code: "native_evaluation_extent_unsupported",
+        field: "difficulty.local_windows[0].width",
+      },
+    })
   })
 })

@@ -1,4 +1,9 @@
 import { addBeats, type Beat, compareBeats } from "../../shared/beat.ts"
+import {
+  type NativeCapability,
+  nativeEvaluationExtentCapability,
+  nativeTicksPerBeatFor,
+} from "../../shared/beat-native-capability.ts"
 import { timingAtOutputExtent } from "../../shared/beat-output.ts"
 import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { GenerationProject } from "../../shared/generation-projects.ts"
@@ -10,21 +15,7 @@ import {
   ruleBeats,
 } from "./beat-project-conversion.ts"
 
-const NATIVE_TPB_LIMIT = 4_096n
-
-export type BeatProjectNativeCapability =
-  | { readonly code: "native_duration_unresolved" }
-  | {
-      readonly code: "native_grid_unsupported"
-      readonly required_tpb: string
-      readonly limit: 4_096
-    }
-  | {
-      readonly code: "native_limit_unsupported"
-      readonly field: "duration_ticks"
-      readonly value: number
-      readonly limit: 1_000_000
-    }
+export type BeatProjectNativeCapability = NativeCapability
 
 export type BeatProjectNativeProjection =
   | { readonly kind: "supported"; readonly project: GenerationProject }
@@ -40,22 +31,18 @@ export function projectBeatGenerationNative(
   if (duration === null)
     return { kind: "unsupported", capability: { code: "native_duration_unresolved" } }
   const outputTiming = timingAtOutputExtent(project.timing, duration)
-  let ticksPerBeat = 1n
-  for (const beat of projectBeats(project, outputTiming))
-    ticksPerBeat = leastCommonMultiple(ticksPerBeat, BigInt(beat.denominator))
-  for (const section of outputTiming.grid_sections) {
-    const rows = BigInt(section.rows_per_measure)
-    ticksPerBeat = leastCommonMultiple(ticksPerBeat, rows / greatestCommonDivisor(rows, 4n))
-  }
-  if (ticksPerBeat > NATIVE_TPB_LIMIT)
-    return {
-      kind: "unsupported",
-      capability: {
-        code: "native_grid_unsupported",
-        required_tpb: ticksPerBeat.toString(),
-        limit: 4_096,
-      },
-    }
+  const evaluationCapability = nativeEvaluationExtentCapability(
+    project.evaluation_contract,
+    duration,
+  )
+  if (evaluationCapability !== null)
+    return { kind: "unsupported", capability: evaluationCapability }
+  const nativeGrid = nativeTicksPerBeatFor(
+    projectBeats(project, outputTiming),
+    outputTiming.grid_sections.map((section) => section.rows_per_measure),
+  )
+  if (nativeGrid.kind === "unsupported") return nativeGrid
+  const ticksPerBeat = nativeGrid.ticks_per_beat
   const durationTicks = beatToTicks(duration, ticksPerBeat)
   if (durationTicks > 1_000_000)
     return {
@@ -135,15 +122,4 @@ function automaticProjectDuration(project: GenerationProjectV2): Beat | null {
     if (extent === null || compareBeats(padded, extent) > 0) extent = padded
   }
   return extent
-}
-
-function leastCommonMultiple(left: bigint, right: bigint): bigint {
-  return (left / greatestCommonDivisor(left, right)) * right
-}
-
-function greatestCommonDivisor(left: bigint, right: bigint): bigint {
-  let dividend = left
-  let divisor = right
-  while (divisor !== 0n) [dividend, divisor] = [divisor, dividend % divisor]
-  return dividend
 }
