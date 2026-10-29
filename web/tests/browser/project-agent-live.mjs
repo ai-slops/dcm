@@ -8,6 +8,12 @@ import { chromium } from "playwright"
 import { agentBrowser, observeAgentBrowser } from "./agent-live-support.mjs"
 import { librarySnapshot } from "./library-support.mjs"
 import {
+  automaticTiming,
+  projectBaseSources,
+  savedChartBase,
+  weightedRules,
+} from "./project-beat-fixtures.mjs"
+import {
   acceptedProjectAction,
   cleanProjectArtifacts,
   projectWorkspace,
@@ -47,22 +53,22 @@ try {
   ids.activeChartId = library.active_chart_id
   const active = library.charts.find((chart) => chart.id === library.active_chart_id)
   assert.ok(active)
-  const { audio_sha256: _audio, ...timing } = before.document.project.music
+  const base = savedChartBase(
+    await projectBaseSources(context, configuration.url, active.song_id),
+    active.id,
+  )
+  assert.ok(base.timing.duration)
+  const timing = automaticTiming(base)
   const created = await acceptedProjectAction(context, configuration.url, {
     type: "create_project",
     name: `Agent rules QA ${randomUUID().slice(0, 8)}`,
     song_id: active.song_id,
     mode: "Single",
+    chart_artist: "Live Agent Author",
+    base_ucs_ref: base.ref,
     timing,
     evaluation_contract: before.document.project.evaluation_contract,
-    generation_rules: {
-      schema_version: 1,
-      algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: Math.min(384, timing.duration_ticks),
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
-    },
+    generation_rules: weightedRules({ end: base.timing.duration, panelMask: 1 }),
   })
   assert.ok(created.project)
   const project = created.project
@@ -74,17 +80,20 @@ try {
   await page.goto(configuration.url)
   await page.getByLabel("Allow project and library writes", { exact: true }).check()
   runId = await agent.startTask(
-    `Use list_songs to discover the real available background songs and read_chart to inspect existing chart ${ids.activeChartId} without editing it. Use read_project to read project ${project.id}. Then use write_project exactly once to change only generation_rules.step_ticks from 48 to 24, preserving its name, timing, evaluation contract, and all other rules. Supply the actual base revision from read_project. Read the same project again with read_project to verify the persisted change. Do not create or generate charts, proposals, components, or other projects. Do not edit the active chart document. Finish with a brief result naming the saved project revision.`,
+    `Use list_songs to discover the real available background songs and read_chart to inspect existing chart ${ids.activeChartId} without editing it. Use read_project to read project ${project.id}. Then use write_project exactly once to change only generation_rules.step from beat 1/1 to beat 1/2, preserving its name, chart artist, timing, evaluation contract, and all other rules. Supply the actual base revision from read_project. Read the same project again with read_project to verify the persisted change. Do not create or generate charts, proposals, components, or other projects. Do not edit the active chart document. Finish with a brief result naming the saved project revision.`,
   )
   const completed = await agent.finishTask(runId)
   const saved = await readRuleProject(context, configuration.url, project.id)
   assert.equal(saved.revision, project.revision + 1)
-  assert.equal(saved.generation_rules.step_ticks, 24)
+  assert.deepEqual(saved.generation_rules.step, { numerator: 1, denominator: 2 })
   assert.equal(saved.mode, "Single")
   assert.equal(saved.song_id, project.song_id)
   assert.deepEqual(saved.timing, project.timing)
   assert.deepEqual(saved.evaluation_contract, project.evaluation_contract)
-  assert.deepEqual(saved.generation_rules, { ...project.generation_rules, step_ticks: 24 })
+  assert.deepEqual(saved.generation_rules, {
+    ...project.generation_rules,
+    step: { numerator: 1, denominator: 2 },
+  })
   const tools = completed.run.tool_calls ?? []
   for (const toolId of ["list_songs", "read_chart"])
     assert.ok(tools.some((tool) => tool.tool_id === toolId && tool.state === "completed"))
@@ -108,7 +117,7 @@ try {
     api: completed.run.api,
     project_id: project.id,
     saved_revision: saved.revision,
-    saved_step_ticks: 24,
+    saved_step: saved.generation_rules.step,
     tools: tools.map((tool) => ({ tool: tool.tool_id, state: tool.state })),
     active_chart_preserved: true,
     foreign_requests: observed.foreignRequests.length,

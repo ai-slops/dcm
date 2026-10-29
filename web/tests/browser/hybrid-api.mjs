@@ -3,12 +3,18 @@ import { randomUUID } from "node:crypto"
 
 import { chromium } from "playwright"
 
-import { loadDemo } from "../../server/demo.ts"
 import { LibraryMutationSchema } from "../../shared/library.ts"
 import { librarySnapshot } from "./library-support.mjs"
+import {
+  automaticTiming,
+  beatValue,
+  projectBaseSources,
+  savedChartBase,
+  ZERO_BEAT,
+} from "./project-beat-fixtures.mjs"
 import { acceptedProjectAction, projectWorkspace } from "./projects-api-support.mjs"
 import { restoreProjectUi } from "./projects-ui-support.mjs"
-import { bootstrap, browserConfiguration, repoRoot } from "./ucs-support.mjs"
+import { bootstrap, browserConfiguration } from "./ucs-support.mjs"
 
 assert.equal(
   process.env.STUDIO_PROJECTS_QA,
@@ -33,22 +39,26 @@ try {
   const library = await librarySnapshot(context, configuration.url)
   ids.activeChartId = library.active_chart_id
   ids.selectedProjectId = workspace.selected_project_id
-  const song = library.songs[0]
-  assert.ok(song)
-  const demo = await loadDemo(repoRoot)
-  const { audio_sha256: _audio, ...timing } = demo.document.project.music
+  const active = library.charts.find((chart) => chart.id === library.active_chart_id)
+  assert.ok(active)
+  const base = savedChartBase(
+    await projectBaseSources(context, configuration.url, active.song_id),
+    active.id,
+  )
+  assert.ok(base.timing.duration)
+  const timing = automaticTiming(base)
   const region = {
     id: randomUUID(),
     name: "자동 후렴",
     rules: {
-      start_tick: 8,
-      end_tick: 24,
-      step_ticks: 4,
+      start: { numerator: 4, denominator: 1 },
+      end: base.timing.duration,
+      step: { numerator: 1, denominator: 1 },
       pattern: [
         {
           choices: [
-            { panel_mask: 4, hold_ticks: 0, weight: 1 },
-            { panel_mask: 8, hold_ticks: 0, weight: 1 },
+            { panel_mask: 4, hold: ZERO_BEAT, weight: 1 },
+            { panel_mask: 8, hold: ZERO_BEAT, weight: 1 },
           ],
         },
       ],
@@ -57,14 +67,16 @@ try {
   const created = await acceptedProjectAction(context, configuration.url, {
     type: "create_project",
     name: `Hybrid QA ${randomUUID().slice(0, 8)}`,
-    song_id: song.id,
+    song_id: active.song_id,
     mode: "Double",
+    chart_artist: "Hybrid API Author",
+    base_ucs_ref: base.ref,
     timing,
-    evaluation_contract: demo.document.project.evaluation_contract,
+    evaluation_contract: before.document.project.evaluation_contract,
     generation_rules: {
       schema_version: 2,
       algorithm: "hybrid_regions_v1",
-      fixed_notes: [{ tick: 0, panel_mask: 1, hold_ticks: 0 }],
+      fixed_notes: [{ at: ZERO_BEAT, panel_mask: 1, hold: ZERO_BEAT }],
       regions: [region],
     },
   })
@@ -84,21 +96,29 @@ try {
     return mutation.generation
   }
   const first = await generate()
-  assert.ok(first.chart.notes.some((note) => note.tick === 0 && note.panel_mask === 1))
-  const automatic = first.chart.notes.filter((note) => note.tick >= 8 && note.tick < 24)
+  assert.ok(first.chart.notes.some((note) => beatValue(note.at) === 0 && note.panel_mask === 1))
+  const automatic = first.chart.notes.filter((note) => {
+    const at = beatValue(note.at)
+    return at >= 4 && at < beatValue(base.timing.duration)
+  })
   assert.equal(automatic.length, 4)
   const written = await acceptedProjectAction(context, configuration.url, {
     type: "write_project",
     project_id: project.id,
     base_revision: project.revision,
     name: `${project.name} renamed`,
+    chart_artist: project.chart_artist,
     timing: project.timing,
     evaluation_contract: project.evaluation_contract,
     generation_rules: {
       ...project.generation_rules,
       fixed_notes: [
-        { tick: 0, panel_mask: 1, hold_ticks: 0 },
-        { tick: 2, panel_mask: 2, hold_ticks: 0 },
+        { at: ZERO_BEAT, panel_mask: 1, hold: ZERO_BEAT },
+        {
+          at: { numerator: 1, denominator: 2 },
+          panel_mask: 2,
+          hold: ZERO_BEAT,
+        },
       ],
       regions: [{ ...region, name: "이름만 바꾼 후렴" }],
     },
@@ -107,7 +127,10 @@ try {
   project = written.project
   const second = await generate()
   assert.deepEqual(
-    second.chart.notes.filter((note) => note.tick >= 8 && note.tick < 24),
+    second.chart.notes.filter((note) => {
+      const at = beatValue(note.at)
+      return at >= 4 && at < beatValue(base.timing.duration)
+    }),
     automatic,
   )
   const current = await bootstrap(context, configuration.url)
