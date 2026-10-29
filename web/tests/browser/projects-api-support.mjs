@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 
 import {
-  GenerationProjectSchema,
-  ProjectWorkspaceSchema,
-} from "../../shared/generation-projects.ts"
+  BeatProjectWorkspaceSchema,
+  GenerationProjectV2Schema,
+} from "../../shared/beat-projects.ts"
 import { ProjectMutationSchema } from "../../shared/project-commands.ts"
 import { librarySnapshot } from "./library-support.mjs"
 import { bootstrap } from "./ucs-support.mjs"
@@ -11,13 +11,13 @@ import { bootstrap } from "./ucs-support.mjs"
 export async function projectWorkspace(context, url) {
   const response = await context.request.get(new URL("/api/v1/projects", url).toString())
   assert.equal(response.status(), 200)
-  return ProjectWorkspaceSchema.parse(await response.json())
+  return BeatProjectWorkspaceSchema.parse(await response.json())
 }
 
 export async function readRuleProject(context, url, id) {
   const response = await context.request.get(new URL(`/api/v1/projects/${id}`, url).toString())
   assert.equal(response.status(), 200)
-  return GenerationProjectSchema.parse(await response.json())
+  return GenerationProjectV2Schema.parse(await response.json())
 }
 
 export async function projectAction(context, url, command) {

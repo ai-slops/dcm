@@ -6,6 +6,13 @@ import { chromium } from "playwright"
 import { LibraryChartDocumentSchema } from "../../shared/library.ts"
 import { librarySnapshot } from "./library-support.mjs"
 import {
+  automaticTiming,
+  projectBaseSources,
+  savedChartBase,
+  weightedRules,
+  ZERO_BEAT,
+} from "./project-beat-fixtures.mjs"
+import {
   acceptedProjectAction,
   cleanProjectArtifacts,
   projectAction,
@@ -39,21 +46,21 @@ try {
   ids.activeChartId = library.active_chart_id
   const active = library.charts.find((chart) => chart.id === library.active_chart_id)
   assert.ok(active)
-  const { audio_sha256: _audio, ...timing } = before.document.project.music
+  const base = savedChartBase(
+    await projectBaseSources(context, configuration.url, active.song_id),
+    active.id,
+  )
+  assert.ok(base.timing.duration)
+  const timing = automaticTiming(base)
   const name = `Rule project QA ${randomUUID().slice(0, 8)}`
   const fields = {
     name,
     timing,
     song_id: active.song_id,
+    chart_artist: "Browser API Author",
+    base_ucs_ref: base.ref,
     evaluation_contract: before.document.project.evaluation_contract,
-    generation_rules: {
-      schema_version: 1,
-      algorithm: "weighted_cycle_v1",
-      start_tick: 0,
-      end_tick: Math.min(384, timing.duration_ticks),
-      step_ticks: 48,
-      pattern: [{ choices: [{ panel_mask: 1, hold_ticks: 0, weight: 1 }] }],
-    },
+    generation_rules: weightedRules({ end: base.timing.duration, panelMask: 1 }),
   }
   const missingMode = await projectAction(context, configuration.url, {
     type: "create_project",
@@ -79,6 +86,7 @@ try {
       project_id: project.id,
       base_revision: project.revision,
       name: project.name,
+      chart_artist: project.chart_artist,
       timing: project.timing,
       evaluation_contract: project.evaluation_contract,
       generation_rules: rules,
@@ -87,12 +95,16 @@ try {
     return mutation.project
   }
   const oldRevision = single.revision
-  single = await write(single, { ...single.generation_rules, step_ticks: 24 })
+  single = await write(single, {
+    ...single.generation_rules,
+    step: { numerator: 1, denominator: 2 },
+  })
   const stale = await projectAction(context, configuration.url, {
     type: "write_project",
     project_id: single.id,
     base_revision: oldRevision,
     name: single.name,
+    chart_artist: single.chart_artist,
     timing: single.timing,
     evaluation_contract: single.evaluation_contract,
     generation_rules: single.generation_rules,
@@ -100,7 +112,7 @@ try {
   assert.equal(stale.status(), 409)
   double = await write(double, {
     ...double.generation_rules,
-    pattern: [{ choices: [{ panel_mask: 32, hold_ticks: 0, weight: 1 }] }],
+    pattern: [{ choices: [{ panel_mask: 32, hold: ZERO_BEAT, weight: 1 }] }],
   })
   const publish = async (project) => {
     const mutation = await acceptedProjectAction(context, configuration.url, {
@@ -140,7 +152,7 @@ try {
   assert.equal(double.applied_components.generator.component_id, singleComponent.id)
   double = await write(double, {
     ...double.generation_rules,
-    pattern: [{ choices: [{ panel_mask: 32, hold_ticks: 0, weight: 1 }] }],
+    pattern: [{ choices: [{ panel_mask: 32, hold: ZERO_BEAT, weight: 1 }] }],
   })
   for (const project of [single, double]) {
     const mutation = await acceptedProjectAction(context, configuration.url, {
@@ -164,11 +176,11 @@ try {
     )
     assert.equal(response.status(), 200)
     const saved = LibraryChartDocumentSchema.parse(await response.json())
-    assert.deepEqual(saved.project.chart, mutation.generation.chart)
+    assert.deepEqual(saved.project.notes, mutation.generation.chart.notes)
     assert.equal(saved.chart.mode, project.mode)
-    assert.equal(saved.project.ucs_mode, project.mode)
+    assert.equal(saved.project.mode, project.mode)
     assert.ok(
-      saved.project.chart.notes.every((note) =>
+      saved.project.notes.every((note) =>
         project.mode === "Single" ? note.panel_mask <= 31 : note.panel_mask === 32,
       ),
     )
