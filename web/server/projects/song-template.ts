@@ -1,16 +1,13 @@
 import { createHash } from "node:crypto"
 
-import { ChartDocumentSchema, type StudioProjectV1, type UcsChart } from "../../shared/index.ts"
+import { type BeatChartDocument, BeatChartDocumentSchema } from "../../shared/beat-projects.ts"
+import type { UcsChart } from "../../shared/index.ts"
 import type { ArchiveSourceTiming, LibrarySong, SongId } from "../../shared/library.ts"
 import { type UcsArchiveEntry, UcsArchiveError } from "../../src/domain/archive-policy.ts"
 import { StudioError } from "../errors.ts"
 import { archiveAudioFormat } from "../library/archive-names.ts"
 import { parseArchiveInWorker } from "../library/archive-resource.ts"
-import {
-  compatibleEvaluationContract,
-  digestBytes,
-  nativeMetadata,
-} from "../library/project-factory.ts"
+import { migrateTiming } from "../library/legacy-beat-migration.ts"
 import type { NativeUcsService } from "../native/ucs.ts"
 import type { AudioRecord, StudioStore } from "../store.ts"
 
@@ -22,7 +19,7 @@ export class SongTemplateService {
     readonly ucs: NativeUcsService,
   ) {}
 
-  async read(songId: SongId): Promise<StudioProjectV1> {
+  async read(songId: SongId): Promise<BeatChartDocument> {
     const library = this.store.library()
     const song = library.songs.find((candidate) => candidate.id === songId)
     if (song === undefined) throw new StudioError(404, "song_not_found", "Song was not found")
@@ -31,22 +28,17 @@ export class SongTemplateService {
       throw new StudioError(409, "song_chart_missing", "Song has no chart metadata")
     const source = this.store.chartDocument(sourceChart.id).project
     const archiveSource = await this.#source(song, sourceChart.name)
-    return ChartDocumentSchema.parse({
+    return BeatChartDocumentSchema.parse({
       schema_version: 1,
-      title: nativeMetadata(song.title),
-      artist: nativeMetadata(song.artist),
-      music: { ...archiveSource.timing, audio_sha256: digestBytes(song.audio.sha256) },
-      chart: {
-        ticks_per_beat: archiveSource.timing.ticks_per_beat,
-        span_ticks: archiveSource.timing.duration_ticks,
-        notes: [],
-      },
-      evaluation_contract: compatibleEvaluationContract(
-        source,
-        archiveSource.timing.duration_ticks,
-      ),
+      title: song.title,
+      artist: song.artist,
+      chart_artist: null,
+      mode: archiveSource.mode,
+      timing: archiveSource.timing,
+      notes: [],
+      audio_sha256: song.audio.sha256,
+      evaluation_contract: source.evaluation_contract,
       audio_asset: { format: song.audio.format, byte_length: song.audio.byte_length },
-      ucs_mode: archiveSource.mode,
     })
   }
 
@@ -57,8 +49,7 @@ export class SongTemplateService {
       if (source === undefined)
         throw new StudioError(409, "song_chart_missing", "Song has no chart metadata")
       const project = this.store.chartDocument(source.id).project
-      const { audio_sha256: _audioDigest, ...timing } = project.music
-      return { chart_name: source.name, audio_name: "", mode: source.mode, timing }
+      return { chart_name: source.name, audio_name: "", mode: source.mode, timing: project.timing }
     }
     const archive = this.store.library().archives.find((item) => item.id === song.archive_id)
     if (archive === undefined)
@@ -95,8 +86,12 @@ export class SongTemplateService {
       void parsed.catch(() => this.#cache.delete(key))
     }
     const imported = await parsed
-    const { audio_sha256: _audioDigest, ...timing } = imported.music
-    return { chart_name: "", audio_name: "", mode: imported.mode, timing }
+    return {
+      chart_name: chart.name,
+      audio_name: audio.name,
+      mode: imported.mode,
+      timing: migrateTiming(imported.music, imported.music.ticks_per_beat * 4),
+    }
   }
 }
 

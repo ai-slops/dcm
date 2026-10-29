@@ -17,6 +17,9 @@ export function registerProjectRoutes(app: StudioApp, services: Services): void 
       await services.songTemplates.read(SongIdSchema.parse(context.req.param("songId"))),
     ),
   )
+  app.get("/api/v1/projects/base-sources/:songId", (context) =>
+    context.json(services.projects.baseSources(SongIdSchema.parse(context.req.param("songId")))),
+  )
   app.post("/api/v1/projects/actions", async (context) => {
     const command = await parseJson(context, ProjectCommandSchema)
     return context.json(await services.projects.command(command, context.req.raw.signal))
