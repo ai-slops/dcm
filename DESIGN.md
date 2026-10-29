@@ -30,7 +30,7 @@ The material is not generic glass. It is **machined graphite**: a matte blue-bla
 
 1. **Chart first.** The beat grid always owns the largest continuous area.
 2. **Truth before confidence.** Show source, provider, save, runtime, and evaluation status explicitly. Never invent a metric or imply official certification.
-3. **Direct manipulation first.** Tap, hold, select, erase, quantize, and inspect are visible tools. Agent commands supplement them.
+3. **Direct manipulation first.** Click toggles a note and vertical drag creates a hold. A visible measure split controls snapped placement; separate Tap/Hold/Erase/Select tool modes and selected tick/lane fields are not exposed. Agent commands supplement editing.
 4. **Review before mutation.** Agent proposals are previews with Apply and Discard. They never overwrite the chart automatically.
 5. **Dense, not cryptic.** Compact controls retain labels, tooltips, focus order, and readable contrast.
 
@@ -183,6 +183,9 @@ All visual spacing maps to this 4px scale. Intrinsic CSS mechanics such as `auto
 | `--control-touch` | `44px` | Touch and mobile minimum target |
 | `--timeline-row-compact` | `34px` | Desktop timeline row |
 | `--timeline-row-touch` | `44px` | Tablet, mobile, and coarse-pointer timeline row |
+| `--timeline-header-size` | `40px` | Sticky lane and gutter header |
+| `--timeline-beat-gutter` | `72px` | Exact beat and measure labels |
+| `--timeline-tempo-gutter` | `88px` | Tempo markers scrolling with note rows |
 | `--toolbar-height` | `56px` | Desktop document toolbar |
 | `--transport-height` | `64px` | Desktop bottom transport |
 | `--transport-height-mobile` | `112px` | Two-row compact-mobile transport retaining every control |
@@ -201,6 +204,7 @@ All visual spacing maps to this 4px scale. Intrinsic CSS mechanics such as `auto
 | `--radius-lg` | `14px` | Modals and floating surfaces |
 | `--radius-pill` | `999px` | Status badges only |
 | `--stroke-hairline` | `1px` | Dividers, control borders, and visually hidden input geometry |
+| `--stroke-strong` | `2px` | Judgment line and emphasized note tail |
 
 ### Breakpoints
 
@@ -231,8 +235,9 @@ Only these regions scroll vertically: Inspector body, Agent stream, and any moda
 - The ruler is pinned to the start edge of the grid. Measure labels and exact tick/beat values use mono type.
 - Lane headers remain visible while the beat grid scrolls. Left five lanes use coral identifiers; right five use cyan identifiers. Lane headers also include `L` or `R`, so color is not the only cue.
 - The Studio always visualizes the native ten-lane DCM chart. When the persisted UCS preference is Single, show the compact factual context `DCM 10 lanes · UCS Single uses left pad`; do not hide the right pad or imply Single changes the native chart model.
-- New placements snap down to the selected edit grid; existing notes and every native display row remain unchanged. A snapped placement onto an occupied target is rejected rather than replacing another note. Tap is a compact head. Hold is a head, duration body, and tail. The body uses `--hold-fill`; head and tail preserve pad identity.
-- Timeline scrolling is continuous and bounded. A finite physical runway rebases around the same logical visible tick before browser scroll-height limits are reached; rebase, tempo edits, chart replacement, and follow-audio updates preserve the visible tick anchor. The playhead crosses virtual-window boundaries without disappearing.
+- Authoring coordinates are exact reduced beat fractions, never a global tick grid. `Split (rows per measure)` means the number of rows in one four-beat measure. It is distinct from UCS's per-beat `Split`; conversion belongs to the output adapter. Section boundaries retain their exact beat positions. New placements and hold tails snap to the active section rows before saving. Changing split never silently moves existing notes; an incompatible change is rejected with a reason. Tap is a compact head; hold is a head, duration body, and tail using existing note/hold tokens.
+- Timeline scrolling is continuous and bounded. A finite physical runway virtualizes section rows and rebases around the same logical beat before browser scroll-height limits are reached; rebase, tempo edits, chart replacement, and follow-audio updates preserve the visible beat anchor. Placement remains available beyond the last note when duration is automatic.
+- The judgment line stays fixed one rendered timeline row below the top of the scrolling field. Notes, measure lines, split labels, and a labelled tempo gutter beside the lanes move together beneath it, driven by the existing media clock. The gutter shares the exact row geometry, not an independently scrolling list. Playback does not reposition the judgment line to the middle of the viewport.
 - Pointer gestures capture on the stable timeline scroller, never a virtualized cell. A stationary pointerup commits one tap/delete; vertical movement commits one inclusive head-to-tail hold; pointer cancellation commits nothing. Near-edge dragging scrolls the same owner and extends the gesture without synthesizing a click after pointerup.
 - Named automatic regions render a hatched band and pinned visible name header across every intersecting row, including a region that starts above the current virtual window. Read-only region cells expose their reason and do not invoke mutation callbacks.
 - The grid exposes a visible keyboard cursor, pointer hover target, selected cells/range, current playhead, and evaluation overlays as separate layers.
@@ -350,11 +355,11 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### TimelineCell
 
-- **Structure:** semantic gridcell with lane, tick, note type, selection, and evaluation state; visual layers for subdivision, note, selection, and cursor.
-- **Variants:** empty, tap, hold head/body/tail, selected, playhead intersection, accepted evidence, rejected witness, and conflict.
-- **Spacing:** display rows use native ticks and the row-height token. Editing quantization never thins existing data or removes off-grid heads/tails from view.
-- **States:** hover target, keyboard cursor, selected, dragging/painting, invalid preview, committed, and read-only during evaluation snapshot.
-- **Accessibility:** grid has row/column counts and labels. Focused cell announces pad side, panel, beat/tick, note type, and duration. Provide a structured note-list alternative for screen-reader editing and review.
+- **Structure:** semantic gridcell with lane, exact beat fraction, note type, automatic-region protection, and keyboard cursor layers. No selected tick/lane state is exposed outside the grid.
+- **Variants:** empty, tap, hold head/body/tail, cursor, judgment-line intersection, accepted evidence, rejected witness, and conflict.
+- **Spacing:** rendered rows come from the active section's rows-per-measure split over four beats. Existing notes stay at exact beat positions; a split change that would move one is rejected.
+- **States:** hover target, keyboard cursor, dragging, invalid preview, committed, and read-only automatic region or evaluation snapshot.
+- **Accessibility:** the grid has row/column labels. Focused cells announce pad side, panel, exact beat, note type, duration, and automatic-region reason. The structured note-list alternative uses exact beat fractions.
 - **Motion:** note commit uses a brief opacity/scale confirmation; playhead uses transform only; reduced motion removes scale and smooth following.
 - **Layout:** virtualized two-dimensional grid when needed. Focus and selected note must survive virtualization.
 
@@ -370,11 +375,11 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### ScrollingChartPreview
 
-- **Structure:** fixed ten-lane receptor row in native order (`L DL UL C UR DR`, then `R DL UL C UR DR`), bounded approach field, moving tap heads and hold head/body/tail geometry, exact audio-second/chart-tick readout, overflow disclosure, and the standard Transport controls.
-- **Projection:** note onset and hold tail positions derive only from the selected chart's piecewise `tickToAudioMicros` mapping and the shared HTML audio element's `currentTime`. No logical clock, beat-only approximation, or unrelated active-document audio is permitted.
-- **Windowing:** render only contacts intersecting the configured past/lookahead audio-time window. Cap visible contacts deterministically and state the omitted count rather than silently dropping dense chart data. Never create one DOM row per native tick or update every chart note per animation frame.
+- **Structure:** fixed ten-lane receptor row in native order (`L DL UL C UR DR`, then `R DL UL C UR DR`), bounded approach field, moving tap heads and hold head/body/tail geometry, exact audio-second/beat readout, overflow disclosure, and the standard Transport controls.
+- **Projection:** note onset and hold tail positions derive directly from exact beat-source notes through the piecewise `beatToAudioMicros` mapping and the shared HTML audio element's `currentTime`. Preview never requires a native tick projection, so source denominators beyond native capability remain viewable without rounding. No logical clock, beat-only approximation, or unrelated active-document audio is permitted.
+- **Windowing:** render only contacts intersecting the configured past/lookahead audio-time window. Cap visible contacts deterministically and state the omitted count rather than silently dropping dense chart data. Never create one DOM row per source subdivision or update every chart note per animation frame.
 - **Variants:** library audio loading, ready, playing, paused, ended, missing audio, and playback error. Missing audio disables Play, names the missing asset, and links to the Studio Library workflow; it does not advance a silent preview clock.
-- **Controls:** expose scroll speed/lookahead, seek/scrubber, play/pause, stop, playback rate, volume, loop, and Segment. Labels distinguish audio seconds from chart ticks and beats.
+- **Controls:** expose scroll speed/lookahead, seek/scrubber, play/pause, stop, playback rate, volume, loop, and Segment. Labels distinguish audio seconds from exact chart beats.
 - **Fine lookahead input:** pair a labelled range with a separately labelled exact-number field, both spanning `0.1` through `12` audio seconds in `0.05` increments. Exact values such as `0.25` and `0.5` remain representable. Temporary empty, non-finite, out-of-range, or off-step number drafts stay visible with an adjacent error while the renderer preserves its last valid projection; correction synchronizes both controls without snapping invalid text back.
 - **Accessibility:** receptors and visible contacts have lane/type/timing labels; chords remain separate lane contacts with a shared onset; holds expose onset and exclusive tail. A concise live summary announces playback state, not every frame. Keyboard and touch users retain the same transport actions at 375px, 768px, and 1280px.
 - **Motion:** contact travel uses compositor transforms derived from the media clock. Reduced motion keeps discrete position updates and removes decorative interpolation; it never substitutes a fake clock.
@@ -389,8 +394,8 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### Transport
 
-- **Structure:** play/pause, stop, complete mono chart-tick readout, chart-position scrubber, one visible `Segment` action, full-song loop, playback speed, volume, and audio state. `Segment` opens the standard ActionDialog for audio-second start/end and segment-loop controls; these fields never crowd the fixed transport.
-- **Ownership:** previous/next navigation, exact go-to-tick input, quantization, and beat/BPM context belong to Timeline. Configurable lookahead and exact audio-second/chart-tick context belong to ScrollingChartPreview. The shared preview/timeline timing context supplies audio seconds, beat, and BPM; Transport does not duplicate those controls or invent step/zoom behavior.
+- **Structure:** play/pause, stop, mono beat readout, beat-position scrubber, one visible `Segment` action, full-song loop, playback speed, volume, and audio state. `Segment` opens the standard ActionDialog for audio-second start/end and segment-loop controls; these fields never crowd the fixed transport.
+- **Ownership:** previous/next measure navigation, section split, keyboard hold length, and beat/BPM context belong to Timeline. Configurable lookahead belongs to ScrollingChartPreview. Transport does not expose a selected tick/lane, duplicate split controls, or create a hidden tick source.
 - **Variants:** desktop one-row, tablet two-row, and phone three-row with Volume spanning the final row. Every variant retains every control.
 - **Spacing:** desktop uses `--transport-height`, tablet uses `--transport-height-mobile`, and phone uses `--transport-height-phone`; internal targets remain at least `--control-touch` below desktop.
 - **States:** stopped, playing, seeking, loop active, no audio, audio loading, and playback error.
@@ -468,6 +473,14 @@ Every interactive primitive implements default, hover, pressed, focus-visible, d
 
 ### ProjectGridEditor
 
+The beat-native contract below supersedes tick-based control descriptions in older component sections.
+
+- **Project information:** expose chart artist separately from the song artist, labelled audio offset, and automatic/explicit duration. New projects require an explicit base timing source selection, including the archive UCS entry name when available. Loading or changing a base source must not silently retain another source's timing. Base timing is copied exactly and remains usable after source archive removal.
+- **Duration:** default to automatic extent derived from the final occupied note/hold-tail row or automatic region end. Saving an empty automatic project is valid. Native generation/export states clearly when no extent exists. Explicit duration is an optional exact beat boundary and cannot truncate content. Output-only final-row padding never becomes an authored note or a persisted explicit duration.
+- **Measure placement:** expose a labelled rows-per-measure split input and beat/measure navigation, not global tick/lane selection or a tool dock. Click on an occupied tap or any hold cell removes that note; drag creates a hold; cancellation changes nothing. Keyboard activation and hold creation remain available through labelled controls/shortcuts and a structured note list.
+- **Reusable note fragments:** offer a named beat range for publishing several notes and a beat anchor for applying a library fragment. Fragments retain relative beat positions and lengths across different destination BPMs. Invalid mode, grid, automatic-region overlap, or note collision preserves the draft and shows an adjacent error rather than silently rounding or overwriting.
+- **Capability states:** authoring and save remain available for exact section-local grids unsupported by the certified native profile. Native actions explain the capability limit; concrete UCS transfer uses the exact section-local adapter and remains explicitly uncertified. A rule project never exports only its fixed notes while omitting unresolved automatic regions.
+
 - **Structure:** production `/projects/:id/edit` route behind the existing bootstrap/auth boundary; compact project/song identity and save state, fixed-note tool dock, native Timeline canvas, automatic-region inspector, exact timing-tail controls, generation handoff, and the standard Transport bound to the selected song audio.
 - **Persistence:** the route edits the saved rule project, never the active Studio chart document. Save sends the complete `write_project` payload with the loaded project revision. A revision conflict leaves the exact local draft visible and dirty. Page leave, Back, and close paths warn before discarding unsaved rules.
 - **Hybrid rules:** V2 exposes only persisted `fixed_notes` and named `regions`; no generation rule is inferred from chart content or hidden in a chart document. Fixed-note placement inside an automatic region, snapshot collision, or hold-tail collision is rejected rather than replacing or truncating data. Erase and region removal are explicit labelled actions.
@@ -498,12 +511,11 @@ On note placement or playback, one timing event travels through three surfaces w
 
 ### Editor input model
 
-- **Tap tool:** pointer click/tap or keyboard activation places/removes a tap at the quantized cell.
-- **Hold tool:** press/drag defines head and duration; keyboard users set head, extend/shrink by quantized step, then commit. A numeric duration field is always available.
-- **Select tool:** click selects one note; Shift extends; drag creates a range; keyboard arrows move the cursor and Shift+arrows extend selection.
-- **Erase tool:** click/tap erases one note; drag paints erasure only after a movement threshold. Undo remains available.
-- **Quantization:** visible ToolChip value; changing it affects future edits and snapping, not existing notes unless an explicit quantize command is confirmed.
-- **Inspector:** selected note/range exposes exact tick, lane, duration, note type, and any evaluation witness. Values validate on blur or submit, not every keystroke.
+- **Direct note gesture:** pointer click/tap or keyboard activation toggles a tap at the snapped beat row. An occupied hold head/body/tail removes the entire hold as one undoable edit.
+- **Hold gesture:** press/vertical drag defines snapped head and tail; keyboard users have a labelled beat-duration alternative. Pointer cancellation commits nothing.
+- **Cursor:** arrow keys move the visible grid cursor without exposing selected tick/lane form fields. The focused cell announces measure/beat, lane, note type, and duration.
+- **Split:** a labelled exact rows-per-measure value controls section rows and save-time snap. Existing incompatible notes are never silently quantized.
+- **Inspector:** project/chart information, exact beat timing, duration policy, automatic regions, fragment range, and finite-model evidence are distinct groups. Draft numeric text validates on blur or submit rather than resetting every keystroke.
 
 ### Global interaction rules
 

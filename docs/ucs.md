@@ -15,8 +15,8 @@ replaces the chart/timing only on explicit confirmation and commits chart/audio 
 revision check. Existing title, artist, and evaluation contract are retained. An incompatible
 contract is rejected, not silently rewritten. Single/Double is a required, fixed chart mode, not
 an export preference. Imports cannot silently change an existing chart's mode; import into the
-song catalog as a separate chart when modes differ. Editing quantization snaps future placements down to
-the chosen grid; display always retains every native row and existing note.
+song catalog as a separate chart when modes differ. Editing uses exact beat coordinates and a
+section-local rows-per-four-beat-measure split; it never rounds source notes into a global tick grid.
 
 The same editor, audio element, tempo functions, transport, playhead, and physical-pad preview render
 both DCM and imported UCS notes. Playback uses the actual audio clock; speed, pause, seek, offset,
@@ -57,9 +57,12 @@ third-party source, not official PIU distribution or proof of chart provenance.
 - Initial signed Delay maps to DCM's signed integer `offset_micros`: positive means tick zero is
   later in audio. Delay must be exactly representable in microseconds. Later nonzero Delay requires
   stops/warps absent from DCM's music model and is rejected, not hidden in a fake BPM change.
-- Split is 1–128. Import uses the exact least common multiple of section splits, capped at 4096
-  native ticks/beat; no row position is rounded. Rendering uses that grid when possible, or an exact
-  common-divisor reduction of every event, tempo boundary, and span, to fit a supported Split.
+- UCS Split is 1–128 **rows per beat**, distinct from the editor's **rows per four-beat measure**.
+  Studio's beat-native import/export retains each section's exact beat anchor and local grid,
+  including mutually prime section splits whose global LCM exceeds 4096. It does not need a global
+  tick grid. The legacy native chart importer and certified evaluation/generation still require
+  an exact transient native grid of at most 4096 ticks per beat and return a capability error when
+  that profile cannot represent the source. Neither path rounds timing.
 - BPM literals accept at most six fractional digits; Delay literals accept at most three. Exponent
   notation and excess literal precision are unsupported, including redundant fractional digits.
   BPM output must have an exact terminating decimal of at most six fractional places. Unsupported
@@ -69,11 +72,13 @@ third-party source, not official PIU distribution or proof of chart provenance.
   newline. UTF-16, non-ASCII data, unknown/duplicate directives, malformed rows, partial trailing
   sections, invalid numbers, stray bodies/tails, and unfinished/overlapping holds are rejected.
   Export is deterministic ASCII with CRLF and a final newline. Import does not modify its source.
-- Bounds: 16 MiB UCS input/output, 1,000,000 rows/derived duration ticks, 4096 sections, 10,000 canonical
+- Bounds: 16 MiB UCS input/output, 1,000,000 output rows, 4096 sections, 10,000 canonical
   notes, and JavaScript-safe integer fields for Studio. Audio remains limited to 32 MiB. Invalid
   data never partially replaces saved chart/audio.
-- Native release/re-press at one lane/tick cannot fit one UCS cell. Export rejects that collision
-  and a hold tail exactly at chart end, rather than adding a row and silently changing duration.
+- Release/re-press at one lane/row cannot fit one UCS cell. Authoring rejects that collision,
+  including shared hold-tail cells. Automatic duration adds the necessary final output row without
+  writing an explicit duration back into the source. Explicit durations cannot truncate occupied
+  cells; output conversion never invents notes to conceal an invalid chart.
 
 UCS does not encode title/artist, audio digest, reference accents, evaluation contracts, source
 certificates, or provenance. Import binds audio externally and starts with no reference accents.
@@ -95,6 +100,8 @@ browser or video:
 ```sh
 dist/pump chart export-ucs chart.json --music music.json --mode Double --out chart.ucs --format json
 dist/pump chart import-ucs chart.ucs --audio music.wav --format json
+dist/pump chart import-ucs-beats chart.ucs --audio music.wav --format json
+dist/pump chart export-ucs-beats beat-chart.json --out beat-chart.ucs --format json
 ```
 
 Export refuses an existing destination. Import prints native `{mode, chart, music}` JSON; without

@@ -39,7 +39,9 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
 `shared/index.ts` exports every schema and inferred type from these modules:
 
 - `native.ts`: `Fraction`, `NativeMusic`, `NativeNote`, `NativeChart`, their schemas, numeric caps,
-  and `canonicalizeChart(input)`.
+  and `canonicalizeChart(input)`. These are compatibility/native-output DTOs, not authoring storage.
+- `beat.ts`, `beat-projects.ts`, `beat-rules.ts`, `beat-evaluation.ts`: exact beat source, chart
+  documents, generation projects, relative note fragments, section grids, and evaluation coordinates.
 - `evaluation-contract.ts`: the complete native `EvalContract` and nested schemas.
 - `assessment.ts`: the complete native `NativeAssessment`, `EvaluationResponse`, and schemas.
 - `project.ts`: `AudioAsset`, `StudioProjectV1`, and schemas.
@@ -47,16 +49,31 @@ machine-readable source of truth; this file fixes transport, concurrency, and ow
 - `api.ts`: `Revision`, `CurrentDocument`, `ChartProposal`, `Bootstrap`, `ApiError`, agent run/event
   types, request types, all corresponding schemas, and `ApiRoutes`.
 
-Document mutation and event object schemas reject unknown keys. Every JSON integer must be a safe integer. Integers are
-nonnegative except `music.offset_micros`, which is signed. Studio bounds are 1,000,000 duration
-ticks, 10,000 chart notes, and 4,096 tempo segments. Fractions are positive-denominator reduced
-pairs. SHA-256 is exactly 32 integer bytes. Music tempo starts at tick zero and is strictly ordered;
-reference accents are strictly ordered and in range. Charts use mask `0x001..0x3ff`, canonical
-`(tick, hold_ticks, panel_mask)` order, merged equal tick/duration demands, no same-panel overlap,
-and exact music grid/span equality. Title and artist are 1-256 printable ASCII bytes and cannot
-contain `//`, matching native SSC metadata limits.
+Document mutation and event object schemas reject unknown keys. Every JSON integer must be safe.
+`Beat` is `{ numerator, denominator }`, nonnegative and reduced with a positive denominator. Notes
+use `{ at: Beat, hold: Beat, panel_mask }`. Timing uses signed `offset_micros`, ordered
+`tempo: [{ at, micros_per_beat }]`, `grid_sections: [{ at, rows_per_measure }]`, `duration: Beat | null`,
+and ordered beat `reference_accents`. First tempo/grid entries start at beat zero. One measure is
+four beats; editor rows-per-measure is not the UCS per-beat Split number. New placements align with
+the active section's relative grid. Native projection never rounds unsupported coordinates.
 
-`StudioProjectV1` is exactly:
+Authoring bounds remain 10,000 notes and 4,096 timing sections. Native output separately requires
+an exact TPB at most 4096 and span at most 1,000,000 ticks; UCS output has its own section-local
+Split/row limits. `null` duration means automatic source extent. Final occupied-row padding is
+output-only, not a persisted explicit duration. SHA-256 in a beat document is lowercase 64-hex.
+Song and chart artist are separate fields; historical unknown chart authors remain `null`.
+New editor splits are limited to 512 rows per measure. Migration retains legacy uniform grids up
+to 16,384 rows per measure exactly; a native/UCS capability limit does not round or delete them.
+
+`CurrentDocument.project` is a `BeatChartDocument`:
+
+```text
+{ schema_version: 1, title, artist, chart_artist: string | null, mode: "Single" | "Double",
+  timing: BeatTiming, notes: BeatNote[], audio_sha256: string,
+  evaluation_contract: BeatEvaluationContract, audio_asset }
+```
+
+The retained `StudioProjectV1` compatibility/native format is:
 
 ```text
 { schema_version: 1, title, artist, music: NativeMusic, chart: NativeChart,
@@ -65,11 +82,11 @@ contain `//`, matching native SSC metadata limits.
   ucs_mode?: "Single" | "Double" }
 ```
 
-The immutable audio identity is `music.audio_sha256`; `audio_asset` records transport metadata.
+The immutable authoring audio identity is `audio_sha256`; `audio_asset` records transport metadata.
 An ordinary document save cannot change either audio identity or metadata. Audio/import endpoints
 own those changes and verify SHA-256 from uploaded bytes.
-`ucs_mode` is an export preference, not a second native layout or source certificate. Older projects
-default to Double; Single uses native left-pad bits 0–4 and rejects right-pad bits at export.
+`mode` is required and immutable through ordinary save. Older mode-omitted compatibility documents
+migrate to Double; Single rejects right-pad bits at the authoring boundary as well as export.
 
 ## HTTP API
 
@@ -92,9 +109,13 @@ non-UCS native stderr stays private. Exact native rational overflow is separatel
 | `POST /api/v1/evaluations` | `BaseRevisionRequest` | `{ summary, raw_native }` validated by `EvaluationResponseSchema` |
 | `POST /api/v1/generations` | `GenerationRequest` with lowercase 64-hex seed | `ChartProposal` with source `native_generate` |
 | `GET /api/v1/projects/song-template/:songId` | none | authoritative empty `ChartDocument` using retained ZIP UCS timing when available |
+| `GET /api/v1/projects/base-sources/:songId` | none | server-issued base timing references and exact timing |
+| `GET /api/v1/projects` | none | beat-native project workspace and reusable components |
+| `GET /api/v1/projects/:id` | none | `GenerationProjectV2` |
+| `POST /api/v1/projects/actions` | revision-guarded `ProjectCommand` | workspace plus affected project/component/generated result |
 | `POST /api/v1/exports` | `BaseRevisionRequest` | `application/zip` SSC export |
 | `POST /api/v1/ucs/export` | `{ base_revision, mode: "Single" \| "Double" }` | actual UCS bytes, `text/plain; charset=utf-8`, attachment filename and `x-pump-certification: none` |
-| `POST /api/v1/ucs/import` | multipart `base_revision`, one `chart` UCS file, optional `audio` file | `CurrentDocument` with native parsed chart/music and persisted `ucs_mode` |
+| `POST /api/v1/ucs/import` | multipart `base_revision`, one `chart` UCS file, optional `audio` file | `CurrentDocument` with exact section-local beat source and fixed `mode` |
 | `POST /api/v1/proposals/:id/apply` | `BaseRevisionRequest` | `CurrentDocument` |
 | `DELETE /api/v1/proposals/:id` | no body | `204` |
 | `POST /api/v1/agent/runs` | `AgentRunRequest` | `202 AgentRunSnapshot` |
@@ -138,7 +159,8 @@ sixteen per browser session across revisions, including native generation.
   and content-addressed audio under ignored `/.pump-studio/`. Write a replacement atomically before
   publishing its revision. Serialize all mutations.
 - `CurrentDocument.origin` is a server-derived projection of generated-chart provenance. Clients
-  cannot save it, and V3 persistence continues to store only document revision and project data.
+  cannot save it. StoreV4 migrates legacy tick documents/projects losslessly into beat-canonical
+  source; native chart/music objects are created only at compatibility/output boundaries.
 - The browser owns local draft edits and undo/redo. Save is explicit. Apply/import is disabled while
   the draft is dirty; stale proposals are never applied.
 - Native generation is limited to the server demo bundle and only when current music exactly matches
@@ -150,6 +172,27 @@ sixteen per browser session across revisions, including native generation.
 - Text caps are UTF-8 bytes; delta events are bounded to 8 KiB and completed text to 64 KiB before
   replay retention/SSE transmission. `truncated` events and `text_truncated` snapshots disclose loss.
   Snapshot GET is backed by retained session snapshots independently of live runtime eviction.
+
+## Beat project commands and fragments
+
+- `create_project` requires `song_id`, immutable `mode`, `name`, explicit `chart_artist`,
+  `base_ucs_ref`, beat `timing`, `evaluation_contract`, and `generation_rules`. A base reference is
+  `{ source: "saved_chart", chart_id }`, a server-issued archive ID/digest/entry tuple, or
+  `{ source: "retained_timing", song_id }` for the retained original timing after ZIP deletion.
+  The server verifies that the selected base belongs to that song and copies exact timing; a base
+  cannot inject a filesystem path or silently select an unrelated chart.
+- `write_project` carries `project_id`, `base_revision`, and mutable name/artist/timing/evaluation/rules.
+  Song, mode and base provenance do not change. CAS failure preserves the local draft.
+- `publish_component` supports `timing`, `evaluation`, `generator`, and `note_fragment`. A fragment
+  requires exact `start`/`end` beat bounds and contains relative notes plus span and mode.
+- `apply_component` requires destination revision and component ID. Applying a note fragment also
+  requires `at: Beat`; the server translates relative notes without changing destination BPM/grid.
+  Mode, grid, region and occupied-cell failures reject atomically, including hold-tail conflicts.
+- Missing historical generator/evaluation TPB basis produces a read-only `legacy_unresolved`
+  component with `legacy_component_basis_missing`, never a guessed conversion.
+- Agent project writes retain explicit `projects_and_components` per-run permission and cancellation.
+  `list_base_sources` discovers the same server-issued timing references without write permission.
+  `read_document` and project/component reads return beat source; native proposal DTOs remain transient.
 
 ## Part 0.1.0 integration evidence
 

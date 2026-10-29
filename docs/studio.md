@@ -110,23 +110,29 @@ correct `package.json` rather than a global default.
 
 ## Edit and preview
 
-- Choose **Tap**, **Hold**, **Select**, or **Erase**. Single has five lanes `DL UL C UR DR`;
-  Double adds the same five lanes on the right pad. Multiple panels on the same tick are represented
+- Click an empty cell to toggle a tap; click an occupied tap or hold cell to remove its lane demand.
+  Drag vertically to place a hold. Single has five lanes `DL UL C UR DR`;
+  Double adds the same five lanes on the right pad. Multiple panels at the same beat are represented
   by a shared bit mask. Mode is required and fixed, not an export preference; Single rejects
   right-pad notes at the write boundary as well as hiding unavailable editing lanes.
-- Set the hold tool's duration before placement. Select a note to edit its tick, panel, or duration;
-  duration zero is a tap. Invalid overlap/bounds changes are rejected without deleting other notes.
-- Use quantization, previous/next pages, and **Go to tick** to navigate. Arrow keys move the grid
-  cursor; activating a cell performs the selected tool. The structured note list offers a text view.
-- Set chart duration and tempo markers in the timing controls. BPM decimals are converted to exact
+- Use **Split (rows per measure)** to choose how many rows divide one four-beat measure, including
+  non-power-of-two values. Note heads and hold tails save as exact reduced beat fractions on that
+  section's grid. Split changes cannot silently move existing notes. Arrow keys move the visible
+  grid cursor; Enter toggles a cell and H places the labelled number of keyboard hold rows.
+  There are no separate Tap/Hold/Erase/Select modes or selected tick/lane form fields.
+- Choose automatic length to continue placing beyond the last note without declaring an end first.
+  An optional explicit duration must not truncate notes or regions. Edit tempo markers in beats.
+  BPM decimals are converted to exact
   reduced fractions, not rounded to integer microseconds. Shortening that would drop existing data
-  is rejected. Audio offset is in microseconds; positive values place tick zero later in the audio.
+  is rejected. Audio offset is in microseconds; positive values place beat zero later in the audio.
 - Use Undo/Redo, then **Save** to commit the draft. Save is explicit, not automatic. The browser
   warns before leaving a dirty document. Export a JSON copy before abandoning unsaved work.
 - Playback uses the actual audio element's clock. Holds stay active on `[head, tail)`; taps use a
   120 ms visual pulse after onset. Positive-offset pre-roll does not trigger contacts early.
   Playback does not move the editing cursor. Play/Pause, Stop, seek, volume, playback rate, and audio
   looping are available; media failures are shown rather than treated as successful playback.
+- The judgment line stays one rendered row below the top of the grid. Notes and the adjacent tempo
+  gutter scroll together under that fixed line when **Follow audio** is enabled.
 
 The preview is a schematic chart audition, not StepMania rendering or physical-safety validation.
 Browser timing is floating-point playback timing; the native renderer retains exact supported
@@ -154,14 +160,14 @@ a tap; click an occupied tap or any part of a hold to remove that lane's demand.
 within a lane to create a hold, releasing at its tail. Cancellation does not commit a partial
 gesture. Other lanes of a chord remain untouched.
 
-Every editor placement reserves one UCS cell per lane/tick, including the hold-tail cell. A new
+Every editor placement reserves one UCS cell per lane/beat row, including the hold-tail cell. A new
 onset cannot share that tail cell, and invalid overlapping gestures leave the previous notes intact.
 Playback still treats hold activity as half-open; the stricter editing rule reflects UCS encoding.
 
 Hybrid rules (`hybrid_regions_v1`, schema version 2) combine literal `fixed_notes` and named
 automatic regions. Region names and patterned backgrounds remain visible while scrolling through
 their ranges, including when their first row is above the viewport. Automatic ranges own all lanes
-over `[start_tick, end_tick)` and cannot overlap fixed cells or each other. Their generated hold
+over the exact beat range `[start, end)` and cannot overlap fixed cells or each other. Their generated hold
 tails must end before the range's exclusive end. Edit the region's rules instead of drawing fixed
 notes inside it. There is no silent note deletion, clipping, or resampling to conceal conflicts.
 
@@ -172,22 +178,24 @@ the new region-local sampling algorithm may produce different notes for the same
 version 2, changing a region name, an unrelated fixed note, another region, or the tail duration
 does not reshuffle an unchanged region's choices.
 
-New projects use the selected song's original UCS ZIP timing where available: exact grid,
-piecewise tempo, signed offset, and original duration, not the current Root editor's timing.
-Appending a tail extends duration without reconstructing or rounding that imported prefix; a new
-tempo segment is added at the former end only when a different tail BPM is requested.
+New projects require an explicit **Base timing source** selection: an identified retained archive
+UCS entry or one saved chart belonging to the selected song. Offset, piecewise tempo, grid and
+reference accents are copied exactly, not taken from an unrelated open Root editor. Base identity
+is provenance, not a mutable dependency. **Project information** separates chart artist from song
+artist and exposes audio offset, automatic/explicit duration, and beat-positioned split sections.
 
-The editor uses a bounded continuous virtual scroll surface rather than 48-tick page replacement.
-Tempo boundaries change the media-clock-to-tick projection without restarting the scroll position.
+The editor uses a bounded continuous virtual row surface rather than a global tick runway.
+Tempo boundaries change the media-clock-to-beat projection without restarting the scroll position.
 Note colors repeat **blue, red, yellow, red, blue** for each five-lane pad. Left/right identity is
 also stated in labels rather than relying on color.
 
 Open **Projects and library** to create a real rule project. Select a background song and explicitly
-choose **Single** or **Double**; leaving mode unselected cannot create a project. That song and mode
+choose **Single** or **Double**, a base timing source, and a chart artist. Leaving these unselected
+cannot create a project. That song and mode
 are immutable for the project. Use another project when either must change.
 
 Projects store editable timing, an evaluation contract, and bounded generation rules. The
-`weighted_cycle_v1` rule repeats a pattern of weighted choices on a tick grid between an inclusive
+`weighted_cycle_v1` rule repeats a pattern of weighted choices on exact beat rows between an inclusive
 start and exclusive end. A choice contains a panel mask, hold duration, and positive weight; mask
 zero is a rest and cannot have hold duration. These are real inputs to the native generator, not
 a descriptive prompt or a copy of the current chart.
@@ -199,12 +207,24 @@ result** without replacing the open editor chart. Inspect the result and explici
 An assessment rejection is displayed honestly; generated drafts carry no verified-bundle
 certificate and are not official difficulty ratings or safety guarantees.
 
-Publish a project's **timing**, **evaluation**, or **generator** component into the library, then
+Publish a project's **timing**, **evaluation**, **generator**, or **note fragment** into the library, then
 apply that component to another project. Applying copies its payload and records its source
 project/component revisions. It does not create a hidden mutable link: later source edits do not
 rewrite another project or an already generated chart. Incompatible timing or Single/Double masks
 are rejected rather than clamped or truncated. Imported existing charts remain result documents;
 migration never invents generation rules from their note arrays.
+
+For a note fragment, name an exact beat range, then apply the published fragment at a destination
+beat. Multiple notes retain their relative beat positions and hold lengths even when the destination
+BPM differs. Mode, off-grid placement, occupied cells, or automatic-region conflicts reject the
+entire operation without overwriting destination notes. Save the project draft before publishing
+or applying. A legacy component whose source beat basis cannot be recovered remains read-only;
+the server never guesses its original ticks-per-beat.
+
+StoreV4 persists beat-canonical source for charts and rule projects. Native tick DTOs are transient
+output/evaluation projections, not a second editable source. A native-profile capability error
+does not invalidate or round the saved beat document. Concrete UCS conversion uses section-local
+grids, while certified native assessment and generation retain their existing bounded interfaces.
 
 Projects and library components have stable IDs and revision-checked writes. Conflicts require
 rereading the current record instead of silently overwriting it. The song/chart/archive catalog
@@ -216,6 +236,9 @@ With the managed preview running, from `web/`:
 
 ```sh
 STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/projects-api.mjs
+STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/beat-authoring.mjs
+node --experimental-transform-types tests/browser/beat-playback.mjs
+node --experimental-transform-types tests/browser/beat-resize.mjs
 node --experimental-transform-types tests/browser/projects-ui.mjs
 STUDIO_LIVE_AGENT=1 node --experimental-transform-types tests/browser/project-agent-live.mjs
 ```
