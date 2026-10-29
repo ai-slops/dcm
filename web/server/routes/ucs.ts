@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 
-import { ApiRoutes, StudioProjectV1Schema, UcsExportRequestSchema } from "../../shared/index.ts"
+import { ApiRoutes, BeatChartDocumentSchema, UcsExportRequestSchema } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import {
   AUDIO_LIMIT,
@@ -10,21 +10,26 @@ import {
   requiredRevision,
   UCS_LIMIT,
 } from "../http.ts"
-import { exportFilename } from "../native/service.ts"
-import { NativeUcsService } from "../native/ucs.ts"
+import { NativeBeatUcsService } from "../native/beat-ucs.ts"
 import type { Services, StudioApp } from "../types.ts"
 import { currentAtRevision } from "./native.ts"
 
 export function registerUcsRoutes(app: StudioApp, services: Services): void {
-  const native = new NativeUcsService(services.config.repoRoot)
+  const native = new NativeBeatUcsService(services.config.repoRoot)
   app.post(ApiRoutes.ucsExport, async (context) => {
     const request = await parseJson(context, UcsExportRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    const bytes = await native.export(document.project, request.mode)
+    if (request.mode !== document.project.mode)
+      throw new StudioError(409, "chart_mode_immutable", "UCS export mode must match the chart")
+    const bytes = await native.export({
+      timing: document.project.timing,
+      notes: document.project.notes,
+      mode: document.project.mode,
+    })
     return new Response(Uint8Array.from(bytes).buffer, {
       headers: {
         "content-type": "text/plain; charset=utf-8",
-        "content-disposition": `attachment; filename="${exportFilename(document.project).replace(/\.zip$/, ".ucs")}"`,
+        "content-disposition": `attachment; filename="${document.project.title.replace(/[^A-Za-z0-9._-]+/g, "-")}.ucs"`,
         "content-length": String(bytes.byteLength),
         "x-pump-certification": "none",
       },
@@ -62,12 +67,13 @@ export function registerUcsRoutes(app: StudioApp, services: Services): void {
       }
     }
     const imported = await native.import(new Uint8Array(await chart.arrayBuffer()), audio)
-    const parsed = StudioProjectV1Schema.safeParse({
+    const parsed = BeatChartDocumentSchema.safeParse({
       ...current.project,
-      chart: imported.chart,
-      music: imported.music,
+      timing: imported.timing,
+      notes: imported.notes,
+      mode: imported.mode,
+      audio_sha256: audio.digest,
       audio_asset: { format: audio.format, byte_length: audio.bytes.byteLength },
-      ucs_mode: imported.mode,
     })
     if (!parsed.success) {
       throw new StudioError(

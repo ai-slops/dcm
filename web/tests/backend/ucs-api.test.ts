@@ -54,9 +54,7 @@ describe("native UCS Studio flow", () => {
     // Then
     expect(response.status).toBe(200)
     const document = CurrentDocumentSchema.parse(await response.json())
-    expect(document.project.music.audio_sha256).toEqual([
-      ...createHash("sha256").update(audio).digest(),
-    ])
+    expect(document.project.audio_sha256).toBe(createHash("sha256").update(audio).digest("hex"))
     expect(studio.store.audio().bytes).toEqual(audio)
     expect((await createStudioApp(config)).store.document()).toEqual(document)
   })
@@ -67,13 +65,18 @@ describe("native UCS Studio flow", () => {
     const originalAudio = studio.store.audio()
     const project = {
       ...bootstrap.document.project,
-      chart: {
-        ...bootstrap.document.project.chart,
-        notes: [
-          { tick: 0, panel_mask: 1, hold_ticks: 4 },
-          { tick: 4, panel_mask: 1, hold_ticks: 0 },
-        ],
-      },
+      notes: [
+        {
+          at: { numerator: 0, denominator: 1 },
+          panel_mask: 1,
+          hold: { numerator: 1, denominator: 1 },
+        },
+        {
+          at: { numerator: 1, denominator: 1 },
+          panel_mask: 1,
+          hold: { numerator: 0, denominator: 1 },
+        },
+      ],
     }
     const form = new FormData()
     form.set("base_revision", "0")
@@ -126,12 +129,12 @@ describe("native UCS Studio flow", () => {
     expect(imported.status).toBe(200)
     const saved = CurrentDocumentSchema.parse(await imported.json())
     expect(saved.revision).toBe(1)
-    expect(saved.project.chart).toEqual(original.chart)
-    expect(saved.project.music.tempo).toEqual(original.music.tempo)
-    expect(saved.project.music.offset_micros).toBe(100_000)
-    expect(saved.project.music.audio_sha256).toEqual(original.music.audio_sha256)
+    expect(saved.project.notes).toEqual(original.notes)
+    expect(saved.project.timing.tempo).toEqual(original.timing.tempo)
+    expect(saved.project.timing.offset_micros).toBe(100_000)
+    expect(saved.project.audio_sha256).toEqual(original.audio_sha256)
     expect(saved.project.audio_asset).toEqual(original.audio_asset)
-    expect(saved.project.ucs_mode).toBe("Double")
+    expect(saved.project.mode).toBe("Double")
     const reloaded = await createStudioApp(config)
     expect(reloaded.store.document()).toEqual(saved)
   })
@@ -169,13 +172,25 @@ describe("native UCS Studio flow", () => {
     // Then
     expect(response.status).toBe(200)
     const project = CurrentDocumentSchema.parse(await response.json()).project
-    expect(project.ucs_mode).toBe("Single")
-    expect(project.music.offset_micros).toBe(-25_000)
-    expect(project.music.tempo[1]?.start_tick).toBe(4)
-    expect(project.chart.notes).toEqual([
-      { tick: 0, panel_mask: 4, hold_ticks: 0 },
-      { tick: 0, panel_mask: 1, hold_ticks: 6 },
-      { tick: 6, panel_mask: 16, hold_ticks: 0 },
+    expect(project.mode).toBe("Single")
+    expect(project.timing.offset_micros).toBe(-25_000)
+    expect(project.timing.tempo[1]?.at).toEqual({ numerator: 1, denominator: 1 })
+    expect(project.notes).toEqual([
+      {
+        at: { numerator: 0, denominator: 1 },
+        panel_mask: 4,
+        hold: { numerator: 0, denominator: 1 },
+      },
+      {
+        at: { numerator: 0, denominator: 1 },
+        panel_mask: 1,
+        hold: { numerator: 3, denominator: 2 },
+      },
+      {
+        at: { numerator: 3, denominator: 2 },
+        panel_mask: 16,
+        hold: { numerator: 0, denominator: 1 },
+      },
     ])
   })
 
