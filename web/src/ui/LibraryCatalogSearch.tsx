@@ -25,7 +25,7 @@ export function LibraryCatalogResults(props: LibraryCatalogResultsProps) {
             <span>
               <strong>{item.title}</strong>
               <small>
-                {item.artist} · {item.bpm} BPM · {item.code}
+                {item.code} · {item.bpm} BPM
               </small>
             </span>
             <Button

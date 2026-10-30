@@ -25,7 +25,6 @@ export type ProjectFormValue = {
 export type BeatProjectFormValue = {
   readonly name: string
   readonly mode: UcsMode
-  readonly chartArtist: string | null
   readonly timing: BeatTiming
   readonly evaluationContract: BeatEvaluationContract
   readonly generationRules: BeatGenerationRules
@@ -122,18 +121,15 @@ export function parseProjectForm(input: {
 export function parseBeatProjectForm(input: {
   readonly name: string
   readonly mode: "" | UcsMode
-  readonly chartArtist: string
   readonly timing: string
   readonly evaluation: string
   readonly rules: string
 }): BeatProjectFormValue {
   if (input.mode === "") throw new ProjectFormError("Choose Single or Double mode")
   try {
-    const chartArtist = input.chartArtist.trim()
     return {
       name: LibraryLabelSchema.parse(input.name),
       mode: input.mode,
-      chartArtist: chartArtist === "" ? null : LibraryLabelSchema.parse(chartArtist),
       timing: BeatTimingSchema.parse(JSON.parse(input.timing)),
       evaluationContract: BeatEvaluationContractSchema.parse(JSON.parse(input.evaluation)),
       generationRules: BeatGenerationRulesSchema.parse(JSON.parse(input.rules)),

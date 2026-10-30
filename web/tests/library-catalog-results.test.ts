@@ -6,7 +6,7 @@ import { UcsCatalogResultSchema } from "../shared/library.ts"
 import { LibraryCatalogResults } from "../src/ui/LibraryCatalogSearch.tsx"
 
 describe("library catalog results", () => {
-  it("renders verified metadata and one download action per public result", () => {
+  it("renders package identifiers and download actions without artist claims", () => {
     // Given
     const catalog = UcsCatalogResultSchema.parse({
       query: "nemonemo",
@@ -26,7 +26,7 @@ describe("library catalog results", () => {
 
     // Then
     expect(markup).toContain("Nemonemo")
-    expect(markup).toContain("Yena")
+    expect(markup).not.toContain("Yena")
     expect(markup).toContain("138 BPM")
     expect(markup).toContain("CS839")
     expect(markup).toContain("Download")

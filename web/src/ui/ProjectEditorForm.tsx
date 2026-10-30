@@ -32,7 +32,6 @@ export function ProjectEditorForm(props: {
   const [name, setName] = useState(props.project?.name ?? "")
   const [songId, setSongId] = useState<SongId | "">(props.project?.song_id ?? "")
   const [mode, setMode] = useState<UcsMode | "">(props.project?.mode ?? "")
-  const [chartArtist, setChartArtist] = useState(props.project?.chart_artist ?? "")
   const base = useProjectBaseTiming({
     initial: { ...initial, baseSource: props.project?.base_ucs_ref ?? null },
     onLoadBase: props.onLoadBase,
@@ -43,7 +42,6 @@ export function ProjectEditorForm(props: {
       name,
       songId,
       mode,
-      chartArtist,
       baseSource: props.project?.base_ucs_ref ?? null,
       ...initial,
     }),
@@ -56,13 +54,11 @@ export function ProjectEditorForm(props: {
       name: props.project?.name ?? "",
       songId: props.project?.song_id ?? "",
       mode: props.project?.mode ?? "",
-      chartArtist: props.project?.chart_artist ?? "",
       baseSource: props.project?.base_ucs_ref ?? null,
     } as const
     setName(identity.name)
     setSongId(identity.songId)
     setMode(identity.mode)
-    setChartArtist(identity.chartArtist)
     base.reset({ ...next, baseSource: identity.baseSource })
     setBaseline(projectFormFingerprint({ ...identity, ...next }))
   }, [base.reset, props.project])
@@ -73,7 +69,6 @@ export function ProjectEditorForm(props: {
         name,
         songId,
         mode,
-        chartArtist,
         baseSource: base.baseSource,
         timing: base.timing,
         evaluation: base.evaluation,
@@ -83,7 +78,6 @@ export function ProjectEditorForm(props: {
   }, [
     baseline,
     base.baseSource,
-    chartArtist,
     base.evaluation,
     mode,
     name,
@@ -102,7 +96,6 @@ export function ProjectEditorForm(props: {
           const value = parseBeatProjectForm({
             name,
             mode,
-            chartArtist,
             timing: base.timing,
             evaluation: base.evaluation,
             rules: base.rules,
@@ -110,7 +103,6 @@ export function ProjectEditorForm(props: {
           if (props.project === null) {
             if (songId === "") throw new ProjectFormError("Choose a song")
             if (base.baseSource === null) throw new ProjectFormError("Choose exact base timing")
-            if (value.chartArtist === null) throw new ProjectFormError("Enter a chart artist")
             props.onCreate({ ...value, songId, baseUcsRef: base.baseSource })
           } else props.onWrite(value)
         } catch (caught) {
@@ -141,7 +133,7 @@ export function ProjectEditorForm(props: {
               <option value="">Choose song</option>
               {props.library.songs.map((song) => (
                 <option value={song.id} key={song.id}>
-                  {song.title} · {song.artist}
+                  {song.title}
                 </option>
               ))}
             </select>
@@ -160,13 +152,6 @@ export function ProjectEditorForm(props: {
               <option value="Single">Single · 5 lanes</option>
               <option value="Double">Double · 10 lanes</option>
             </select>
-          </Field>
-          <Field label="Chart artist">
-            <input
-              required={props.project === null}
-              value={chartArtist}
-              onChange={(event) => setChartArtist(event.currentTarget.value)}
-            />
           </Field>
           {props.project === null ? (
             <ProjectBaseTimingPicker

@@ -86,7 +86,6 @@ it("keeps explicit mode on create and CAS revision on write", async () => {
   const form = parseBeatProjectForm({
     name: project.name,
     mode: project.mode,
-    chartArtist: project.chart_artist ?? "",
     timing: json.timing,
     evaluation: json.evaluation,
     rules: json.rules,
@@ -104,7 +103,9 @@ it("keeps explicit mode on create and CAS revision on write", async () => {
   if (create.type !== "create_project") throw new TypeError("Expected create project command")
   if (write.type !== "write_project") throw new TypeError("Expected write project command")
   expect(create.mode).toBe("Single")
+  expect(create.chart_artist).toBeNull()
   expect(write.base_revision).toBe(7)
+  expect(write.chart_artist).toBe("Stepper")
 })
 
 it("clears an inspected project after that exact project is deleted", async () => {
@@ -129,7 +130,6 @@ it("enters edit mode and clears rule dirtiness after project creation succeeds",
     ...parseBeatProjectForm({
       name: project.name,
       mode: project.mode,
-      chartArtist: project.chart_artist ?? "",
       ...initialBeatProjectJson(project),
     }),
     songId: project.song_id,

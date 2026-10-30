@@ -22,7 +22,9 @@ export function LibrarySongList(props: LibrarySongListProps) {
           >
             <span>
               <strong>{song.title}</strong>
-              <small>{song.artist}</small>
+              <small>
+                {song.audio.format.toUpperCase()} · {song.audio.byte_length.toLocaleString()} bytes
+              </small>
             </span>
             {props.activeSongId === song.id ? <Badge tone="success">Active</Badge> : null}
           </button>

@@ -38,7 +38,6 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
     (chart) => chart.id === props.library.active_chart_id,
   )
   const [title, setTitle] = useState("")
-  const [artist, setArtist] = useState("")
   const [chartName, setChartName] = useState("New chart")
   const [chartMode, setChartMode] = useState<UcsMode | "">("")
   const [importName, setImportName] = useState("Imported UCS")
@@ -46,7 +45,6 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
 
   useEffect(() => {
     setTitle(song?.title ?? "")
-    setArtist(song?.artist ?? "")
     setDeleteTarget(null)
   }, [song])
 
@@ -103,27 +101,19 @@ export function LibrarySongManager(props: LibrarySongManagerProps) {
                 library_revision: props.library.revision,
                 song_id: song.id,
                 title,
-                artist,
+                artist: song.artist,
               })
             }}
           >
             <div className="library-form__grid">
               <label>
-                Title
+                Audio label
                 <input required value={title} onChange={(event) => setTitle(event.target.value)} />
-              </label>
-              <label>
-                Artist
-                <input
-                  required
-                  value={artist}
-                  onChange={(event) => setArtist(event.target.value)}
-                />
               </label>
             </div>
             <div className="cluster">
               <Button type="submit" disabled={props.busy}>
-                Rename song
+                Rename audio label
               </Button>
               <Button
                 type="button"

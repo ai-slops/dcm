@@ -29,15 +29,13 @@ export function LibraryArchiveManager(props: LibraryArchiveManagerProps) {
   const [audioName, setAudioName] = useState("")
   const [chartNames, setChartNames] = useState<readonly string[]>([])
   const [title, setTitle] = useState("")
-  const [artist, setArtist] = useState("")
   const [deleteArchive, setDeleteArchive] = useState<LibraryArchive | null>(null)
 
   function selectArchive(archive: LibraryArchive): void {
     setSelected(archive)
     setAudioName(archive.audio_names.length === 1 ? (archive.audio_names[0] ?? "") : "")
     setChartNames(archive.chart_names)
-    setTitle(archive.title ?? archive.name.replace(/\.zip$/i, ""))
-    setArtist(archive.artist ?? "Unknown artist")
+    setTitle(archive.name.replace(/\.zip$/i, ""))
   }
 
   return (
@@ -92,7 +90,6 @@ export function LibraryArchiveManager(props: LibraryArchiveManagerProps) {
                 <button type="button" onClick={() => selectArchive(archive)}>
                   <strong>{archive.name}</strong>
                   <small>
-                    {archive.title ?? "Untitled"} · {archive.artist ?? "Unknown artist"} ·{" "}
                     {archive.chart_names.length} chart(s) · {archive.byte_length.toLocaleString()}{" "}
                     bytes
                   </small>
@@ -146,7 +143,13 @@ export function LibraryArchiveManager(props: LibraryArchiveManagerProps) {
           onSubmit={(event) => {
             event.preventDefault()
             if (audioName === "" || chartNames.length === 0) return
-            props.onImport({ archive: selected, audioName, chartNames, title, artist })
+            props.onImport({
+              archive: selected,
+              audioName,
+              chartNames,
+              title,
+              artist: "Unspecified",
+            })
           }}
         >
           <div className="library-section__heading">
@@ -192,12 +195,8 @@ export function LibraryArchiveManager(props: LibraryArchiveManagerProps) {
           </fieldset>
           <div className="library-form__grid">
             <label>
-              Song title
+              Audio label
               <input required value={title} onChange={(event) => setTitle(event.target.value)} />
-            </label>
-            <label>
-              Artist
-              <input required value={artist} onChange={(event) => setArtist(event.target.value)} />
             </label>
           </div>
           <Button

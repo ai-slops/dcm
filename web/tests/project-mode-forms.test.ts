@@ -57,6 +57,8 @@ it("requires selected-song timing before creating a rule project", () => {
   expect(markup).toContain("Duration starts automatic")
   expect(markup).toContain("no chart is selected implicitly")
   expect(markup).toContain("Base timing source")
+  expect(markup).not.toContain("Chart artist")
+  expect(markup).not.toContain("Song · Artist")
   expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Create project/s)
 })
 

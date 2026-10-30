@@ -6,7 +6,6 @@ import { Button } from "./primitives.tsx"
 
 type NewSongDraft = {
   readonly title: string
-  readonly artist: string
   readonly chartName: string
   readonly bpm: number
   readonly beats: number
@@ -24,7 +23,6 @@ type NewSongFormProps = {
 export function LibraryNewSongForm(props: NewSongFormProps) {
   const [draft, setDraft] = useState<NewSongDraft>({
     title: "",
-    artist: "",
     chartName: "New chart",
     bpm: 120,
     beats: 128,
@@ -47,7 +45,7 @@ export function LibraryNewSongForm(props: NewSongFormProps) {
               library_revision: props.libraryRevision,
               base_revision: props.documentRevision,
               title: draft.title,
-              artist: draft.artist,
+              artist: "Unspecified",
               chart_name: draft.chartName,
               bpm: draft.bpm,
               beats: draft.beats,
@@ -59,19 +57,11 @@ export function LibraryNewSongForm(props: NewSongFormProps) {
       >
         <div className="library-form__grid">
           <label>
-            Song title
+            Audio label
             <input
               required
               value={draft.title}
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-            />
-          </label>
-          <label>
-            Artist
-            <input
-              required
-              value={draft.artist}
-              onChange={(event) => setDraft({ ...draft, artist: event.target.value })}
             />
           </label>
           <label>

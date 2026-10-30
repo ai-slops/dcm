@@ -8,7 +8,6 @@ export type ProjectFormFingerprintInput = {
   readonly name: string
   readonly songId: SongId | ""
   readonly mode: UcsMode | ""
-  readonly chartArtist: string
   readonly baseSource: BaseUcsRef | null
   readonly timing: string
   readonly evaluation: string

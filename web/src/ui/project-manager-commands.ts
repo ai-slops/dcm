@@ -16,14 +16,13 @@ export function createProjectCommand(
     readonly baseUcsRef: BaseUcsRef
   },
 ): ProjectCommand {
-  if (value.chartArtist === null) throw new TypeError("Project creation requires a chart artist")
   return {
     type: "create_project",
     song_id: value.songId,
     mode: value.mode,
     base_ucs_ref: value.baseUcsRef,
     name: value.name,
-    chart_artist: value.chartArtist,
+    chart_artist: null,
     timing: value.timing,
     evaluation_contract: value.evaluationContract,
     generation_rules: value.generationRules,
@@ -39,7 +38,7 @@ export function writeProjectCommand(
     project_id: project.id,
     base_revision: project.revision,
     name: value.name,
-    chart_artist: value.chartArtist,
+    chart_artist: project.chart_artist,
     timing: value.timing,
     evaluation_contract: value.evaluationContract,
     generation_rules: value.generationRules,

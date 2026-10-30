@@ -75,7 +75,7 @@ function project(): GenerationProjectV2 {
   })
 }
 
-it("preserves exact beat timing and chart artist through the project form", () => {
+it("preserves exact beat timing without exposing compatibility metadata", () => {
   // Given
   const source = project()
   const json = initialBeatProjectJson(source)
@@ -84,12 +84,10 @@ it("preserves exact beat timing and chart artist through the project form", () =
   const parsed = parseBeatProjectForm({
     name: source.name,
     mode: source.mode,
-    chartArtist: source.chart_artist ?? "",
     ...json,
   })
 
   // Then
-  expect(parsed.chartArtist).toBe("Stepper")
   expect(parsed.timing).toEqual(source.timing)
   expect(parsed.timing.grid_sections[0]?.rows_per_measure).toBe(127)
   expect(parsed.timing.tempo[0]?.micros_per_beat).toEqual({
@@ -98,7 +96,7 @@ it("preserves exact beat timing and chart artist through the project form", () =
   })
 })
 
-it("stores an empty chart artist as null without changing automatic duration", () => {
+it("keeps automatic duration without requiring artist input", () => {
   // Given
   const source = project()
   const json = initialBeatProjectJson(source)
@@ -107,12 +105,10 @@ it("stores an empty chart artist as null without changing automatic duration", (
   const parsed = parseBeatProjectForm({
     name: source.name,
     mode: source.mode,
-    chartArtist: "  ",
     ...json,
   })
 
   // Then
-  expect(parsed.chartArtist).toBeNull()
   expect(parsed.timing.duration).toBeNull()
 })
 
