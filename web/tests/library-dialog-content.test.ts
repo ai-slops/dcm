@@ -65,7 +65,8 @@ describe("library dialog content", () => {
     expect(markup).toContain("Single 18")
     expect(markup).toContain("Active")
     expect(markup).toContain("Download public Pump Pro archive")
-    expect(markup).toContain('href="/previews"')
+    expect(markup).toContain('href="/"')
+    expect(markup).toContain("Open editor")
   })
 
   it("disables every shortcut while a library operation is busy", () => {
@@ -122,6 +123,5 @@ describe("library dialog content", () => {
     // Then
     expect(markup.match(/<button[^>]*disabled=""/g)?.length).toBeGreaterThanOrEqual(3)
     expect(markup).toContain('aria-disabled="true"')
-    expect(markup).toContain('class="button library-previews-link"')
   })
 })

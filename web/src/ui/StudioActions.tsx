@@ -22,6 +22,7 @@ type ActionsProps = {
   readonly project: BeatChartDocument
   readonly revision: Revision
   readonly dirty: boolean
+  readonly document: CurrentDocument
   readonly onDocument: (document: CurrentDocument) => void
   readonly onProposal: (proposal: ChartProposal) => void
   readonly onStatus: (status: string) => void
@@ -86,6 +87,7 @@ export function StudioActions(props: ActionsProps) {
       <NativeActionsDialog
         csrfToken={props.bootstrap.csrf_token}
         dirty={props.dirty}
+        document={props.document}
         nativeMessage={props.bootstrap.native.message}
         nativeReady={props.bootstrap.native.ready}
         open={open === "native"}
@@ -109,6 +111,7 @@ export function StudioActions(props: ActionsProps) {
       <UcsActionsDialog
         csrfToken={props.bootstrap.csrf_token}
         dirty={props.dirty}
+        document={props.document}
         open={open === "ucs"}
         project={props.project}
         revision={props.revision}

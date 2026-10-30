@@ -1,4 +1,4 @@
-import { type PropsWithChildren, useEffect, useId, useRef } from "react"
+import { type PropsWithChildren, type RefObject, useEffect, useId, useRef } from "react"
 
 import { Button } from "./primitives.tsx"
 
@@ -6,10 +6,18 @@ type ActionDialogProps = PropsWithChildren<{
   readonly busy: boolean
   readonly open: boolean
   readonly title: string
+  readonly focusFallbackRef?: RefObject<HTMLElement | null>
   readonly onClose: () => void
 }>
 
-export function ActionDialog({ busy, children, open, title, onClose }: ActionDialogProps) {
+export function ActionDialog({
+  busy,
+  children,
+  open,
+  title,
+  focusFallbackRef,
+  onClose,
+}: ActionDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const titleId = useId()
@@ -22,9 +30,10 @@ export function ActionDialog({ busy, children, open, title, onClose }: ActionDia
     titleRef.current?.focus()
     return () => {
       if (dialog.open) dialog.close()
-      if (returnFocus instanceof HTMLElement) returnFocus.focus()
+      if (returnFocus instanceof HTMLElement && returnFocus.isConnected) returnFocus.focus()
+      else if (focusFallbackRef?.current?.isConnected) focusFallbackRef.current.focus()
     }
-  }, [open])
+  }, [focusFallbackRef, open])
 
   return (
     <dialog

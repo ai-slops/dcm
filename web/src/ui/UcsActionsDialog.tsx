@@ -2,6 +2,7 @@ import { Download, Upload } from "lucide-react"
 import { useState } from "react"
 
 import type { BeatChartDocument, CurrentDocument, Revision } from "../../shared/index.ts"
+import { beatOutputContextFor, resolveChartOutputTiming } from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { ActionDialog } from "./ActionDialog.tsx"
 import { downloadBlob, errorMessage } from "./action-utils.ts"
@@ -11,6 +12,7 @@ import { UcsZipImport } from "./UcsZipImport.tsx"
 type UcsActionsProps = {
   readonly csrfToken: string
   readonly dirty: boolean
+  readonly document: CurrentDocument
   readonly open: boolean
   readonly project: BeatChartDocument
   readonly revision: Revision
@@ -73,7 +75,8 @@ export function UcsActionsDialog(props: UcsActionsProps) {
   }
 
   const replacementEnabled = !props.dirty && busy === null
-  const hasExportExtent = props.project.timing.duration !== null || props.project.notes.length > 0
+  const hasExportExtent =
+    resolveChartOutputTiming(props.project, beatOutputContextFor(props.document)) !== null
   const exportEnabled = !props.dirty && busy === null && hasExportExtent
   return (
     <ActionDialog

@@ -7,9 +7,6 @@ import { PrimitiveShowcase } from "./PrimitiveShowcase.tsx"
 import { Button } from "./primitives.tsx"
 import { Studio } from "./Studio.tsx"
 
-const PreviewGallery = lazy(() =>
-  import("./PreviewGallery.tsx").then(({ PreviewGallery: Component }) => ({ default: Component })),
-)
 const ProjectEditPage = lazy(() =>
   import("./ProjectEditPage.tsx").then(({ ProjectEditPage: Component }) => ({
     default: Component,
@@ -54,13 +51,6 @@ export function App({
         <p>Project editing requires a valid UUID route in the form /projects/:id/edit.</p>
         <Button onClick={() => window.location.assign("/")}>Back to Studio</Button>
       </main>
-    )
-  }
-  if (state.kind === "ready" && window.location.pathname === "/previews") {
-    return (
-      <Suspense fallback={<div className="empty-state">Loading preview components...</div>}>
-        <PreviewGallery />
-      </Suspense>
     )
   }
   if (state.kind === "ready") return <Studio bootstrap={state.bootstrap} />

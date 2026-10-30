@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { BeatNote, BeatTiming } from "../shared/beat.ts"
 import { BeatChartDocumentSchema } from "../shared/index.ts"
 import { placeBeatHold, toggleBeatPanel } from "../src/domain/beat-editor.ts"
+import { snapBeatToSelectedSplit } from "../src/domain/beat-timeline.ts"
 import { setBeatDuration } from "../src/domain/beat-timing-inputs.ts"
 
 const beat = (numerator: number, denominator = 1) => ({ numerator, denominator })
@@ -62,6 +63,32 @@ describe("beat-native direct editing", () => {
       { at: beat(9), hold: beat(0), panel_mask: 2 },
     ])
     expect(timing.duration).toBeNull()
+  })
+
+  it("deletes an imported off-grid demand without resnapping its stored beat", () => {
+    // Given an imported third-beat note while the local editor uses quarter beats
+    const notes: readonly BeatNote[] = [{ at: beat(1, 3), hold: beat(0), panel_mask: 1 }]
+
+    // When its exact overlay is toggled
+    const edited = toggleBeatPanel(notes, timing, beat(1, 3), 0)
+
+    // Then deletion addresses the stored demand rather than the selected grid
+    expect(edited).toEqual([])
+    expect(notes).toEqual([{ at: beat(1, 3), hold: beat(0), panel_mask: 1 }])
+  })
+
+  it("places UI-snapped holds without consulting imported grid hints", () => {
+    const importedTiming: BeatTiming = {
+      ...timing,
+      grid_sections: [{ at: beat(0), rows_per_measure: 12 }],
+    }
+    const head = snapBeatToSelectedSplit(beat(7, 6), 4)
+    const tail = snapBeatToSelectedSplit(beat(11, 6), 4)
+
+    const edited = placeBeatHold([], importedTiming, head, tail, 0)
+
+    expect(edited).toEqual([{ at: beat(1), hold: beat(3, 4), panel_mask: 1 }])
+    expect(importedTiming.grid_sections).toEqual([{ at: beat(0), rows_per_measure: 12 }])
   })
 })
 

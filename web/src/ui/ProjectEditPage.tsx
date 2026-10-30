@@ -5,6 +5,7 @@ import type { Bootstrap } from "../../shared/api.ts"
 import type { GenerationProjectId } from "../../shared/project-identities.ts"
 import { ProjectGridEditor } from "./ProjectGridEditor.tsx"
 import { Button } from "./primitives.tsx"
+import { useGeneratedChartOpen } from "./useGeneratedChartOpen.ts"
 import { useProjectGridEditor } from "./useProjectGridEditor.ts"
 
 export function ProjectEditPage(props: {
@@ -16,6 +17,19 @@ export function ProjectEditPage(props: {
     projectId: props.projectId,
   })
   const [confirmBack, setConfirmBack] = useState(false)
+  const generatedOpen = useGeneratedChartOpen({
+    csrfToken: props.bootstrap.csrf_token,
+    dirty: false,
+    generation: editor.generation,
+    revision: props.bootstrap.document.revision,
+    onClose: () => {
+      editor.allowLeave()
+      window.location.assign("/")
+    },
+    onDocument: () => undefined,
+    onSave: () => Promise.resolve(null),
+    onStatus: () => undefined,
+  })
 
   useEffect(() => {
     if (editor.busy || !editor.dirty) setConfirmBack(false)
@@ -60,7 +74,7 @@ export function ProjectEditPage(props: {
         <Button
           variant="ghost"
           icon={<ArrowLeft aria-hidden="true" size={16} />}
-          disabled={editor.busy}
+          disabled={editor.busy || generatedOpen.busy}
           onClick={requestBack}
         >
           Back to projects
@@ -87,7 +101,7 @@ export function ProjectEditPage(props: {
         </section>
       ) : null}
       <ProjectGridEditor
-        busy={editor.busy}
+        busy={editor.busy || generatedOpen.busy}
         components={editor.loaded.components}
         dirty={editor.dirty}
         generation={editor.generation}
@@ -95,13 +109,14 @@ export function ProjectEditPage(props: {
         song={editor.loaded.song}
         onApplyFragment={(componentId, anchor) => void editor.applyFragment(componentId, anchor)}
         onGenerate={(name, seed) => void editor.generate(name, seed)}
+        onOpenGenerated={generatedOpen.request}
         onProject={editor.setDraft}
         onPublishFragment={(name, start, end) => void editor.publishFragment(name, start, end)}
         onSave={() => void editor.save()}
       />
-      {editor.error === "" ? null : (
+      {editor.error === "" && generatedOpen.error === "" ? null : (
         <p className="operation-result operation-result--error" role="alert">
-          {editor.error}. Your unsaved draft is still present.
+          {editor.error || generatedOpen.error}. Your unsaved draft is still present.
         </p>
       )}
     </main>

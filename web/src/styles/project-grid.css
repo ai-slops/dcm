@@ -47,7 +47,6 @@
 }
 
 .project-edit-page__header p,
-.project-grid-toolbar__identity span,
 .project-regions p,
 .project-tail p,
 .project-grid-generate p {
@@ -110,18 +109,7 @@
   overflow: hidden;
 }
 
-.project-grid-scroll-cue {
-  display: none;
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--type-caption);
-  line-height: var(--type-caption-line);
-  background: var(--surface-shell);
-  border-block-end: var(--stroke-hairline) solid var(--border-subtle);
-}
-
-.project-grid-inspector {
+.project-grid-sidebar {
   min-block-size: 0;
   overflow-y: auto;
   padding: var(--space-4);
@@ -130,7 +118,6 @@
 }
 
 .project-regions,
-.project-information,
 .project-fragments,
 .project-tail,
 .project-grid-generate,
@@ -143,7 +130,6 @@
   gap: var(--space-3);
 }
 
-.project-information + .project-regions,
 .project-regions + .project-tail,
 .project-regions + .project-fragments,
 .project-fragments + .project-grid-generate,
@@ -159,27 +145,22 @@
   color: var(--text-secondary);
 }
 
-.project-information > header,
 .project-fragments > header {
   display: grid;
   gap: var(--space-1);
 }
 
-.project-information h2,
-.project-information p,
 .project-fragments h2,
 .project-fragments p {
   margin: 0;
 }
 
-.project-information > header p,
 .project-fragments > header p {
   color: var(--text-muted);
   font-size: var(--type-caption);
   line-height: var(--type-caption-line);
 }
 
-.project-information__grid,
 .project-fragment-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
@@ -248,7 +229,7 @@
     min-block-size: calc(var(--timeline-row-touch) * 10);
   }
 
-  .project-grid-inspector {
+  .project-grid-sidebar {
     overflow: visible;
     padding-block-end: var(--space-8);
     border-inline-start: 0;
@@ -278,17 +259,9 @@
   .project-grid-toolbar .button,
   .project-grid-toolbar .tool-chip,
   .project-grid-toolbar input,
-  .project-grid-inspector input,
-  .project-grid-inspector select,
-  .project-grid-inspector .button {
+  .project-grid-sidebar input,
+  .project-grid-sidebar select,
+  .project-grid-sidebar .button {
     min-block-size: var(--control-touch);
-  }
-
-  .project-grid-canvas {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .project-grid-scroll-cue {
-    display: block;
   }
 }

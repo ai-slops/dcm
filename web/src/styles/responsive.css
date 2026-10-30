@@ -1,47 +1,3 @@
-@media (max-width: 1439px) and (min-width: 1200px) {
-  .center-studio {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(320px, 45%);
-  }
-  .preview {
-    display: block;
-    min-block-size: 0;
-    align-self: stretch;
-    margin: var(--space-2);
-    overflow: auto;
-  }
-  .preview .panel__body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
-    align-items: center;
-    gap: var(--space-1) var(--space-4);
-    padding-block: var(--space-2);
-  }
-  .preview .playfields {
-    grid-column: 2;
-    grid-row: 1;
-    inline-size: 100%;
-    max-inline-size: 360px;
-    max-block-size: 132px;
-  }
-  .preview .playfield {
-    max-block-size: 132px;
-  }
-  .preview .chart-preview {
-    grid-column: 1;
-    grid-row: 1 / span 4;
-  }
-  .preview .chart-preview__field {
-    block-size: var(--preview-field-height-dense);
-  }
-  .preview .playfield-preview {
-    grid-column: 2;
-  }
-  .preview :is(.status-copy, .timeline__context) {
-    grid-column: 2;
-    margin: 0;
-  }
-}
 @media (max-width: 1199px) {
   .timeline {
     --timeline-row-size: var(--timeline-row-touch);
@@ -73,7 +29,7 @@
   }
   .mobile-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     background: var(--surface-shell);
     border-block-end: 1px solid var(--border-subtle);
   }
@@ -106,93 +62,26 @@
   }
   .studio-body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
-  .studio-body:has(.center-studio.mobile-editor) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--control-touch) minmax(0, 1fr);
-  }
-  .inspector,
   .agent-rail {
     display: none;
   }
   .center-studio {
     grid-template-columns: minmax(0, 1fr);
   }
-  .preview {
-    display: none;
-  }
-  .document-title {
-    inline-size: min(240px, 28vw);
-  }
-  .mobile-inspector-trigger {
-    z-index: var(--layer-sticky);
-    grid-row: 1;
-    justify-self: end;
-    display: block;
-    min-block-size: var(--control-touch);
-    border: var(--stroke-hairline) solid var(--border-default);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    padding-inline: var(--space-3);
-  }
-  .mobile-inspector-close {
-    display: block;
-    inline-size: 100%;
-    min-block-size: var(--control-touch);
-    border: var(--stroke-hairline) solid var(--border-default);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    color: var(--text-primary);
-  }
-  .inspector.mobile-editor {
-    position: absolute;
-    z-index: var(--layer-drawer);
-    inset: var(--space-2) auto var(--space-2) var(--space-2);
-    display: none;
-    inline-size: min(var(--inspector-width), 88vw);
-    max-block-size: calc(100% - var(--space-4));
-    border: var(--stroke-hairline) solid var(--border-strong);
-    border-radius: var(--radius-lg);
-    background: var(--surface-panel);
-    box-shadow: var(--depth-floating);
-    padding: var(--space-2);
-  }
-  .inspector.mobile-editor[data-open="true"] {
-    display: block;
-  }
-  .center-studio.mobile-editor,
-  .center-studio.mobile-preview {
-    display: grid;
-  }
   .center-studio.mobile-editor {
-    grid-row: 2;
-  }
-  .center-studio.mobile-preview .timeline {
-    display: none;
-  }
-  .center-studio.mobile-preview .preview {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    align-self: stretch;
-    max-block-size: none;
-    margin: var(--space-4);
   }
-  .center-studio.mobile-preview .preview .panel__body {
-    min-block-size: 0;
-    overflow: auto;
-  }
-  .center-studio.mobile-preview .playfields {
-    max-inline-size: 440px;
-    margin-inline: auto;
-  }
-  .center-studio.mobile-agent,
-  .center-studio.mobile-preview + .agent-rail {
+  .center-studio.mobile-agent {
     display: none;
   }
   .agent-rail.mobile-agent {
     display: block;
+  }
+  .studio-validation-error {
+    inset-inline: var(--space-3);
+    max-inline-size: none;
   }
 }
 @media (pointer: coarse) {

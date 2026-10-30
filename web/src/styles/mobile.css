@@ -5,8 +5,7 @@
   .brand,
   .brand strong,
   .brand__mark,
-  .document-toolbar > .badge,
-  .document-title {
+  .document-toolbar > .badge {
     display: none;
   }
   .toolbar-actions {
@@ -43,11 +42,8 @@
   .timeline__controls {
     min-inline-size: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: center;
-  }
-  .timeline__follow {
-    margin-inline-start: 0;
   }
   .timeline__context {
     grid-column: 1 / -1;
@@ -66,30 +62,8 @@
     min-inline-size: 0;
     inline-size: 100%;
   }
-  .studio-body:has(.center-studio.mobile-editor) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--control-touch) minmax(0, 1fr);
-  }
-  .center-studio.mobile-editor,
-  .center-studio.mobile-preview {
-    display: grid;
-  }
-  .center-studio.mobile-preview .timeline {
-    display: none;
-  }
-  .center-studio.mobile-preview .preview {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    align-self: stretch;
-    max-block-size: none;
-    margin: var(--space-4);
-  }
-  .center-studio.mobile-agent {
-    display: none;
-  }
-  .agent-rail.mobile-agent {
-    display: block;
-    padding: var(--space-2);
+  .timeline__offset {
+    min-inline-size: 0;
   }
   .transport {
     padding-inline: var(--space-2);
@@ -163,11 +137,6 @@
 }
 
 @media (max-width: 599px) {
-  .inspector.mobile-editor {
-    inset: auto var(--space-2) var(--space-2);
-    inline-size: auto;
-    max-block-size: calc(100% - var(--space-4));
-  }
   .studio-shell {
     grid-template-rows: var(--toolbar-height) var(--mobile-tabs-height) minmax(0, 1fr) var(
         --transport-height-phone

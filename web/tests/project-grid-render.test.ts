@@ -4,6 +4,7 @@ import { expect, it } from "vitest"
 
 import { GenerationProjectV2Schema } from "../shared/beat-projects.ts"
 import { LibrarySongSchema } from "../shared/library.ts"
+import { beatPlaybackProjectFor } from "../src/domain/project-grid.ts"
 import { ProjectGridEditor } from "../src/ui/ProjectGridEditor.tsx"
 
 function fixture() {
@@ -104,6 +105,26 @@ function fixture() {
   return { project, song }
 }
 
+it.each([true, false])("resolves rule-project playback extent with fixed notes %s", (hasNotes) => {
+  const { project, song } = fixture()
+  const rules = project.generation_rules
+  if (rules.schema_version !== 2) throw new Error("Expected hybrid fixture")
+  const source = GenerationProjectV2Schema.parse({
+    ...project,
+    timing: { ...project.timing, duration: null },
+    generation_rules: { ...rules, fixed_notes: hasNotes ? rules.fixed_notes : [] },
+  })
+
+  const playback = beatPlaybackProjectFor(source, song)
+
+  expect(playback.timing.duration).toEqual({ numerator: 6, denominator: 1 })
+  expect(source.timing.duration).toBeNull()
+  expect(source.generation_rules).toEqual({
+    ...rules,
+    fixed_notes: hasNotes ? rules.fixed_notes : [],
+  })
+})
+
 it("renders fixed-note authoring and named automatic region controls", async () => {
   // Given
   const { project, song } = await fixture()
@@ -119,6 +140,7 @@ it("renders fixed-note authoring and named automatic region controls", async () 
       song,
       onApplyFragment: () => undefined,
       onGenerate: () => undefined,
+      onOpenGenerated: () => undefined,
       onProject: () => undefined,
       onPublishFragment: () => undefined,
       onSave: () => undefined,
@@ -128,10 +150,11 @@ it("renders fixed-note authoring and named automatic region controls", async () 
   // Then
   expect(markup).toContain("Unsaved project draft")
   expect(markup).toContain("Verse · automatic")
-  expect(markup).toContain("Scroll sideways inside the grid to reach all 10 lanes")
+  expect(markup).toContain("Scroll sideways inside the timeline to reach all 10 lanes")
   expect(markup).toContain("Clear verse")
-  expect(markup).toContain("Project information")
-  expect(markup).toContain("Chart artist")
+  expect(markup).toContain("Visual rules")
+  expect(markup).not.toContain("Stored artist")
+  expect(markup).not.toContain("Chart artist")
   expect(markup).toContain("Publish note fragment")
   expect(markup).toContain("Save project rules before generating")
   expect(markup).not.toContain("Hold duration ticks")
@@ -173,6 +196,7 @@ it("requires explicit confirmation before converting V1 rules", async () => {
       song,
       onApplyFragment: () => undefined,
       onGenerate: () => undefined,
+      onOpenGenerated: () => undefined,
       onProject: () => undefined,
       onPublishFragment: () => undefined,
       onSave: () => undefined,
@@ -201,6 +225,7 @@ it("locks region timing and generation fields during a mutation", async () => {
       song,
       onApplyFragment: () => undefined,
       onGenerate: () => undefined,
+      onOpenGenerated: () => undefined,
       onProject: () => undefined,
       onPublishFragment: () => undefined,
       onSave: () => undefined,

@@ -49,15 +49,15 @@ export function LibraryDialogContent(props: LibraryDialogContentProps) {
           UCS transfer
         </Button>
         <a
-          className="button library-previews-link"
-          href="/previews"
+          className="button"
+          href="/"
           aria-disabled={props.busy}
           tabIndex={props.busy ? -1 : undefined}
           onClick={(event) => {
             if (props.busy) event.preventDefault()
           }}
         >
-          Chart previews
+          Open editor
         </a>
       </nav>
       <LibrarySongManager

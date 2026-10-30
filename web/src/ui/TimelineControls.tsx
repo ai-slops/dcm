@@ -1,13 +1,7 @@
-import { useEffect, useState } from "react"
+import { useId } from "react"
 
-import { compareBeats } from "../../shared/beat.ts"
-import {
-  type Beat,
-  type BeatTiming,
-  MAX_EDIT_ROWS_PER_MEASURE,
-  type UcsMode,
-} from "../../shared/index.ts"
-import { formatBeat } from "../domain/beat-timeline.ts"
+import { type BeatTiming, MAX_EDIT_ROWS_PER_MEASURE, type UcsMode } from "../../shared/index.ts"
+import { OffsetMillisecondsField } from "./OffsetMillisecondsField.tsx"
 import { TimelineClock } from "./TimelineClock.tsx"
 import type { AudioPlaybackController } from "./useAudioPlayback.ts"
 
@@ -15,107 +9,80 @@ type TimelineControlsProps = {
   readonly timing: BeatTiming
   readonly mode: UcsMode
   readonly playback: AudioPlaybackController
-  readonly cursorBeat: Beat
-  readonly keyboardHoldRows: number
-  readonly onKeyboardHoldRows: (rows: number) => void
-  readonly onRowsPerMeasureChange: (at: Beat, rowsPerMeasure: number) => void
-  readonly onPreviousMeasure: () => void
-  readonly onNextMeasure: () => void
-  readonly followAudio: boolean
-  readonly setFollowAudio: (value: boolean) => void
+  readonly selectedSplit: number
+  readonly lookaheadSeconds: number
+  readonly error?: string
+  readonly disabled: boolean
+  readonly onSelectedSplitChange: (split: number) => void
+  readonly onLookaheadChange: (seconds: number) => void
+  readonly onTimingChange: (timing: BeatTiming) => void
 }
 
 export function TimelineControls(props: TimelineControlsProps) {
-  const section = activeGridSection(props.timing, props.cursorBeat)
+  const splitId = useId()
+  const lookaheadId = useId()
   return (
     <div className="timeline__controls">
-      <SplitInput
-        at={section.at}
-        rowsPerMeasure={section.rows_per_measure}
-        onCommit={props.onRowsPerMeasureChange}
-      />
-      <button type="button" onClick={props.onPreviousMeasure}>
-        Previous measure
-      </button>
-      <output className="mono timeline__cursor-beat" aria-label="Keyboard cursor beat">
-        Beat {formatBeat(props.cursorBeat)}
-      </output>
-      <button type="button" onClick={props.onNextMeasure}>
-        Next measure
-      </button>
-      <label>
-        Keyboard hold rows
+      <label htmlFor={splitId}>
+        Split
         <input
+          id={splitId}
           className="mono"
+          aria-label="Split rows per beat"
+          disabled={props.disabled}
+          inputMode="numeric"
+          max={MAX_EDIT_ROWS_PER_MEASURE / 4}
           min="1"
-          max="512"
           type="number"
-          value={props.keyboardHoldRows}
+          value={props.selectedSplit}
           onChange={(event) => {
             const value = event.currentTarget.valueAsNumber
-            if (Number.isSafeInteger(value) && value >= 1 && value <= MAX_EDIT_ROWS_PER_MEASURE)
-              props.onKeyboardHoldRows(value)
+            if (Number.isSafeInteger(value) && value >= 1 && value <= 128)
+              props.onSelectedSplitChange(value)
           }}
         />
       </label>
-      <span className="timeline__shortcut">Enter toggles · H places hold</span>
-      <label className="timeline__follow">
+      <label htmlFor={lookaheadId}>
+        Lookahead
         <input
-          type="checkbox"
-          checked={props.followAudio}
-          onChange={(event) => props.setFollowAudio(event.currentTarget.checked)}
+          id={lookaheadId}
+          className="mono"
+          aria-label="Editor lookahead seconds"
+          disabled={props.disabled}
+          max="12"
+          min="0.1"
+          step="0.05"
+          type="number"
+          value={props.lookaheadSeconds}
+          onChange={(event) => {
+            const value = event.currentTarget.valueAsNumber
+            if (isLookahead(value)) props.onLookaheadChange(value)
+          }}
         />
-        Follow audio
+        <span>seconds</span>
       </label>
+      <OffsetMillisecondsField
+        offsetMicros={props.timing.offset_micros}
+        disabled={props.disabled}
+        onChange={(offsetMicros) =>
+          props.onTimingChange({ ...props.timing, offset_micros: offsetMicros })
+        }
+      />
       <span className="badge badge--info">
         {props.mode} · {props.mode === "Single" ? "5 lanes · left pad" : "10 lanes · two pads"}
       </span>
-      <TimelineClock
-        timing={props.timing}
-        playback={props.playback}
-        cursorBeat={props.cursorBeat}
-      />
+      <TimelineClock timing={props.timing} playback={props.playback} />
+      {props.error === undefined || props.error === "" ? null : (
+        <p className="field-error timeline__error" role="alert">
+          {props.error}
+        </p>
+      )}
     </div>
   )
 }
 
-function SplitInput(props: {
-  readonly at: Beat
-  readonly rowsPerMeasure: number
-  readonly onCommit: (at: Beat, rowsPerMeasure: number) => void
-}) {
-  const [draft, setDraft] = useState(String(props.rowsPerMeasure))
-  useEffect(() => setDraft(String(props.rowsPerMeasure)), [props.rowsPerMeasure])
-  function commit(): void {
-    const value = Number(draft)
-    if (Number.isSafeInteger(value) && value >= 1 && value <= 512) props.onCommit(props.at, value)
-  }
-  return (
-    <label>
-      Split (rows per measure)
-      <input
-        className="mono"
-        aria-label="Split rows per four-beat measure"
-        inputMode="numeric"
-        max={MAX_EDIT_ROWS_PER_MEASURE}
-        min="1"
-        value={draft}
-        onBlur={commit}
-        onChange={(event) => setDraft(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") commit()
-        }}
-      />
-    </label>
-  )
-}
-
-function activeGridSection(timing: BeatTiming, at: Beat): BeatTiming["grid_sections"][number] {
-  let active = timing.grid_sections[0]
-  if (active === undefined) throw new RangeError("Beat timing requires a grid section")
-  for (const section of timing.grid_sections) {
-    if (compareBeats(section.at, at) > 0) break
-    active = section
-  }
-  return active
+function isLookahead(value: number): boolean {
+  if (!Number.isFinite(value) || value < 0.1 || value > 12) return false
+  const steps = (value - 0.1) / 0.05
+  return Math.abs(steps - Math.round(steps)) < 1e-9
 }

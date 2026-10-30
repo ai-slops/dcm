@@ -7,13 +7,16 @@ import type {
   ChartProposal,
   CurrentDocument,
 } from "../../shared/index.ts"
+import {
+  BeatChartDocumentSchema,
+  beatOutputContextFor,
+  resolveChartOutputTiming,
+} from "../../shared/index.ts"
 import { studioApi } from "../api/client.ts"
 import { placeBeatHold, toggleBeatPanel } from "../domain/beat-editor.ts"
-import { validateRowsPerMeasureChange } from "../domain/beat-timeline.ts"
 import type { PanelIndex } from "../domain/editor.ts"
 import { CenterStudio } from "./CenterStudio.tsx"
 import { DocumentToolbar } from "./DocumentToolbar.tsx"
-import { Inspector } from "./Inspector.tsx"
 import { type MobileTab, MobileTabs } from "./MobileTabs.tsx"
 import { StudioAgentAside } from "./StudioAgentAside.tsx"
 import { reconcileAppliedDocument } from "./studio-state.ts"
@@ -35,16 +38,31 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
   const [revision, setRevision] = useState(bootstrap.document.revision)
   const [origin, setOrigin] = useState(bootstrap.document.origin)
   const [tab, setTab] = useState<MobileTab>("editor")
-  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [status, setStatus] = useState("Ready")
   const [validationError, setValidationError] = useState("")
   const [past, setPast] = useState<readonly BeatChartDocument[]>([])
   const [future, setFuture] = useState<readonly BeatChartDocument[]>([])
-  const playback = useAudioPlayback(project)
   const dirty = useMemo(
     () => JSON.stringify(project) !== JSON.stringify(persistedProject),
     [persistedProject, project],
   )
+  const currentDocument = useMemo<CurrentDocument>(
+    () => ({
+      project: persistedProject,
+      revision,
+      ...(origin === undefined ? {} : { origin }),
+    }),
+    [origin, persistedProject, revision],
+  )
+  const playbackProject = useMemo<BeatChartDocument>(
+    () => ({
+      ...project,
+      timing:
+        resolveChartOutputTiming(project, beatOutputContextFor(currentDocument)) ?? project.timing,
+    }),
+    [currentDocument, project],
+  )
+  const playback = useAudioPlayback(playbackProject)
   useBeforeUnload(dirty)
 
   function replaceProject(nextProject: BeatChartDocument): void {
@@ -97,13 +115,16 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     edit(() => placeBeatHold(project.notes, project.timing, head, tail, lane))
   }
 
-  function changeSplit(at: Beat, rowsPerMeasure: number): void {
-    const result = validateRowsPerMeasureChange(project.timing, project.notes, at, rowsPerMeasure)
-    if (result.kind === "error") {
-      setValidationError(result.message)
-      return
+  function changeTiming(timing: BeatChartDocument["timing"]): void {
+    try {
+      replaceProject(projectWithTiming(project, timing))
+    } catch (caught) {
+      if (caught instanceof Error) {
+        setValidationError(caught.message)
+        throw caught
+      }
+      throw caught
     }
-    replaceProject({ ...project, timing: result.timing })
   }
 
   const save = useDocumentSave({
@@ -150,13 +171,13 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
     <main className="studio-shell">
       <DocumentToolbar
         bootstrap={refreshed.bootstrap}
+        document={currentDocument}
         project={project}
         revision={revision}
         dirty={dirty}
         status={status}
         canUndo={past.length > 0}
         canRedo={future.length > 0}
-        setProject={setProject}
         undo={undo}
         redo={redo}
         save={save}
@@ -167,35 +188,6 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
       />
       <MobileTabs selected={tab} onSelect={setTab} />
       <div className="studio-body">
-        {tab === "editor" ? (
-          <button
-            className="mobile-inspector-trigger"
-            type="button"
-            aria-expanded={inspectorOpen}
-            aria-controls="tools-panel"
-            onClick={() => setInspectorOpen(true)}
-          >
-            Chart info
-          </button>
-        ) : null}
-        <aside
-          className={`inspector mobile-${tab}`}
-          data-open={inspectorOpen || undefined}
-          id="tools-panel"
-        >
-          <button
-            className="mobile-inspector-close"
-            type="button"
-            onClick={() => setInspectorOpen(false)}
-          >
-            Close chart info
-          </button>
-          <Inspector
-            project={project}
-            validationError={validationError}
-            replaceProject={replaceProject}
-          />
-        </aside>
         <CenterStudio
           tab={tab}
           notes={project.notes}
@@ -205,8 +197,13 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           {...(origin === undefined ? {} : { automaticRegions: origin.automatic_regions })}
           onToggleTap={toggleTap}
           onPlaceHold={placeHold}
-          onRowsPerMeasureChange={changeSplit}
+          onTimingChange={changeTiming}
         />
+        {validationError === "" ? null : (
+          <p className="studio-validation-error field-error" role="alert">
+            Edit rejected: {validationError}
+          </p>
+        )}
         <StudioAgentAside
           tab={tab}
           bootstrap={refreshed.bootstrap}
@@ -220,7 +217,24 @@ export function Studio({ bootstrap }: { readonly bootstrap: Bootstrap }) {
           discard={proposalOwner.discard}
         />
       </div>
-      <Transport project={project} playback={playback} />
+      <Transport project={playbackProject} playback={playback} />
     </main>
   )
+}
+
+export function projectWithTiming(
+  project: BeatChartDocument,
+  timing: BeatChartDocument["timing"],
+): BeatChartDocument {
+  const parsed = BeatChartDocumentSchema.safeParse({ ...project, timing })
+  if (!parsed.success) {
+    throw new StudioTimingChangeError(
+      parsed.error.issues[0]?.message ?? "The chart timing is invalid.",
+    )
+  }
+  return parsed.data
+}
+
+class StudioTimingChangeError extends Error {
+  override readonly name = "StudioTimingChangeError"
 }

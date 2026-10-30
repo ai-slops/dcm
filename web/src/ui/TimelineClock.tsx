@@ -1,51 +1,29 @@
-import type { Beat, BeatTiming } from "../../shared/beat.ts"
-import { formatBeat } from "../domain/beat-timeline.ts"
-import {
-  audioMicrosToBeatPosition,
-  beatToAudioMicros,
-  bpmAtBeat,
-  bpmAtBeatPosition,
-} from "../domain/beat-timing.ts"
+import type { BeatTiming } from "../../shared/beat.ts"
+import { audioMicrosToBeatPosition, bpmAtBeatPosition } from "../domain/beat-timing.ts"
 import { showsPlaybackClock } from "./audio-playback-state.ts"
 import { type AudioPlaybackController, usePlaybackSnapshot } from "./useAudioPlayback.ts"
 
 export function TimelineClock(props: {
   readonly timing: BeatTiming
   readonly playback: AudioPlaybackController
-  readonly cursorBeat: Beat
   readonly label?: string
 }) {
   const snapshot = usePlaybackSnapshot(props.playback)
   const usesClock = showsPlaybackClock(snapshot.status) || snapshot.status === "ended"
-  const playbackBeat = usesClock
-    ? audioMicrosToBeatPosition(props.timing, snapshot.audioMicros)
-    : null
-  const bpm =
-    playbackBeat === null
-      ? bpmAtBeat(props.timing, props.cursorBeat)
-      : bpmAtBeatPosition(props.timing, playbackBeat)
-  const audioMicros = usesClock
-    ? snapshot.audioMicros
-    : beatToAudioMicros(props.timing, props.cursorBeat)
+  const audioMicros = usesClock ? snapshot.audioMicros : props.timing.offset_micros
+  const beatPosition = audioMicrosToBeatPosition(props.timing, audioMicros)
+  const boundedBeat = beatPosition ?? 0
   return (
     <output className="timeline__context mono" aria-label={props.label ?? "Current timing context"}>
       <span>{formatSongTime(audioMicros)}</span>
-      <span>
-        {usesClock && playbackBeat === null
-          ? "Pre-roll"
-          : `Beat ${playbackBeat === null ? formatBeat(props.cursorBeat) : formatBeatPosition(playbackBeat)}`}
-      </span>
-      <span>{formatBpm(bpm)} BPM</span>
+      <span>{beatPosition === null ? "Pre-roll" : `Beat ${formatNumber(beatPosition)}`}</span>
+      <span>{formatNumber(bpmAtBeatPosition(props.timing, boundedBeat))} BPM</span>
       <span>Offset {formatOffset(props.timing.offset_micros)}</span>
     </output>
   )
 }
 
-function formatBeatPosition(position: number): string {
-  return position.toFixed(3).replace(/\.?0+$/, "")
-}
-
-function formatBpm(value: number): string {
+function formatNumber(value: number): string {
   return value.toFixed(6).replace(/\.?0+$/, "")
 }
 

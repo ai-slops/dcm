@@ -35,6 +35,10 @@ export function useProjectGridEditor(input: {
   const [error, setError] = useState("")
   const [generation, setGeneration] = useState<ProjectGenerationResult | null>(null)
   const [intentionalLeave, setIntentionalLeave] = useState(false)
+  const updateDraft = useCallback((project: GenerationProjectV2) => {
+    setDraft(project)
+    setGeneration(null)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -194,6 +198,6 @@ export function useProjectGridEditor(input: {
     loaded,
     publishFragment,
     save,
-    setDraft,
+    setDraft: updateDraft,
   } as const
 }

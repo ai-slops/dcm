@@ -56,7 +56,7 @@ export function SegmentPlaybackDialog({ playback, onClose }: SegmentPlaybackDial
       >
         <p className="status-copy">
           Choose an interval in actual audio seconds. Playback still projects through the existing
-          chart offset and tempo map for the timeline and playfield.
+          chart offset and tempo map for the editor.
         </p>
         <p className="mono segment-dialog__duration">
           {duration === null ? "Audio duration unavailable" : `Duration ${duration.toFixed(3)} s`}

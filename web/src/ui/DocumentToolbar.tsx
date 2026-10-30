@@ -15,10 +15,10 @@ type DocumentToolbarProps = {
   readonly project: BeatChartDocument
   readonly revision: CurrentDocument["revision"]
   readonly dirty: boolean
+  readonly document: CurrentDocument
   readonly status: string
   readonly canUndo: boolean
   readonly canRedo: boolean
-  readonly setProject: (project: BeatChartDocument) => void
   readonly undo: () => void
   readonly redo: () => void
   readonly save: () => Promise<SaveResult | null>
@@ -36,12 +36,6 @@ export function DocumentToolbar(props: DocumentToolbarProps) {
         <span className="brand__mark">P</span>
         <strong>PUMP Studio</strong>
       </div>
-      <input
-        aria-label="Document title"
-        className="document-title"
-        value={props.project.title}
-        onChange={(event) => props.setProject({ ...props.project, title: event.target.value })}
-      />
       <Badge tone="warning">Uncertified draft</Badge>
       <div className="toolbar-actions">
         <IconButton
@@ -75,6 +69,7 @@ export function DocumentToolbar(props: DocumentToolbarProps) {
         </Button>
         <StudioActions
           bootstrap={props.bootstrap}
+          document={props.document}
           project={props.project}
           revision={props.revision}
           dirty={props.dirty}

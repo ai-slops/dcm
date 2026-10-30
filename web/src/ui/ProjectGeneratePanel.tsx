@@ -8,6 +8,7 @@ export function ProjectGeneratePanel(props: {
   readonly dirty: boolean
   readonly generation: ProjectGenerationResult | null
   readonly onGenerate: (name: string, seed: string) => void
+  readonly onOpen: () => void
 }) {
   const [name, setName] = useState("Generated chart")
   const [seed, setSeed] = useState("0".repeat(64))
@@ -56,9 +57,7 @@ export function ProjectGeneratePanel(props: {
               : "Rejected by finite model"}
           </strong>
           <span>{props.generation.chart.notes.length} notes saved as a new inactive chart.</span>
-          <a className="button" href={`/previews?chart=${props.generation.chart_id}`}>
-            View generated chart
-          </a>
+          <Button onClick={props.onOpen}>Open generated chart</Button>
         </div>
       )}
     </section>

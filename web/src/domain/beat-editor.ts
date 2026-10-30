@@ -1,6 +1,5 @@
 import type { Beat, BeatNote, BeatTiming } from "../../shared/beat.ts"
 import { addBeats, BeatNoteSchema, compareBeats, subtractBeats } from "../../shared/beat.ts"
-import { snapBeatToTimelineRow } from "./beat-timeline.ts"
 import type { PanelIndex } from "./editor.ts"
 
 export class BeatEditConflictError extends Error {
@@ -23,12 +22,11 @@ export function toggleBeatPanel(
 ): readonly BeatNote[] {
   const existing = findBeatPanelDemand(notes, at, panel)
   if (existing !== undefined) return erasePanelDemand(notes, existing, panel)
-  const snapped = snapBeatToTimelineRow(timing, at)
-  assertWithinDuration(timing, snapped)
-  assertPanelAvailable(notes, snapped, snapped, panel)
+  assertWithinDuration(timing, at)
+  assertPanelAvailable(notes, at, at, panel)
   return canonicalNotes([
     ...notes,
-    { at: snapped, hold: { numerator: 0, denominator: 1 }, panel_mask: 1 << panel },
+    { at, hold: { numerator: 0, denominator: 1 }, panel_mask: 1 << panel },
   ])
 }
 
@@ -39,10 +37,8 @@ export function placeBeatHold(
   last: Beat,
   panel: PanelIndex,
 ): readonly BeatNote[] {
-  const snappedFirst = snapBeatToTimelineRow(timing, first)
-  const snappedLast = snapBeatToTimelineRow(timing, last)
-  const head = compareBeats(snappedFirst, snappedLast) <= 0 ? snappedFirst : snappedLast
-  const tail = compareBeats(snappedFirst, snappedLast) <= 0 ? snappedLast : snappedFirst
+  const head = compareBeats(first, last) <= 0 ? first : last
+  const tail = compareBeats(first, last) <= 0 ? last : first
   if (compareBeats(head, tail) === 0) return toggleBeatPanel(notes, timing, head, panel)
   assertWithinDuration(timing, tail)
   assertPanelAvailable(notes, head, tail, panel)

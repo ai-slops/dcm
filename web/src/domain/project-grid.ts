@@ -1,6 +1,8 @@
 import { z } from "zod"
 import { addBeats, type Beat, type BeatTiming, compareBeats } from "../../shared/beat.ts"
+import { resolveChartOutputTiming } from "../../shared/beat-output.ts"
 import {
+  type BeatChartDocument,
   BeatChartDocumentSchema,
   type GenerationProjectV2,
   GenerationProjectV2Schema,
@@ -46,8 +48,11 @@ export function convertBeatWeightedCycleToHybrid(
   })
 }
 
-export function beatPlaybackProjectFor(project: GenerationProjectV2, song: LibrarySong) {
-  return BeatChartDocumentSchema.parse({
+export function beatPlaybackProjectFor(
+  project: GenerationProjectV2,
+  song: LibrarySong,
+): BeatChartDocument {
+  const document = BeatChartDocumentSchema.parse({
     schema_version: 1,
     title: song.title,
     artist: song.artist,
@@ -60,6 +65,17 @@ export function beatPlaybackProjectFor(project: GenerationProjectV2, song: Libra
     audio_asset: { format: song.audio.format, byte_length: song.audio.byte_length },
     evaluation_contract: project.evaluation_contract,
   })
+  const rules = project.generation_rules
+  return {
+    ...document,
+    timing:
+      resolveChartOutputTiming(document, {
+        automatic_region_ends:
+          rules.schema_version === 1
+            ? [rules.end]
+            : rules.regions.map((region) => region.rules.end),
+      }) ?? document.timing,
+  }
 }
 
 export function replaceBeatHybridRules(

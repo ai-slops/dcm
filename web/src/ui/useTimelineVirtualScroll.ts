@@ -1,110 +1,104 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import type { RefObject } from "react"
+import { useCallback, useLayoutEffect, useRef, useState } from "react"
 
-import type { Beat, BeatTiming } from "../../shared/beat.ts"
-import { beatAtTimelineRow, timelineRowAtBeat } from "../domain/beat-timeline.ts"
+import type { BeatTiming } from "../../shared/beat.ts"
+import {
+  AUDIO_TIMELINE_RUNWAY_CENTER,
+  AUDIO_TIMELINE_RUNWAY_SIZE,
+  type AudioTimelineGeometry,
+  type AudioTimelineRange,
+  audioMicrosAtPhysicalY,
+  audioMicrosToPhysicalY,
+  audioTimelineFollowPosition,
+  audioTimelineGeometry,
+  audioTimelineRebasePosition,
+  audioTimelineResizePosition,
+  audioTimelineVisibleRange,
+  audioTimelineZoomPosition,
+} from "../domain/audio-timeline-geometry.ts"
 
-const runwayRows = 4_000
-const runwayCenterRow = runwayRows / 2
-const bufferRows = 16
+const defaultRowSize = 34
+const defaultViewportSize = 680
 
-type VirtualTimelineInput = {
+export type TimelineVirtualScrollInput = {
   readonly timing: BeatTiming
-  readonly anchorBeat: Beat
+  readonly lookaheadSeconds: number
 }
 
-type Geometry = {
-  readonly originRow: number
-  readonly rowSize: number
-  readonly viewportSize: number
-  readonly rowLimit: number | null
+export type TimelineVirtualScroll = {
+  readonly scrollerRef: RefObject<HTMLDivElement | null>
+  readonly onScroll: () => void
+  readonly visibleAudioRange: AudioTimelineRange
+  readonly runwaySize: number
+  readonly pixelsPerMicrosecond: number
+  readonly audioMicrosToY: (audioMicros: number) => number
+  readonly audioMicrosAtClientY: (clientY: number) => number
+  readonly followAudioMicros: (audioMicros: number) => void
 }
 
-export function useTimelineVirtualScroll(input: VirtualTimelineInput) {
+export function useTimelineVirtualScroll(input: TimelineVirtualScrollInput): TimelineVirtualScroll {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const initialized = useRef(false)
-  const previousTiming = useRef(input.timing)
-  const [originRow, setOriginRow] = useState(() =>
-    timelineRowAtBeat(input.timing, input.anchorBeat),
+  const previousLookahead = useRef(input.lookaheadSeconds)
+  const initialGeometry = useRef(
+    audioTimelineGeometry({
+      originAudioMicros: input.timing.offset_micros,
+      viewportSize: defaultViewportSize,
+      judgmentOffset: defaultRowSize,
+      lookaheadSeconds: input.lookaheadSeconds,
+    }),
   )
-  const [rowSize, setRowSize] = useState(34)
-  const [viewportSize, setViewportSize] = useState(680)
-  const [scrollTop, setScrollTop] = useState(runwayCenterRow * rowSize)
-  const rowLimit =
-    input.timing.duration === null ? null : timelineRowAtBeat(input.timing, input.timing.duration)
-  const geometryRef = useRef<Geometry>({ originRow, rowSize, viewportSize, rowLimit })
-  geometryRef.current = { originRow, rowSize, viewportSize, rowLimit }
-  const visibleRow = logicalVisibleRow(geometryRef.current, scrollTop)
-  const virtualWindow = useMemo(() => {
-    const viewportRows = Math.max(1, Math.ceil(viewportSize / rowSize))
-    const startRow = Math.max(0, Math.floor(visibleRow) - bufferRows)
-    const requestedEnd = Math.ceil(visibleRow) + viewportRows + bufferRows
-    const endRow = rowLimit === null ? requestedEnd : Math.min(rowLimit + 1, requestedEnd)
-    const rows = Array.from({ length: Math.max(0, endRow - startRow) }, (_, index) => {
-      const row = startRow + index
-      return { index: row, beat: beatAtTimelineRow(input.timing, row) }
-    })
-    return {
-      visibleRow,
-      startRow,
-      rows,
-      offset: (runwayCenterRow + startRow - originRow) * rowSize,
-    }
-  }, [input.timing, originRow, rowLimit, rowSize, viewportSize, visibleRow])
-
-  const centerOnRow = useCallback((row: number) => {
-    const nextRow = Math.max(0, row)
-    const scroller = scrollerRef.current
-    setOriginRow(nextRow)
-    if (scroller === null) return
-    const center = runwayCenterRow * geometryRef.current.rowSize
-    scroller.scrollTop = center
-    setScrollTop(center)
-  }, [])
-
-  const revealBeat = useCallback(
-    (beat: Beat) => {
-      const row = timelineRowAtBeat(input.timing, beat)
-      const rowsVisible = Math.max(1, Math.floor(viewportSize / rowSize))
-      if (row < visibleRow || row >= visibleRow + rowsVisible)
-        centerOnRow(Math.max(0, row - Math.floor(rowsVisible / 3)))
-    },
-    [centerOnRow, input.timing, rowSize, viewportSize, visibleRow],
+  const [geometry, setGeometry] = useState(initialGeometry.current)
+  const [scrollTop, setScrollTop] = useState(
+    AUDIO_TIMELINE_RUNWAY_CENTER - initialGeometry.current.judgmentOffset,
   )
+  const geometryRef = useRef(geometry)
+  geometryRef.current = geometry
 
-  const followRow = useCallback(
-    (row: number) => {
+  const updatePosition = useCallback(
+    (position: { readonly geometry: AudioTimelineGeometry; readonly scrollTop: number }) => {
+      geometryRef.current = position.geometry
       const scroller = scrollerRef.current
-      if (scroller === null) return
-      const geometry = geometryRef.current
-      const targetVisible = boundedVisibleRow(geometry, row - 1)
-      const requested = (runwayCenterRow + targetVisible - geometry.originRow) * geometry.rowSize
-      const physicalRow = requested / geometry.rowSize
-      if (physicalRow < 500 || physicalRow > runwayRows - 500) {
-        centerOnRow(targetVisible)
-        return
-      }
-      scroller.scrollTop = requested
-      setScrollTop(requested)
+      if (scroller !== null) scroller.scrollTop = position.scrollTop
+      setGeometry(position.geometry)
+      setScrollTop(position.scrollTop)
     },
-    [centerOnRow],
+    [],
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current
     if (scroller === null) return
     const resize = () => {
-      const nextRowSize = readRowSize(scroller)
-      const nextViewportSize = scroller.clientHeight
-      const current = geometryRef.current
-      const anchoredRow = logicalVisibleRow(current, scroller.scrollTop)
-      const nextGeometry = { ...current, rowSize: nextRowSize, viewportSize: nextViewportSize }
-      const nextScrollTop = physicalScrollTop(nextGeometry, anchoredRow)
-      if (!initialized.current) initialized.current = true
-      geometryRef.current = nextGeometry
-      scroller.scrollTop = nextScrollTop
-      setRowSize(nextRowSize)
-      setViewportSize(nextViewportSize)
-      setScrollTop(nextScrollTop)
+      const judgmentOffset = readRowSize(scroller)
+      const headerSize =
+        scroller.querySelector(".timeline__header")?.getBoundingClientRect().height ?? 0
+      const viewportSize = Math.max(scroller.clientHeight - headerSize, judgmentOffset + 1)
+      const nextGeometry = audioTimelineGeometry({
+        originAudioMicros: geometryRef.current.originAudioMicros,
+        viewportSize,
+        judgmentOffset,
+        lookaheadSeconds: input.lookaheadSeconds,
+      })
+      const resizePosition =
+        previousLookahead.current === input.lookaheadSeconds
+          ? audioTimelineResizePosition
+          : audioTimelineZoomPosition
+      const position = initialized.current
+        ? resizePosition({
+            geometry: geometryRef.current,
+            scrollTop: scroller.scrollTop,
+            nextViewportSize: viewportSize,
+            nextJudgmentOffset: judgmentOffset,
+            lookaheadSeconds: input.lookaheadSeconds,
+          })
+        : audioTimelineFollowPosition({
+            geometry: nextGeometry,
+            audioMicros: input.timing.offset_micros,
+          })
+      initialized.current = true
+      previousLookahead.current = input.lookaheadSeconds
+      updatePosition(position)
     }
     resize()
     const observer = new ResizeObserver(resize)
@@ -114,83 +108,58 @@ export function useTimelineVirtualScroll(input: VirtualTimelineInput) {
       observer.disconnect()
       window.removeEventListener("resize", resize)
     }
-  }, [])
-
-  useLayoutEffect(() => {
-    if (previousTiming.current === input.timing) return
-    const oldBeat = beatAtTimelineRow(previousTiming.current, Math.floor(visibleRow))
-    previousTiming.current = input.timing
-    centerOnRow(timelineRowAtBeat(input.timing, oldBeat))
-  }, [centerOnRow, input.timing, visibleRow])
+  }, [input.lookaheadSeconds, input.timing.offset_micros, updatePosition])
 
   const onScroll = useCallback(() => {
     const scroller = scrollerRef.current
     if (scroller === null) return
-    const geometry = geometryRef.current
-    const bounded = boundPhysicalScroll(geometry, scroller.scrollTop)
-    if (bounded !== scroller.scrollTop) scroller.scrollTop = bounded
-    const physicalRow = bounded / geometry.rowSize
-    if (physicalRow < 500 || physicalRow > runwayRows - 500) {
-      centerOnRow(logicalVisibleRow(geometry, bounded))
+    const position = audioTimelineRebasePosition({
+      geometry: geometryRef.current,
+      scrollTop: scroller.scrollTop,
+    })
+    if (position.geometry !== geometryRef.current || position.scrollTop !== scroller.scrollTop) {
+      updatePosition(position)
       return
     }
-    setScrollTop(bounded)
-  }, [centerOnRow])
+    setScrollTop(scroller.scrollTop)
+  }, [updatePosition])
+
+  const audioMicrosToY = useCallback(
+    (audioMicros: number) => audioMicrosToPhysicalY(geometryRef.current, audioMicros),
+    [],
+  )
+
+  const audioMicrosAtClientY = useCallback((clientY: number) => {
+    const scroller = scrollerRef.current
+    if (scroller === null) return geometryRef.current.originAudioMicros
+    const headerSize =
+      scroller.querySelector(".timeline__header")?.getBoundingClientRect().height ?? 0
+    const physicalY =
+      scroller.scrollTop + clientY - scroller.getBoundingClientRect().top - headerSize
+    return audioMicrosAtPhysicalY(geometryRef.current, physicalY)
+  }, [])
+
+  const followAudioMicros = useCallback(
+    (audioMicros: number) =>
+      updatePosition(audioTimelineFollowPosition({ geometry: geometryRef.current, audioMicros })),
+    [updatePosition],
+  )
 
   return {
     scrollerRef,
-    virtualWindow,
-    originRow,
-    rowSize,
-    runwaySize: runwayRows * rowSize,
-    revealBeat,
-    followRow,
     onScroll,
+    visibleAudioRange: audioTimelineVisibleRange(geometry, scrollTop),
+    runwaySize: AUDIO_TIMELINE_RUNWAY_SIZE,
+    pixelsPerMicrosecond: geometry.pixelsPerMicrosecond,
+    audioMicrosToY,
+    audioMicrosAtClientY,
+    followAudioMicros,
   }
-}
-
-function logicalVisibleRow(geometry: Geometry, scrollTop: number): number {
-  const requested = geometry.originRow + scrollTop / geometry.rowSize - runwayCenterRow
-  return boundedVisibleRow(geometry, requested)
-}
-
-function boundedVisibleRow(geometry: Geometry, row: number): number {
-  const viewportRows = Math.max(1, Math.ceil(geometry.viewportSize / geometry.rowSize))
-  const maximum =
-    geometry.rowLimit === null
-      ? Number.POSITIVE_INFINITY
-      : Math.max(geometry.rowLimit - viewportRows + 1, 0)
-  return Math.min(Math.max(row, 0), maximum)
-}
-
-function physicalScrollTop(geometry: Geometry, visibleRow: number): number {
-  return boundPhysicalScroll(
-    geometry,
-    (runwayCenterRow + visibleRow - geometry.originRow) * geometry.rowSize,
-  )
-}
-
-function boundPhysicalScroll(geometry: Geometry, scrollTop: number): number {
-  const physicalMaximum = Math.max(runwayRows * geometry.rowSize - geometry.viewportSize, 0)
-  const minimum = Math.min(
-    Math.max((runwayCenterRow - geometry.originRow) * geometry.rowSize, 0),
-    physicalMaximum,
-  )
-  if (geometry.rowLimit === null) return Math.min(Math.max(scrollTop, minimum), physicalMaximum)
-  const maximum = Math.min(
-    physicalScrollTopForRow(geometry, boundedVisibleRow(geometry, geometry.rowLimit)),
-    physicalMaximum,
-  )
-  return Math.min(Math.max(scrollTop, minimum), Math.max(maximum, minimum))
-}
-
-function physicalScrollTopForRow(geometry: Geometry, row: number): number {
-  return (runwayCenterRow + row - geometry.originRow) * geometry.rowSize
 }
 
 function readRowSize(scroller: HTMLElement): number {
   const parsed = Number.parseFloat(
     getComputedStyle(scroller).getPropertyValue("--timeline-row-size"),
   )
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 34
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultRowSize
 }

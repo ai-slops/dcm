@@ -7,10 +7,8 @@ import type { ProjectGenerationResult } from "../../shared/project-commands.ts"
 import type { ComponentId } from "../../shared/project-identities.ts"
 import { libraryApi } from "../api/library-client.ts"
 import { placeBeatHold, toggleBeatPanel } from "../domain/beat-editor.ts"
-import { validateRowsPerMeasureChange } from "../domain/beat-timeline.ts"
 import {
   beatPlaybackProjectFor,
-  projectAutomaticExtent,
   replaceBeatHybridRules,
   timingWithProjectInformation,
 } from "../domain/project-grid.ts"
@@ -18,7 +16,6 @@ import { AutomaticRegionsEditor } from "./AutomaticRegionsEditor.tsx"
 import { browserAudioPlaybackEnvironmentFor } from "./audioPlaybackEnvironment.ts"
 import { ProjectFragmentLibrary } from "./ProjectFragmentLibrary.tsx"
 import { ProjectGeneratePanel } from "./ProjectGeneratePanel.tsx"
-import { ProjectInformationEditor } from "./ProjectInformationEditor.tsx"
 import { ProjectRuleConversion } from "./ProjectRuleConversion.tsx"
 import { Badge, Button } from "./primitives.tsx"
 import { Timeline } from "./Timeline.tsx"
@@ -34,6 +31,7 @@ export function ProjectGridEditor(props: {
   readonly song: LibrarySong
   readonly onApplyFragment: (componentId: ComponentId, anchor: Beat) => void
   readonly onGenerate: (name: string, seed: string) => void
+  readonly onOpenGenerated: () => void
   readonly onProject: (project: GenerationProjectV2) => void
   readonly onPublishFragment: (name: string, start: Beat, end: Beat) => void
   readonly onSave: () => void
@@ -85,9 +83,6 @@ export function ProjectGridEditor(props: {
       <section className="project-grid-toolbar" aria-label="Project save status">
         <div className="project-grid-toolbar__identity">
           <strong>{props.project.name}</strong>
-          <span>
-            {props.song.title} · {props.song.artist}
-          </span>
         </div>
         <Badge tone={props.dirty ? "warning" : "success"}>
           {props.dirty ? "Unsaved project draft" : `Saved revision ${props.project.revision}`}
@@ -101,11 +96,6 @@ export function ProjectGridEditor(props: {
       ) : (
         <div className="project-grid-workspace">
           <div className="project-grid-canvas project-grid-timeline">
-            {props.project.mode === "Double" ? (
-              <p className="project-grid-scroll-cue" role="note">
-                Scroll sideways inside the grid to reach all 10 lanes.
-              </p>
-            ) : null}
             <Timeline
               notes={notes}
               timing={props.project.timing}
@@ -119,22 +109,15 @@ export function ProjectGridEditor(props: {
                   updateNotes(placeBeatHold(notes, props.project.timing, head, tail, lane)),
                 )
               }
-              onRowsPerMeasureChange={(at, rowsPerMeasure) =>
-                edit(() => {
-                  const result = validateRowsPerMeasureChange(
-                    props.project.timing,
-                    notes,
-                    at,
-                    rowsPerMeasure,
-                  )
-                  if (result.kind === "error") throw new ProjectGridInputError(result.message)
+              onTimingChange={(timing) =>
+                edit(() =>
                   props.onProject(
                     timingWithProjectInformation(props.project, {
                       chartArtist: props.project.chart_artist,
-                      timing: result.timing,
+                      timing,
                     }),
-                  )
-                })
+                  ),
+                )
               }
               automaticRegions={rules.regions.map((region) => ({
                 id: region.id,
@@ -145,21 +128,7 @@ export function ProjectGridEditor(props: {
               regionsReadOnly
             />
           </div>
-          <aside
-            className="project-grid-inspector"
-            aria-label="Project information, automatic regions, and fragment controls"
-          >
-            <ProjectInformationEditor
-              automaticExtent={projectAutomaticExtent(props.project)}
-              chartArtist={props.project.chart_artist}
-              disabled={props.busy}
-              notes={notes}
-              songArtist={props.song.artist}
-              timing={props.project.timing}
-              onChange={(change) =>
-                edit(() => props.onProject(timingWithProjectInformation(props.project, change)))
-              }
-            />
+          <aside className="project-grid-sidebar" aria-label="Project authoring controls">
             <AutomaticRegionsEditor disabled={props.busy} rules={rules} onChange={updateRules} />
             <ProjectFragmentLibrary
               busy={props.busy || props.dirty}
@@ -172,6 +141,7 @@ export function ProjectGridEditor(props: {
               dirty={props.dirty}
               generation={props.generation}
               onGenerate={props.onGenerate}
+              onOpen={props.onOpenGenerated}
             />
           </aside>
         </div>
@@ -184,8 +154,4 @@ export function ProjectGridEditor(props: {
       <Transport project={playbackProject} playback={playback} />
     </section>
   )
-}
-
-class ProjectGridInputError extends Error {
-  override readonly name = "ProjectGridInputError"
 }

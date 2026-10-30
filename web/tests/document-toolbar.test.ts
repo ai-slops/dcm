@@ -71,13 +71,13 @@ function renderToolbar(status: string, dirty: boolean): string {
   return renderToStaticMarkup(
     createElement(DocumentToolbar, {
       bootstrap,
+      document: bootstrap.document,
       project,
       revision,
       dirty,
       status,
       canUndo: false,
       canRedo: false,
-      setProject: () => undefined,
       undo: () => undefined,
       redo: () => undefined,
       save: () => Promise.resolve(null),

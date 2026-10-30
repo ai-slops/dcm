@@ -3,11 +3,13 @@ import { useState } from "react"
 import type {
   BeatChartDocument,
   ChartProposal,
+  CurrentDocument,
   EvaluationResponse,
   NativeCapability,
   Revision,
 } from "../../shared/index.ts"
 import {
+  beatOutputContextFor,
   nativeEvaluationExtentCapability,
   projectBeatChartNative,
   resolveChartOutputTiming,
@@ -20,6 +22,7 @@ import { Button } from "./primitives.tsx"
 type NativeActionsProps = {
   readonly csrfToken: string
   readonly dirty: boolean
+  readonly document: CurrentDocument
   readonly nativeMessage: string
   readonly nativeReady: boolean
   readonly open: boolean
@@ -52,8 +55,13 @@ export function NativeActionsDialog(props: NativeActionsProps) {
     timing: props.project.timing,
     notes: props.project.notes,
   }
-  const projection = projectBeatChartNative(chart, digestBytes(props.project.audio_sha256))
-  const outputTiming = resolveChartOutputTiming(chart)
+  const outputContext = beatOutputContextFor(props.document)
+  const projection = projectBeatChartNative(
+    chart,
+    digestBytes(props.project.audio_sha256),
+    outputContext,
+  )
+  const outputTiming = resolveChartOutputTiming(chart, outputContext)
   const evaluationCapability =
     outputTiming === null || outputTiming.duration === null
       ? null

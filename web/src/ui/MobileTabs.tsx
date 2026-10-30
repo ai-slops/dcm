@@ -1,4 +1,4 @@
-const mobileTabs = ["editor", "preview", "agent"] as const
+const mobileTabs = ["editor", "agent"] as const
 
 export type MobileTab = (typeof mobileTabs)[number]
 
