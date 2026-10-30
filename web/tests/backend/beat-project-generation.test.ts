@@ -54,7 +54,6 @@ describe("beat-native project generation", () => {
         song_id: song.id,
         mode: source.mode,
         name: "Generate beats",
-        chart_artist: "Generator Author",
         base_ucs_ref: { source: "saved_chart", chart_id: chart.id },
         timing: source.timing,
         evaluation_contract: source.evaluation_contract,
@@ -80,7 +79,7 @@ describe("beat-native project generation", () => {
 
     // Then
     expect(stored.project).toMatchObject({
-      chart_artist: "Generator Author",
+      chart_artist: null,
       notes: [{ at: { numerator: 0, denominator: 1 }, panel_mask: 1 }],
     })
     expect(JSON.stringify(stored.project)).not.toMatch(/(?:ticks_per_beat|_tick|_ticks)"/)

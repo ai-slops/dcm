@@ -20,7 +20,7 @@ export function buildAgentPrompt(snapshot: AgentRunSnapshot): string {
     `<project-context>${context}</project-context>`,
     "Generation projects and reusable components are live durable records. The concrete chart document is separate from a rule project. Authoring uses exact reduced beat fractions, never global ticks.",
     "Use list_songs to discover song IDs, then list_base_sources to choose an actual server-issued timing reference before creating a project. Use read_chart to inspect saved inactive generated charts.",
-    "Creating a project requires an explicit base timing reference and chart artist; the song artist is not the chart artist. Editor split means rows per four-beat measure, not the UCS per-beat Split field.",
+    "Creating a project requires an explicit base timing reference, not guessed song metadata. Stored legacy metadata is not authoritative. Editor split is a local placement subdivision and never rewrites existing notes or source timing grids.",
     "Note fragments use relative beat positions. Publish a beat range and apply at an exact beat anchor without changing BPM, silently snapping, or overwriting occupied cells.",
     "Project writes require the run's explicit permission and current revisions. Generated result charts stay inactive and never replace the editor.",
     snapshot.prompt,

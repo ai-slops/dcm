@@ -88,7 +88,7 @@ export class ProjectAgentTools {
   listSongs() {
     this.#assertActive()
     return {
-      songs: this.#options.service.songs().map(({ id, title, artist }) => ({ id, title, artist })),
+      songs: this.#options.service.songs().map(({ id, title }) => ({ id, title })),
     }
   }
 
@@ -114,7 +114,11 @@ export class ProjectAgentTools {
   }
 
   createProject(input: CommandInput<"create_project">, signal?: AbortSignal) {
-    return this.#command({ type: "create_project", ...input }, "project", signal)
+    return this.#command(
+      { type: "create_project", ...input, chart_artist: input.chart_artist ?? null },
+      "project",
+      signal,
+    )
   }
 
   writeProject(input: CommandInput<"write_project">, signal?: AbortSignal) {

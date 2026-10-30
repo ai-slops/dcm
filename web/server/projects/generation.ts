@@ -28,12 +28,6 @@ export async function generateProject(
   expectProjectRevision(project, command.base_revision)
   const song = store.library().songs.find((candidate) => candidate.id === project.song_id)
   if (song === undefined) throw new StudioError(404, "song_not_found", "Song was not found")
-  if (project.chart_artist === null)
-    throw new StudioError(
-      409,
-      "chart_artist_required",
-      "Generation requires an explicit chart artist",
-    )
   const audio = await store.songAudio(song.id)
   const projection = projectBeatGenerationNative(project)
   if (projection.kind === "unsupported")

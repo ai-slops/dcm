@@ -58,6 +58,21 @@ describe("beat-native agent project inputs", () => {
     expect(result.success).toBe(false)
   })
 
+  it("does not require guessed authorship metadata for project creation", () => {
+    const project = fullProject()
+    const parsed = CreateProjectInput.parse({
+      name: project.name,
+      song_id: project.song_id,
+      mode: project.mode,
+      base_ucs_ref: { source: "saved_chart", chart_id: "00000000-0000-4000-8000-000000000003" },
+      timing: project.timing,
+      evaluation_contract: project.evaluation_contract,
+      generation_rules: project.generation_rules,
+    })
+
+    expect(parsed.chart_artist).toBeNull()
+  })
+
   it("accepts a beat range when publishing a note fragment", () => {
     // Given
     const project = fullProject()

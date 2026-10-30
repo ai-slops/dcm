@@ -38,7 +38,7 @@ export const ProjectCommandSchema = z.discriminatedUnion("type", [
       mode: UcsModeSchema,
       base_ucs_ref: BaseUcsRefSchema,
       ...MutableProjectFields,
-      chart_artist: LibraryLabelSchema,
+      chart_artist: LibraryLabelSchema.nullable().default(null),
     })
     .readonly(),
   z

@@ -46,7 +46,7 @@ export const CreateProjectInput = z
     ...mutableFields,
     song_id: SongIdSchema,
     mode: UcsModeSchema,
-    chart_artist: LibraryLabelSchema,
+    chart_artist: LibraryLabelSchema.nullable().default(null),
     base_ucs_ref: BaseUcsRefSchema,
   })
   .readonly()
@@ -131,11 +131,7 @@ const MutationReceiptOutput = z.union([
 const SongListOutput = z
   .strictObject({
     songs: z
-      .array(
-        z
-          .strictObject({ id: SongIdSchema, title: LibraryLabelSchema, artist: LibraryLabelSchema })
-          .readonly(),
-      )
+      .array(z.strictObject({ id: SongIdSchema, title: LibraryLabelSchema }).readonly())
       .max(64)
       .readonly(),
   })

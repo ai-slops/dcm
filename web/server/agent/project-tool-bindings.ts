@@ -70,8 +70,7 @@ export function createProjectToolBindings(
     }),
     functionTool({
       id: "create_project",
-      description:
-        "Create a durable beat-native project with an explicit base timing reference and chart artist.",
+      description: "Create a durable beat-native project with an explicit base timing reference.",
       input: partSchema("pump-studio/create-project-input", CreateProjectInput),
       output: ProjectMutationReceiptSchema,
       effects: "write",
