@@ -1,5 +1,6 @@
 import { strToU8, zipSync } from "fflate"
 
+import { beatOutputContextFor } from "../../shared/beat-output.ts"
 import type { SongId } from "../../shared/library.ts"
 import { StudioError } from "../errors.ts"
 import type { NativeBeatUcsService } from "../native/beat-ucs.ts"
@@ -27,6 +28,11 @@ export async function exportSongArchive(
           mode: document.project.mode,
         },
         signal,
+        beatOutputContextFor(
+          document.chart.generated_from === undefined
+            ? {}
+            : { origin: document.chart.generated_from },
+        ),
       ),
     ),
   )

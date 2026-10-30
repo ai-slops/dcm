@@ -1,10 +1,10 @@
-import { addBeats, type Beat, compareBeats } from "../../shared/beat.ts"
+import type { Beat } from "../../shared/beat.ts"
 import {
   type NativeCapability,
   nativeEvaluationExtentCapability,
   nativeTicksPerBeatFor,
 } from "../../shared/beat-native-capability.ts"
-import { timingAtOutputExtent } from "../../shared/beat-output.ts"
+import { automaticBeatOutputExtent, timingAtOutputExtent } from "../../shared/beat-output.ts"
 import type { GenerationProjectV2 } from "../../shared/beat-projects.ts"
 import type { GenerationProject } from "../../shared/generation-projects.ts"
 import {
@@ -27,7 +27,17 @@ export type BeatProjectNativeProjection =
 export function projectBeatGenerationNative(
   project: GenerationProjectV2,
 ): BeatProjectNativeProjection {
-  const duration = project.timing.duration ?? automaticProjectDuration(project)
+  const duration =
+    project.timing.duration ??
+    automaticBeatOutputExtent({
+      timing: project.timing,
+      notes:
+        project.generation_rules.schema_version === 1 ? [] : project.generation_rules.fixed_notes,
+      automatic_region_ends:
+        project.generation_rules.schema_version === 1
+          ? [project.generation_rules.end]
+          : project.generation_rules.regions.map((region) => region.rules.end),
+    })
   if (duration === null)
     return { kind: "unsupported", capability: { code: "native_duration_unresolved" } }
   const outputTiming = timingAtOutputExtent(project.timing, duration)
@@ -37,10 +47,7 @@ export function projectBeatGenerationNative(
   )
   if (evaluationCapability !== null)
     return { kind: "unsupported", capability: evaluationCapability }
-  const nativeGrid = nativeTicksPerBeatFor(
-    projectBeats(project, outputTiming),
-    outputTiming.grid_sections.map((section) => section.rows_per_measure),
-  )
+  const nativeGrid = nativeTicksPerBeatFor(projectBeats(project, outputTiming))
   if (nativeGrid.kind === "unsupported") return nativeGrid
   const ticksPerBeat = nativeGrid.ticks_per_beat
   const durationTicks = beatToTicks(duration, ticksPerBeat)
@@ -100,26 +107,8 @@ function projectBeats(
   return [
     ...(timing.duration === null ? [] : [timing.duration]),
     ...timing.tempo.map((segment) => segment.at),
-    ...timing.grid_sections.map((section) => section.at),
     ...timing.reference_accents,
     ...ruleBeats(project.generation_rules),
     ...evaluationBeats(project.evaluation_contract),
   ]
-}
-
-function automaticProjectDuration(project: GenerationProjectV2): Beat | null {
-  if (project.generation_rules.schema_version === 1) return project.generation_rules.end
-  let extent: Beat | null = null
-  for (const region of project.generation_rules.regions)
-    if (extent === null || compareBeats(region.rules.end, extent) > 0) extent = region.rules.end
-  for (const note of project.generation_rules.fixed_notes) {
-    const end = addBeats(note.at, note.hold)
-    const grid = [...project.timing.grid_sections]
-      .reverse()
-      .find((section) => compareBeats(section.at, end) <= 0)
-    if (grid === undefined) continue
-    const padded = addBeats(end, { numerator: 4, denominator: grid.rows_per_measure })
-    if (extent === null || compareBeats(padded, extent) > 0) extent = padded
-  }
-  return extent
 }

@@ -1,3 +1,4 @@
+import type { BeatOutputContext } from "../../shared/beat-output.ts"
 import type {
   AgentRunSnapshot,
   AgentWriteAccess,
@@ -26,17 +27,20 @@ export type NativeOperations = {
   readonly evaluate: (
     project: CurrentDocument["project"],
     signal?: AbortSignal,
+    context?: BeatOutputContext,
   ) => Promise<EvaluationResponse>
   readonly generate: (
     project: CurrentDocument["project"],
     audio: AudioRecord,
     seed: string,
     signal?: AbortSignal,
+    context?: BeatOutputContext,
   ) => Promise<NativeChart>
   readonly validateUcs?: (
     project: CurrentDocument["project"],
     mode: "Single" | "Double",
     signal?: AbortSignal,
+    context?: BeatOutputContext,
   ) => Promise<{
     readonly valid: true
     readonly mode: "Single" | "Double"

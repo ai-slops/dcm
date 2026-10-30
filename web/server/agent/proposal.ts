@@ -1,3 +1,4 @@
+import { beatOutputContextFor } from "../../shared/beat-output.ts"
 import {
   type ChartProposal,
   ChartProposalSchema,
@@ -19,7 +20,7 @@ export function buildAgentProposal(
 ): ChartProposal {
   const chart = canonicalizeChart(input.chart)
   assertEditableChart(chart)
-  const frozen = nativeDocumentFor(document.project)
+  const frozen = nativeDocumentFor(document.project, beatOutputContextFor(document))
   const project = StudioProjectV1Schema.parse({
     ...frozen,
     chart,

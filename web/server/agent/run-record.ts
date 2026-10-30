@@ -1,3 +1,4 @@
+import { beatOutputContextFor } from "../../shared/beat-output.ts"
 import {
   type AgentRunSnapshot,
   AgentRunSnapshotSchema,
@@ -142,20 +143,25 @@ export class RunRecord {
               }),
             }),
         evaluateChart: (signal) =>
-          this.#dependencies.native.evaluate(this.document.project, signal),
+          this.#dependencies.native.evaluate(
+            this.document.project,
+            signal,
+            beatOutputContextFor(this.document),
+          ),
         generateVariant: (seed, signal) =>
           this.#dependencies.native.generate(
             this.document.project,
             this.#dependencies.audio,
             seed,
             signal,
+            beatOutputContextFor(this.document),
           ),
         validateUcs: async (mode, signal) => {
           const validate = this.#dependencies.native.validateUcs
           if (validate === undefined) {
             throw new StudioError(503, "ucs_unavailable", "Native UCS validation is unavailable")
           }
-          return validate(this.document.project, mode, signal)
+          return validate(this.document.project, mode, signal, beatOutputContextFor(this.document))
         },
         proposeChart: (proposal, signal) => this.#proposals.create(proposal, signal),
         onToolState: (toolId, state, detail) => {

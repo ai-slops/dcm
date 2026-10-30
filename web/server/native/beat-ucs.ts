@@ -10,7 +10,11 @@ import {
   BeatNoteSchema,
   BeatSchema,
 } from "../../shared/beat.ts"
-import { resolveChartOutputTiming } from "../../shared/beat-output.ts"
+import { type BeatOutputContext, resolveChartOutputTiming } from "../../shared/beat-output.ts"
+import {
+  synthesizeUcsGridSections,
+  type UcsOutputCapability,
+} from "../../shared/beat-ucs-output.ts"
 import { FractionSchema, NonNegativeIntegerSchema } from "../../shared/native.ts"
 import { UcsModeSchema } from "../../shared/project.ts"
 import { StudioError } from "../errors.ts"
@@ -69,8 +73,12 @@ export class NativeBeatUcsService {
     })
   }
 
-  export(chart: BeatChartCore, signal?: AbortSignal): Promise<Uint8Array> {
-    const source = beatUcsDocumentFor(chart)
+  export(
+    chart: BeatChartCore,
+    signal?: AbortSignal,
+    context: BeatOutputContext = {},
+  ): Promise<Uint8Array> {
+    const source = beatUcsDocumentFor(chart, context)
     return withWorkspace(async (root) => {
       const input = resolve(root, "chart.json")
       const output = resolve(root, "chart.ucs")
@@ -97,26 +105,49 @@ export class NativeBeatUcsService {
   }
 }
 
-export function beatUcsDocumentFor(chart: BeatChartCore): z.infer<typeof NativeBeatUcsSchema> {
+export function beatUcsDocumentFor(
+  chart: BeatChartCore,
+  context: BeatOutputContext = {},
+): z.infer<typeof NativeBeatUcsSchema> {
   const source = BeatChartCoreSchema.parse(chart)
-  const outputTiming = resolveChartOutputTiming(source)
+  const outputTiming = resolveChartOutputTiming(source, context)
   if (outputTiming === null || outputTiming.duration === null)
     throw new StudioError(
       422,
       "empty_auto_extent",
       "Automatic UCS extent requires at least one note",
     )
-  assertUcsRowBudget(outputTiming, outputTiming.duration)
+  const grid = synthesizeUcsGridSections(outputTiming, source.notes, outputTiming.duration)
+  if (grid.kind === "unsupported") throw ucsCapabilityError(grid.capability)
+  const ucsTiming = { ...outputTiming, grid_sections: grid.grid_sections }
+  assertUcsRowBudget(ucsTiming, outputTiming.duration)
   return NativeBeatUcsSchema.parse({
     mode: source.mode,
     offset_micros: outputTiming.offset_micros,
     tempo: outputTiming.tempo,
-    grid_sections: outputTiming.grid_sections,
+    grid_sections: grid.grid_sections,
     duration: outputTiming.duration,
     notes: source.notes,
     audio_sha256: Array.from({ length: 32 }, () => 0),
     reference_accents: [],
   })
+}
+
+function ucsCapabilityError(capability: UcsOutputCapability): StudioError {
+  switch (capability.code) {
+    case "ucs_split_unsupported":
+      return new StudioError(
+        422,
+        capability.code,
+        `Exact UCS output requires ${capability.required_split} rows per beat in section ${capability.section_start.numerator}/${capability.section_start.denominator}-${capability.section_end.numerator}/${capability.section_end.denominator}; limit ${capability.limit}`,
+      )
+    case "ucs_section_limit":
+      return new StudioError(
+        422,
+        capability.code,
+        `Exact UCS output requires ${capability.value} sections; limit ${capability.limit}`,
+      )
+  }
 }
 
 export function parseBeatUcsImport(output: string): BeatChartCore {

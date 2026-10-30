@@ -37,15 +37,8 @@ export type NativeTicksPerBeatResult =
   | { readonly kind: "supported"; readonly ticks_per_beat: bigint }
   | { readonly kind: "unsupported"; readonly capability: NativeGridUnsupported }
 
-export function nativeTicksPerBeatFor(
-  beats: readonly Beat[],
-  rowsPerMeasure: readonly number[],
-): NativeTicksPerBeatResult {
+export function nativeTicksPerBeatFor(beats: readonly Beat[]): NativeTicksPerBeatResult {
   let required = 1n
-  for (const rows of rowsPerMeasure) {
-    required = leastCommonMultiple(required, BigInt(rows) / greatestCommonDivisor(BigInt(rows), 4n))
-    if (required > NATIVE_TPB_LIMIT) return gridUnsupported(required)
-  }
   for (const beat of beats) {
     required = leastCommonMultiple(required, BigInt(beat.denominator))
     if (required > NATIVE_TPB_LIMIT) return gridUnsupported(required)

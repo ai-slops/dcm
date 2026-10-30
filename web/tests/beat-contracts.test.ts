@@ -219,7 +219,7 @@ describe("beat-native contracts", () => {
     expect(result.success).toBe(false)
   })
 
-  it("aligns notes to each section origin instead of a global row grid", () => {
+  it("accepts exact notes independently of imported grid hints", () => {
     // Given
     const sectionTiming = {
       ...timing,
@@ -241,7 +241,7 @@ describe("beat-native contracts", () => {
       timing: sectionTiming,
       notes: [
         {
-          at: { numerator: 7, denominator: 12 },
+          at: { numerator: 7, denominator: 20 },
           hold: zero,
           panel_mask: 1,
         },

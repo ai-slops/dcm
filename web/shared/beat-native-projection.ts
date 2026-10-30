@@ -11,7 +11,7 @@ import {
   type NativeLimitUnsupported,
   nativeTicksPerBeatFor,
 } from "./beat-native-capability.ts"
-import { resolveChartOutputTiming } from "./beat-output.ts"
+import { type BeatOutputContext, resolveChartOutputTiming } from "./beat-output.ts"
 import {
   canonicalizeChart,
   type NativeChart,
@@ -29,9 +29,10 @@ export type BeatNativeProjection =
 export function projectBeatChartNative(
   input: BeatChartCore,
   audioSha256: readonly number[],
+  context: BeatOutputContext = {},
 ): BeatNativeProjection {
   const source = BeatChartCoreSchema.parse(input)
-  const outputTiming = resolveChartOutputTiming(source)
+  const outputTiming = resolveChartOutputTiming(source, context)
   if (outputTiming === null)
     return { kind: "unsupported", capability: { code: "native_duration_unresolved" } }
   const duration = outputTiming.duration
@@ -41,13 +42,9 @@ export function projectBeatChartNative(
     duration,
     ...source.notes.flatMap((note) => [note.at, note.hold]),
     ...outputTiming.tempo.map((segment) => segment.at),
-    ...outputTiming.grid_sections.map((section) => section.at),
     ...outputTiming.reference_accents,
   ]
-  const nativeGrid = nativeTicksPerBeatFor(
-    coordinates,
-    outputTiming.grid_sections.map((section) => section.rows_per_measure),
-  )
+  const nativeGrid = nativeTicksPerBeatFor(coordinates)
   if (nativeGrid.kind === "unsupported") return nativeGrid
   const ticksPerBeat = nativeGrid.ticks_per_beat
   const nativeTicksPerBeat = Number(ticksPerBeat)

@@ -2,14 +2,68 @@ import {
   addBeats,
   type Beat,
   type BeatChartCore,
+  type BeatNote,
   type BeatTiming,
   BeatTimingSchema,
   compareBeats,
 } from "./beat.ts"
 
-export function resolveChartOutputTiming(source: BeatChartCore): BeatTiming | null {
-  const duration = source.timing.duration ?? automaticChartDuration(source)
+export type BeatOutputContext = {
+  readonly automatic_region_ends?: readonly Beat[]
+}
+
+type AutomaticRegionDocument = {
+  readonly origin?:
+    | {
+        readonly automatic_regions: readonly { readonly end: Beat }[]
+      }
+    | undefined
+}
+
+export function beatOutputContextFor(document: AutomaticRegionDocument): BeatOutputContext {
+  return document.origin === undefined
+    ? {}
+    : { automatic_region_ends: document.origin.automatic_regions.map((region) => region.end) }
+}
+
+export function resolveChartOutputTiming(
+  source: BeatChartCore,
+  context: BeatOutputContext = {},
+): BeatTiming | null {
+  const duration =
+    source.timing.duration ??
+    automaticBeatOutputExtent({
+      timing: source.timing,
+      notes: source.notes,
+      ...context,
+    })
   return duration === null ? null : timingAtOutputExtent(source.timing, duration)
+}
+
+export function automaticBeatOutputExtent(input: {
+  readonly timing: BeatTiming
+  readonly notes: readonly BeatNote[]
+  readonly automatic_region_ends?: readonly Beat[]
+}): Beat | null {
+  let occupied: Beat | null = null
+  for (const regionEnd of input.automatic_region_ends ?? [])
+    if (occupied === null || compareBeats(regionEnd, occupied) > 0) occupied = regionEnd
+  for (const note of input.notes) {
+    const end = addBeats(note.at, note.hold)
+    let low = 0
+    let high = input.timing.grid_sections.length
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2)
+      const section = input.timing.grid_sections[middle]
+      if (section !== undefined && compareBeats(section.at, end) <= 0) low = middle + 1
+      else high = middle
+    }
+    const grid = input.timing.grid_sections[low - 1]
+    if (grid === undefined) continue
+    const padded = addBeats(end, { numerator: 4, denominator: grid.rows_per_measure })
+    if (occupied === null || compareBeats(padded, occupied) > 0) occupied = padded
+  }
+  return occupied
 }
 
 export function timingAtOutputExtent(timing: BeatTiming, duration: Beat): BeatTiming {
@@ -22,19 +76,4 @@ export function timingAtOutputExtent(timing: BeatTiming, duration: Beat): BeatTi
       (accent) => compareBeats(accent, duration) < 0,
     ),
   })
-}
-
-function automaticChartDuration(source: BeatChartCore): Beat | null {
-  let occupied: Beat | null = null
-  for (const note of source.notes) {
-    const end = addBeats(note.at, note.hold)
-    if (occupied === null || compareBeats(end, occupied) > 0) occupied = end
-  }
-  if (occupied === null) return null
-  const grid = [...source.timing.grid_sections]
-    .reverse()
-    .find((section) => compareBeats(section.at, occupied) <= 0)
-  return grid === undefined
-    ? null
-    : addBeats(occupied, { numerator: 4, denominator: grid.rows_per_measure })
 }

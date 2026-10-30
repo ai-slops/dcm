@@ -2,10 +2,37 @@ import { describe, expect, it } from "vitest"
 
 import { loadDemo } from "../../server/demo.ts"
 import { migrateLegacyChart } from "../../server/library/legacy-beat-migration.ts"
+import { compatibleEvaluationContract } from "../../server/library/project-factory.ts"
 import { nativeDocumentFor } from "../../server/native/beat-document.ts"
+import { BeatChartDocumentSchema } from "../../shared/beat-projects.ts"
 import { repoRoot } from "../support/paths.ts"
 
 describe("native document boundary", () => {
+  it("stores a direct end after notes while preserving incompatible evaluation semantics for the native boundary", async () => {
+    const demo = await loadDemo(repoRoot)
+    const source = migrateLegacyChart(demo.document.project)
+    const document = BeatChartDocumentSchema.parse({
+      ...source,
+      timing: {
+        ...source.timing,
+        duration: { numerator: 1, denominator: 1 },
+        tempo: source.timing.tempo.slice(0, 1),
+        reference_accents: [],
+      },
+      notes: [
+        {
+          at: { numerator: 1, denominator: 3 },
+          hold: { numerator: 0, denominator: 1 },
+          panel_mask: 1,
+        },
+      ],
+    })
+
+    expect(document.evaluation_contract).toEqual(source.evaluation_contract)
+    expect(() => nativeDocumentFor(document)).toThrowError(
+      expect.objectContaining({ code: "native_evaluation_extent_unsupported" }),
+    )
+  })
   it("includes evaluation beat denominators when projecting exact native coordinates", async () => {
     // Given
     const demo = await loadDemo(repoRoot)
@@ -67,6 +94,34 @@ describe("native document boundary", () => {
     expect(native.music.tempo).toHaveLength(source.timing.tempo.length)
     expect(native.music.reference_accents).toHaveLength(source.timing.reference_accents.length)
     expect(native.music.ticks_per_beat % 127).not.toBe(0)
+    expect(project.timing.duration).toBeNull()
+  })
+
+  it("uses trusted automatic regions for a concrete native document without persisting duration", async () => {
+    // Given
+    const demo = await loadDemo(repoRoot)
+    const source = migrateLegacyChart(demo.document.project)
+    const duration = { numerator: 4, denominator: 1 } as const
+    const project = {
+      ...source,
+      timing: { ...source.timing, duration: null },
+      notes: [
+        {
+          at: { numerator: 3, denominator: 1 },
+          hold: { numerator: 0, denominator: 1 },
+          panel_mask: 1,
+        },
+      ],
+      evaluation_contract: compatibleEvaluationContract(source, duration),
+    }
+    const context = { automatic_region_ends: [duration] }
+
+    // When
+    const native = nativeDocumentFor(project, context)
+
+    // Then
+    expect(native.chart.span_ticks).toBe(native.music.duration_ticks)
+    expect(native.music.duration_ticks / native.music.ticks_per_beat).toBe(4)
     expect(project.timing.duration).toBeNull()
   })
 

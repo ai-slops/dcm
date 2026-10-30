@@ -45,24 +45,81 @@ describe("beat native projection", () => {
     })
   })
 
-  it("returns typed unsupported capability instead of rounding a coprime local grid", () => {
+  it("ignores imported grid hints when semantic coordinates fit the native grid", () => {
     const result = projectBeatChartNative(
       chart([508, 452]),
       Array.from({ length: 32 }, () => 0),
     )
 
-    expect(result).toEqual({
-      kind: "unsupported",
-      capability: { code: "native_grid_unsupported", required_tpb: "14351", limit: 4_096 },
+    expect(result).toMatchObject({
+      kind: "supported",
+      chart: { ticks_per_beat: 3, notes: [{ tick: 1, hold_ticks: 2 }] },
     })
   })
 
-  it("returns a bounded TPB lower bound before visiting later huge denominators", () => {
-    const result = nativeTicksPerBeatFor([beat(1, Number.MAX_SAFE_INTEGER)], [508, 452])
+  it("projects the exclusive automatic region end beyond the final note", () => {
+    // Given
+    const base = chart([4])
+    const source: BeatChartCore = {
+      ...base,
+      timing: { ...base.timing, duration: null },
+      notes: [{ at: beat(3), hold: beat(0), panel_mask: 1 }],
+    }
+
+    // When
+    const result = projectBeatChartNative(
+      source,
+      Array.from({ length: 32 }, () => 0),
+      {
+        automatic_region_ends: [beat(4)],
+      },
+    )
+
+    // Then
+    expect(result).toMatchObject({
+      kind: "supported",
+      chart: { span_ticks: 4 },
+      music: { duration_ticks: 4 },
+    })
+    expect(source.timing.duration).toBeNull()
+  })
+
+  it("projects a region-only automatic chart", () => {
+    // Given
+    const base = chart([4])
+    const source: BeatChartCore = {
+      ...base,
+      timing: { ...base.timing, duration: null },
+      notes: [],
+    }
+
+    // When
+    const result = projectBeatChartNative(
+      source,
+      Array.from({ length: 32 }, () => 0),
+      {
+        automatic_region_ends: [beat(4)],
+      },
+    )
+
+    // Then
+    expect(result).toMatchObject({
+      kind: "supported",
+      chart: { span_ticks: 4, notes: [] },
+      music: { duration_ticks: 4 },
+    })
+  })
+
+  it("returns a bounded TPB requirement from semantic coordinates without rounding", () => {
+    const result = nativeTicksPerBeatFor([beat(1, Number.MAX_SAFE_INTEGER)])
 
     expect(result).toEqual({
       kind: "unsupported",
-      capability: { code: "native_grid_unsupported", required_tpb: "14351", limit: 4_096 },
+      capability: {
+        code: "native_grid_unsupported",
+        required_tpb: Number.MAX_SAFE_INTEGER.toString(),
+        limit: 4_096,
+      },
     })
   })
 

@@ -1,4 +1,4 @@
-import { resolveChartOutputTiming } from "../../shared/beat-output.ts"
+import { type BeatOutputContext, resolveChartOutputTiming } from "../../shared/beat-output.ts"
 import {
   type Beat,
   type BeatChartDocument,
@@ -11,10 +11,14 @@ import {
 export function applyProposalSource(
   current: BeatChartDocument,
   proposal: ChartProposal,
+  context: BeatOutputContext = {},
 ): BeatChartDocument {
   const music = proposal.music
   const source = current.timing
-  const outputEnd = resolveChartOutputTiming(current)?.duration ?? { numerator: 0, denominator: 1 }
+  const outputEnd = resolveChartOutputTiming(current, context)?.duration ?? {
+    numerator: 0,
+    denominator: 1,
+  }
   const timing: BeatTiming =
     music === undefined
       ? source

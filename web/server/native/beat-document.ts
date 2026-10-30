@@ -3,7 +3,7 @@ import {
   nativeEvaluationExtentCapability,
   nativeTicksPerBeatFor,
 } from "../../shared/beat-native-capability.ts"
-import { resolveChartOutputTiming } from "../../shared/beat-output.ts"
+import { type BeatOutputContext, resolveChartOutputTiming } from "../../shared/beat-output.ts"
 import type { BeatChartDocument } from "../../shared/beat-projects.ts"
 import { canonicalizeChart } from "../../shared/native.ts"
 import { type StudioProjectV1, StudioProjectV1Schema } from "../../shared/project.ts"
@@ -22,12 +22,18 @@ export class NativeDocumentUnsupportedError extends Error {
   }
 }
 
-export function nativeDocumentFor(document: BeatChartDocument): StudioProjectV1 {
-  const outputTiming = resolveChartOutputTiming({
-    mode: document.mode,
-    timing: document.timing,
-    notes: document.notes,
-  })
+export function nativeDocumentFor(
+  document: BeatChartDocument,
+  context: BeatOutputContext = {},
+): StudioProjectV1 {
+  const outputTiming = resolveChartOutputTiming(
+    {
+      mode: document.mode,
+      timing: document.timing,
+      notes: document.notes,
+    },
+    context,
+  )
   if (outputTiming === null || outputTiming.duration === null)
     throw new NativeDocumentUnsupportedError({ code: "native_duration_unresolved" })
   const duration = outputTiming.duration
@@ -40,14 +46,10 @@ export function nativeDocumentFor(document: BeatChartDocument): StudioProjectV1 
     duration,
     ...document.notes.flatMap((note) => [note.at, note.hold]),
     ...outputTiming.tempo.map((segment) => segment.at),
-    ...outputTiming.grid_sections.map((section) => section.at),
     ...outputTiming.reference_accents,
     ...evaluationBeats(document.evaluation_contract),
   ]
-  const nativeGrid = nativeTicksPerBeatFor(
-    beats,
-    outputTiming.grid_sections.map((section) => section.rows_per_measure),
-  )
+  const nativeGrid = nativeTicksPerBeatFor(beats)
   if (nativeGrid.kind === "unsupported")
     throw new NativeDocumentUnsupportedError(nativeGrid.capability)
   const ticksPerBeat = nativeGrid.ticks_per_beat

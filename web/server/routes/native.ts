@@ -1,7 +1,8 @@
-import type { BeatChartDocument } from "../../shared/beat-projects.ts"
+import { beatOutputContextFor } from "../../shared/beat-output.ts"
 import {
   BaseRevisionRequestSchema,
   ChartProposalSchema,
+  type CurrentDocument,
   GenerationRequestSchema,
   MAX_SESSION_PROPOSALS,
 } from "../../shared/index.ts"
@@ -16,13 +17,13 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
   app.post("/api/v1/evaluations", async (context) => {
     const request = await parseJson(context, BaseRevisionRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    return context.json(await services.native.evaluate(nativeProject(document.project)))
+    return context.json(await services.native.evaluate(nativeProject(document)))
   })
 
   app.post("/api/v1/generations", async (context) => {
     const request = await parseJson(context, GenerationRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    const native = nativeProject(document.project)
+    const native = nativeProject(document)
     const chart = await services.native.generate(native, services.store.audio(), request.seed)
     const session = context.get("session")
     if (session.proposals.size >= MAX_SESSION_PROPOSALS)
@@ -46,7 +47,7 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
   app.post("/api/v1/exports", async (context) => {
     const request = await parseJson(context, BaseRevisionRequestSchema)
     const document = currentAtRevision(services, request.base_revision)
-    const native = nativeProject(document.project)
+    const native = nativeProject(document)
     const archive = await services.native.export(native, services.store.audio())
     return new Response(Uint8Array.from(archive).buffer, {
       headers: {
@@ -67,7 +68,7 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
       throw new StudioError(409, "proposal_stale", "Proposal was created for another revision")
     }
     const current = currentAtRevision(services, request.base_revision)
-    const project = applyProposalSource(current.project, proposal)
+    const project = applyProposalSource(current.project, proposal, beatOutputContextFor(current))
     const saved = await services.store.save(request.base_revision, project)
     session.proposals.delete(proposal.id)
     services.runs.recordDecision(session, proposal.run_id, {
@@ -94,9 +95,9 @@ export function registerNativeRoutes(app: StudioApp, services: Services): void {
   })
 }
 
-function nativeProject(project: BeatChartDocument) {
+function nativeProject(document: CurrentDocument) {
   try {
-    return nativeDocumentFor(project)
+    return nativeDocumentFor(document.project, beatOutputContextFor(document))
   } catch (error) {
     if (error instanceof NativeDocumentUnsupportedError)
       throw new StudioError(422, error.capability.code, error.message)

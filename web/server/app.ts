@@ -56,15 +56,17 @@ export async function createStudioApp(
     store,
     projects,
     native: {
-      evaluate: (project, signal) => native.evaluate(nativeDocumentFor(project), signal),
-      generate: (project, audio, seed, signal) =>
-        native.generate(nativeDocumentFor(project), audio, seed, signal),
-      validateUcs: async (project, mode, signal) => {
+      evaluate: (project, signal, context) =>
+        native.evaluate(nativeDocumentFor(project, context), signal),
+      generate: (project, audio, seed, signal, context) =>
+        native.generate(nativeDocumentFor(project, context), audio, seed, signal),
+      validateUcs: async (project, mode, signal, context) => {
         if (project.mode !== mode)
           throw new StudioError(409, "chart_mode_immutable", "UCS mode must match the chart")
         const bytes = await beatUcs.export(
           { timing: project.timing, notes: project.notes, mode: project.mode },
           signal,
+          context,
         )
         return { valid: true, mode, byte_length: bytes.byteLength }
       },

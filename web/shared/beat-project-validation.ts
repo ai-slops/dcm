@@ -2,22 +2,17 @@ import type { z } from "zod"
 
 import {
   addBeats,
-  type Beat,
   BeatChartCoreSchema,
   type BeatNote,
   type BeatTiming,
   compareBeats,
-  isGridAligned,
   MAX_BEAT_NOTES,
-  subtractBeats,
 } from "./beat.ts"
-import type { BeatEvaluationContract } from "./beat-evaluation.ts"
 import { type BeatGenerationRules, beatCycleSlotCount } from "./beat-rules.ts"
 
 type BeatProjectValidationInput = {
   readonly mode: "Single" | "Double"
   readonly timing: BeatTiming
-  readonly evaluation_contract: BeatEvaluationContract
   readonly generation_rules: BeatGenerationRules
 }
 
@@ -30,8 +25,6 @@ export function validateBeatNotes(
   context: z.RefinementCtx,
 ): void {
   for (const [index, note] of chart.notes.entries()) {
-    if (!isIntervalAligned(note.at, addBeats(note.at, note.hold), chart.timing))
-      context.addIssue({ code: "custom", path: ["notes", index], message: "note is off grid" })
     if (chart.mode === "Single" && (note.panel_mask & ~0x001f) !== 0)
       context.addIssue({
         code: "custom",
@@ -86,39 +79,14 @@ export function validateBeatGenerationProject(
         path: ["generation_rules", "regions", index],
         message: "generation exceeds duration",
       })
-    if (!isIntervalAligned(cycle.start, cycle.end, project.timing))
-      context.addIssue({
-        code: "custom",
-        path: ["generation_rules", "regions", index],
-        message: "generation range crosses an off-grid section boundary",
-      })
     let slot = cycle.start
     const slotCount = Number(slotCounts[index] ?? 0n)
-    let slotAlignmentReported = false
-    let holdAlignmentReported = false
     let holdExtentReported = false
     for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
-      if (!isPointAligned(slot, project.timing))
-        if (!slotAlignmentReported) {
-          context.addIssue({
-            code: "custom",
-            path: ["generation_rules", "regions", index],
-            message: "generation slot is off grid",
-          })
-          slotAlignmentReported = true
-        }
       const frame = cycle.pattern[slotIndex % cycle.pattern.length]
       if (frame !== undefined)
         for (const choice of frame.choices) {
           const holdTail = addBeats(slot, choice.hold)
-          if (!isIntervalAligned(slot, holdTail, project.timing) && !holdAlignmentReported) {
-            context.addIssue({
-              code: "custom",
-              path: ["generation_rules", "regions", index],
-              message: "generated hold crosses an off-grid section boundary",
-            })
-            holdAlignmentReported = true
-          }
           if (
             rules.schema_version === 2 &&
             compareBeats(holdTail, cycle.end) >= 0 &&
@@ -160,51 +128,4 @@ export function validateBeatGenerationProject(
         message: "fixed notes collide or are not canonical",
       })
   }
-  validateEvaluationDuration(project.timing.duration, project.evaluation_contract, context)
-}
-
-export function validateEvaluationDuration(
-  duration: Beat | null,
-  contract: BeatEvaluationContract,
-  context: z.RefinementCtx,
-): void {
-  if (duration === null) return
-  for (const [index, window] of contract.difficulty.local_windows.entries())
-    if (compareBeats(window.width, duration) > 0)
-      context.addIssue({
-        code: "custom",
-        path: ["evaluation_contract", "difficulty", "local_windows", index],
-        message: "window exceeds duration",
-      })
-  for (const [index, intent] of contract.intents.entries())
-    if (intent.kind.kind === "negative_space" && compareBeats(intent.kind.end, duration) > 0)
-      context.addIssue({
-        code: "custom",
-        path: ["evaluation_contract", "intents", index],
-        message: "intent exceeds duration",
-      })
-}
-
-function isPointAligned(beat: Beat, timing: BeatTiming): boolean {
-  const activeSection = activeGridSection(beat, timing)
-  return (
-    activeSection !== undefined &&
-    isGridAligned(subtractBeats(beat, activeSection.at), activeSection.rows_per_measure)
-  )
-}
-
-function isIntervalAligned(start: Beat, end: Beat, timing: BeatTiming): boolean {
-  return isPointAligned(start, timing) && isPointAligned(end, timing)
-}
-
-function activeGridSection(beat: Beat, timing: BeatTiming) {
-  let low = 0
-  let high = timing.grid_sections.length
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2)
-    const section = timing.grid_sections[middle]
-    if (section !== undefined && compareBeats(section.at, beat) <= 0) low = middle + 1
-    else high = middle
-  }
-  return timing.grid_sections[Math.max(0, low - 1)]
 }

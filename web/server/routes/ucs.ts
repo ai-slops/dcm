@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
-
+import { nativeEvaluationExtentCapability } from "../../shared/beat-native-capability.ts"
+import { beatOutputContextFor } from "../../shared/beat-output.ts"
 import { ApiRoutes, BeatChartDocumentSchema, UcsExportRequestSchema } from "../../shared/index.ts"
 import { StudioError } from "../errors.ts"
 import {
@@ -21,11 +22,15 @@ export function registerUcsRoutes(app: StudioApp, services: Services): void {
     const document = currentAtRevision(services, request.base_revision)
     if (request.mode !== document.project.mode)
       throw new StudioError(409, "chart_mode_immutable", "UCS export mode must match the chart")
-    const bytes = await native.export({
-      timing: document.project.timing,
-      notes: document.project.notes,
-      mode: document.project.mode,
-    })
+    const bytes = await native.export(
+      {
+        timing: document.project.timing,
+        notes: document.project.notes,
+        mode: document.project.mode,
+      },
+      undefined,
+      beatOutputContextFor(document),
+    )
     return new Response(Uint8Array.from(bytes).buffer, {
       headers: {
         "content-type": "text/plain; charset=utf-8",
@@ -67,6 +72,15 @@ export function registerUcsRoutes(app: StudioApp, services: Services): void {
       }
     }
     const imported = await native.import(new Uint8Array(await chart.arrayBuffer()), audio)
+    const evaluationCapability =
+      imported.timing.duration === null
+        ? null
+        : nativeEvaluationExtentCapability(
+            current.project.evaluation_contract,
+            imported.timing.duration,
+          )
+    if (evaluationCapability !== null)
+      throw new StudioError(422, "ucs_project_incompatible", evaluationCapability.message)
     const parsed = BeatChartDocumentSchema.safeParse({
       ...current.project,
       timing: imported.timing,

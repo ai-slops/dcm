@@ -67,13 +67,11 @@ export const BeatTimingSchema = z
   .superRefine((timing, context) => {
     checkOrderedFromZero(
       timing.tempo.map((segment) => segment.at),
-      timing.duration,
       ["tempo"],
       context,
     )
     checkOrderedFromZero(
       timing.grid_sections.map((section) => section.at),
-      timing.duration,
       ["grid_sections"],
       context,
     )
@@ -91,7 +89,7 @@ export const BeatTimingSchema = z
           message: "grid section boundary is off the preceding section grid",
         })
     }
-    checkStrictBeats(timing.reference_accents, timing.duration, ["reference_accents"], context)
+    checkStrictBeats(timing.reference_accents, ["reference_accents"], context)
   })
   .readonly()
 
@@ -202,7 +200,6 @@ function compareNotes(left: BeatNote, right: BeatNote): number {
 
 function checkOrderedFromZero(
   beats: readonly Beat[],
-  duration: Beat | null,
   path: readonly string[],
   context: z.RefinementCtx,
 ): void {
@@ -212,24 +209,20 @@ function checkOrderedFromZero(
       path: [...path],
       message: "sections must start at beat zero",
     })
-  checkStrictBeats(beats, duration, path, context)
+  checkStrictBeats(beats, path, context)
 }
 
 function checkStrictBeats(
   beats: readonly Beat[],
-  duration: Beat | null,
   path: readonly string[],
   context: z.RefinementCtx,
 ): void {
   for (const [index, beat] of beats.entries())
-    if (
-      (index > 0 && compareBeats(beats[index - 1] ?? beat, beat) >= 0) ||
-      (duration !== null && compareBeats(beat, duration) >= 0)
-    )
+    if (index > 0 && compareBeats(beats[index - 1] ?? beat, beat) >= 0)
       context.addIssue({
         code: "custom",
         path: [...path, index],
-        message: "beats must be ordered and in range",
+        message: "beats must be strictly ordered",
       })
 }
 

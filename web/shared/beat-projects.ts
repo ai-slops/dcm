@@ -10,11 +10,7 @@ import {
   MAX_BEAT_NOTES,
 } from "./beat.ts"
 import { BeatEvaluationContractSchema } from "./beat-evaluation.ts"
-import {
-  validateBeatGenerationProject,
-  validateBeatNotes,
-  validateEvaluationDuration,
-} from "./beat-project-validation.ts"
+import { validateBeatGenerationProject, validateBeatNotes } from "./beat-project-validation.ts"
 import { BeatGenerationRulesSchema } from "./beat-rules.ts"
 import { NonNegativeIntegerSchema } from "./native.ts"
 import { AudioAssetSchema, UcsModeSchema } from "./project.ts"
@@ -77,7 +73,6 @@ export const BeatChartDocumentSchema = z
   })
   .superRefine((document, context) => {
     validateBeatNotes(document, context)
-    validateEvaluationDuration(document.timing.duration, document.evaluation_contract, context)
   })
   .readonly()
 
