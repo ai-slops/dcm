@@ -1,9 +1,19 @@
-import type { Beat, BeatChartDocument, Fraction } from "../../shared/index.ts"
-import { addBeats, BeatChartDocumentSchema, BeatSchema, compareBeats } from "../../shared/index.ts"
+import type { Beat, BeatChartDocument, BeatTiming, Fraction } from "../../shared/index.ts"
+import {
+  addBeats,
+  BeatChartDocumentSchema,
+  BeatSchema,
+  BeatTimingSchema,
+  compareBeats,
+} from "../../shared/index.ts"
 import { bpmToMicrosPerBeat } from "./timing-inputs.ts"
 
 export type BeatDocumentEditResult =
   | { readonly kind: "success"; readonly project: BeatChartDocument }
+  | { readonly kind: "error"; readonly message: string }
+
+export type BeatTimingEditResult =
+  | { readonly kind: "success"; readonly timing: BeatTiming }
   | { readonly kind: "error"; readonly message: string }
 
 export type BeatParseResult =
@@ -41,52 +51,73 @@ export function updateTempoMarker(
   index: number,
   atInput: string,
   bpmInput: string,
-): BeatDocumentEditResult {
+): BeatDocumentEditResult
+export function updateTempoMarker(
+  timing: BeatTiming,
+  index: number,
+  atInput: string,
+  bpmInput: string,
+): BeatTimingEditResult
+export function updateTempoMarker(
+  owner: BeatChartDocument | BeatTiming,
+  index: number,
+  atInput: string,
+  bpmInput: string,
+): BeatDocumentEditResult | BeatTimingEditResult {
   const at = parseBeatInput(atInput)
   if (at.kind === "error") return at
   if (index === 0 && at.beat.numerator !== 0)
     return { kind: "error", message: "The base tempo marker must stay at beat zero." }
   const bpm = bpmToMicrosPerBeat(bpmInput)
   if (bpm.kind === "error") return bpm
-  const tempo = project.timing.tempo
+  const timing = timingFor(owner)
+  const tempo = timing.tempo
     .map((segment, current) =>
       current === index ? { at: at.beat, micros_per_beat: bpm.fraction } : segment,
     )
     .sort((left, right) => compareBeats(left.at, right.at))
-  return validatedDocument({ ...project, timing: { ...project.timing, tempo } })
+  return validatedTimingOwner(owner, { ...timing, tempo })
 }
 
 export function addTempoMarker(
   project: BeatChartDocument,
   atInput: string,
   bpmInput: string,
-): BeatDocumentEditResult {
+): BeatDocumentEditResult
+export function addTempoMarker(
+  timing: BeatTiming,
+  atInput: string,
+  bpmInput: string,
+): BeatTimingEditResult
+export function addTempoMarker(
+  owner: BeatChartDocument | BeatTiming,
+  atInput: string,
+  bpmInput: string,
+): BeatDocumentEditResult | BeatTimingEditResult {
   const at = parseBeatInput(atInput)
   if (at.kind === "error") return at
   const bpm = bpmToMicrosPerBeat(bpmInput)
   if (bpm.kind === "error") return bpm
-  return validatedDocument({
-    ...project,
-    timing: {
-      ...project.timing,
-      tempo: [...project.timing.tempo, { at: at.beat, micros_per_beat: bpm.fraction }].sort(
-        (left, right) => compareBeats(left.at, right.at),
-      ),
-    },
+  const timing = timingFor(owner)
+  return validatedTimingOwner(owner, {
+    ...timing,
+    tempo: [...timing.tempo, { at: at.beat, micros_per_beat: bpm.fraction }].sort((left, right) =>
+      compareBeats(left.at, right.at),
+    ),
   })
 }
 
+export function removeTempoMarker(project: BeatChartDocument, index: number): BeatDocumentEditResult
+export function removeTempoMarker(timing: BeatTiming, index: number): BeatTimingEditResult
 export function removeTempoMarker(
-  project: BeatChartDocument,
+  owner: BeatChartDocument | BeatTiming,
   index: number,
-): BeatDocumentEditResult {
+): BeatDocumentEditResult | BeatTimingEditResult {
   if (index === 0) return { kind: "error", message: "The base tempo marker cannot be removed." }
-  return validatedDocument({
-    ...project,
-    timing: {
-      ...project.timing,
-      tempo: project.timing.tempo.filter((_, current) => current !== index),
-    },
+  const timing = timingFor(owner)
+  return validatedTimingOwner(owner, {
+    ...timing,
+    tempo: timing.tempo.filter((_, current) => current !== index),
   })
 }
 
@@ -108,5 +139,20 @@ function validatedDocument(project: BeatChartDocument): BeatDocumentEditResult {
   const parsed = BeatChartDocumentSchema.safeParse(project)
   return parsed.success
     ? { kind: "success", project: parsed.data }
+    : { kind: "error", message: parsed.error.issues[0]?.message ?? "The timing map is invalid." }
+}
+
+function timingFor(owner: BeatChartDocument | BeatTiming): BeatTiming {
+  return "timing" in owner ? owner.timing : owner
+}
+
+function validatedTimingOwner(
+  owner: BeatChartDocument | BeatTiming,
+  timing: BeatTiming,
+): BeatDocumentEditResult | BeatTimingEditResult {
+  if ("timing" in owner) return validatedDocument({ ...owner, timing })
+  const parsed = BeatTimingSchema.safeParse(timing)
+  return parsed.success
+    ? { kind: "success", timing: parsed.data }
     : { kind: "error", message: parsed.error.issues[0]?.message ?? "The timing map is invalid." }
 }
