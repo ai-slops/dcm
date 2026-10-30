@@ -115,26 +115,27 @@ correct `package.json` rather than a global default.
   Double adds the same five lanes on the right pad. Multiple panels at the same beat are represented
   by a shared bit mask. Mode is required and fixed, not an export preference; Single rejects
   right-pad notes at the write boundary as well as hiding unavailable editing lanes.
-- Use **Split (rows per measure)** to choose how many rows divide one four-beat measure, including
-  non-power-of-two values. Note heads and hold tails save as exact reduced beat fractions on that
-  section's grid. Split changes cannot silently move existing notes. Arrow keys move the visible
-  grid cursor; Enter toggles a cell and H places the labelled number of keyboard hold rows.
-  There are no separate Tap/Hold/Erase/Select modes or selected tick/lane form fields.
-- Choose automatic length to continue placing beyond the last note without declaring an end first.
-  An optional explicit duration must not truncate notes or regions. Edit tempo markers in beats.
-  BPM decimals are converted to exact
-  reduced fractions, not rounded to integer microseconds. Shortening that would drop existing data
-  is rejected. Audio offset is in microseconds; positive values place beat zero later in the audio.
+- **Split** is a local placement subdivision: 3 places thirds of a beat and 4 places quarters.
+  Changing it never changes saved notes or their visual audio-time positions. Thirds and quarters
+  coexist in one measure; UCS output refines their common grid to Split 12 without rewriting source.
+  There are no tool modes, previous/next measure controls, keyboard hold-row mode, or Enter/H chart commands.
+- The dashed **Automatic end** line follows the final occupied note/hold or automatic region.
+  Click or drag its handle to set an explicit end; **Use automatic** restores automatic length.
+  Shortening through occupied content is rejected. There is no duration text input.
+- Beat and tempo share one column on the right. Click it to add, update, or remove a tempo marker
+  through a modal. Beat zero remains the non-removable base tempo. BPM decimals convert to exact
+  reduced fractions. **Audio offset (ms)** accepts signed milliseconds with at most three decimal
+  places; storage/native conversion remains exact integer microseconds.
 - Use Undo/Redo, then **Save** to commit the draft. Save is explicit, not automatic. The browser
   warns before leaving a dirty document. Export a JSON copy before abandoning unsaved work.
-- Playback uses the actual audio element's clock. Holds stay active on `[head, tail)`; taps use a
-  120 ms visual pulse after onset. Positive-offset pre-roll does not trigger contacts early.
-  Playback does not move the editing cursor. Play/Pause, Stop, seek, volume, playback rate, and audio
+- Playback uses the actual audio element's clock. Play/Pause, Stop, seek, volume, playback rate, and audio
   looping are available; media failures are shown rather than treated as successful playback.
-- The judgment line stays one rendered row below the top of the grid. Notes and the adjacent tempo
-  gutter scroll together under that fixed line when **Follow audio** is enabled.
+- The judgment line stays one control-row unit below the grid header. Notes, automatic regions,
+  and the right timing column always follow audio together. There is no follow toggle or alternate
+  non-follow mode. While stopped, ordinary scrolling remains available for editing.
 
-The preview is a schematic chart audition, not StepMania rendering or physical-safety validation.
+The editor itself is the chart audition. There is no adjacent chart preview or physical-pad preview.
+This is not StepMania rendering or physical-safety validation.
 Browser timing is floating-point playback timing; the native renderer retains exact supported
 timing when exporting. No audio starts without user interaction.
 
@@ -142,12 +143,12 @@ Use **Segment** in the bottom transport to audition only part of the loaded musi
 end in **audio seconds**, then choose **Play segment**. The end must be after the start and within
 the actual media duration. Playback pauses at that end, or repeats only the interval when **Loop
 selected segment** is checked. This is independent of the transport's whole-song Loop preference.
-The existing offset/tempo projection continues to drive the chart and playfield. Stop, ordinary
+The existing offset/tempo projection continues to drive the editor. Stop, ordinary
 chart seeking, or **Clear segment** exits interval mode; replacing/reloading audio resets it.
-The Segment dialog is also available from the mobile Preview tab.
+The Segment dialog uses the same fixed transport on mobile.
 
-**Preview lookahead** controls the visible future audio-time window, not a generation algorithm.
-Use the numeric field or slider for 0.1–12 seconds in 0.05-second steps, including 0.25 or 0.5
+**Lookahead**, beside Split, controls the editor's visible future audio-time window, not a generation algorithm.
+Use the numeric field for 0.1–12 seconds in 0.05-second steps, including 0.25 or 0.5
 seconds. Temporary invalid text does not replace the last valid projection with a broken clock.
 
 ## Rule projects and the component library
@@ -181,18 +182,19 @@ does not reshuffle an unchanged region's choices.
 New projects require an explicit **Base timing source** selection: an identified retained archive
 UCS entry or one saved chart belonging to the selected song. Offset, piecewise tempo, grid and
 reference accents are copied exactly, not taken from an unrelated open Root editor. Base identity
-is provenance, not a mutable dependency. **Project information** separates chart artist from song
-artist and exposes audio offset, automatic/explicit duration, and beat-positioned split sections.
+is provenance, not a mutable dependency. Offset, local split, lookahead, tempo, and duration are
+edited directly in the common editor. The Chart information tab/rail is removed.
 
-The editor uses a bounded continuous virtual row surface rather than a global tick runway.
-Tempo boundaries change the media-clock-to-beat projection without restarting the scroll position.
+The editor uses a bounded continuous audio-time surface rather than a global tick or source-grid runway.
+Tempo boundaries change the beat-to-audio projection without changing exact source notes.
 Note colors repeat **blue, red, yellow, red, blue** for each five-lane pad. Left/right identity is
 also stated in labels rather than relying on color.
 
 Open **Projects and library** to create a real rule project. Select a background song and explicitly
-choose **Single** or **Double**, a base timing source, and a chart artist. Leaving these unselected
+choose **Single** or **Double** and a base timing source. Leaving these unselected
 cannot create a project. That song and mode
-are immutable for the project. Use another project when either must change.
+are immutable for the project. Use another project when either must change. Song/artist facts are
+not collected or guessed. Audio labels identify files or user-named entries, not verified song metadata.
 
 Projects store editable timing, an evaluation contract, and bounded generation rules. The
 `weighted_cycle_v1` rule repeats a pattern of weighted choices on exact beat rows between an inclusive
@@ -216,7 +218,7 @@ migration never invents generation rules from their note arrays.
 
 For a note fragment, name an exact beat range, then apply the published fragment at a destination
 beat. Multiple notes retain their relative beat positions and hold lengths even when the destination
-BPM differs. Mode, off-grid placement, occupied cells, or automatic-region conflicts reject the
+BPM differs. Mode, occupied cells, or automatic-region conflicts reject the
 entire operation without overwriting destination notes. Save the project draft before publishing
 or applying. A legacy component whose source beat basis cannot be recovered remains read-only;
 the server never guesses its original ticks-per-beat.
@@ -236,7 +238,7 @@ With the managed preview running, from `web/`:
 
 ```sh
 STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/projects-api.mjs
-STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/beat-authoring.mjs
+STUDIO_PROJECTS_QA=1 node --experimental-transform-types tests/browser/streamlined-editor.mjs
 node --experimental-transform-types tests/browser/beat-playback.mjs
 node --experimental-transform-types tests/browser/beat-resize.mjs
 node --experimental-transform-types tests/browser/projects-ui.mjs
@@ -304,12 +306,9 @@ requirement to arrange downloads or files manually outside the app:
   cancel when the editor has unsaved changes. Metadata-only management does not replace the
   browser draft. Revision conflicts preserve that draft and require refreshing the library.
 
-**Chart previews** opens `/previews`. Choose a stored song and chart to exercise the reusable
-scrolling player, physical pads, read-only timeline, transport, and UI primitives. The player uses
-that song's actual stored audio, tempo map, offset, taps, and holds. **First note** seeks without
-autoplay. A song without audio explicitly disables playback; no silent substitute is supplied.
-`/previews?chart=<chart-id>` links directly to a stored chart without switching the Studio's active
-project. Native timing is retained even when the real audio is shorter than the chart's blank tail.
+Open a saved chart in the common editor to audition it with its actual stored audio, tempo, and
+offset. The old `/previews` gallery, scrolling-player fork, and physical-pad views are removed.
+A song without audio explicitly disables playback; no silent substitute is supplied.
 
 The song/chart catalog is bounded to 64 songs, 128 charts, and 32 retained archives. ZIP decompression uses
 the same limits described below. Private imported examples, music, ZIPs, recovery data, and browser
@@ -321,14 +320,13 @@ With the managed preview running, from `web/`:
 
 ```sh
 node --experimental-transform-types tests/browser/library-workflows.mjs
-STUDIO_LIBRARY_CHART_ID=<stored-chart-id> node --experimental-transform-types tests/browser/library-preview.mjs
 STUDIO_LIVE_LIBRARY=1 STUDIO_SAMPLE_UCS_FILE=/absolute/path/to/private-example.ucs \
   node --experimental-transform-types tests/browser/library-live-source.mjs
 ```
 
 The first creates and removes only a temporary song and restores the prior active chart. Do not
-edit the shared Studio concurrently. The second checks real audio/first-note/hold behavior and all
-five component views at desktop, tablet, and phone widths without changing the active project.
+edit the shared Studio concurrently. The streamlined-editor and beat-playback checks exercise
+the single editor at desktop, tablet, and phone widths.
 The opt-in public-source check downloads CS839 and retains its imported song and supplied private
 example as separate charts for inspection. It verifies the downloaded package/music hashes and
 native chart/timing equality. It does not bundle or commit the example or music. Browser evidence
@@ -347,11 +345,10 @@ with revision protection. It preserves title, artist, and the current evaluation
 incompatible contract bounds rather than changing them silently. An imported chart cannot silently
 change the current chart's mode; use the song's chart-import workflow for a separate result.
 
-The same grid, physical pads, and media transport visualize imported UCS. **Follow audio** pages
-the bounded timeline from the real audio clock without moving the editing cursor. Selecting or
-paging the editor disables follow until you enable it again. Beat, active BPM, song time, and signed
-offset provide timing context. Display remains at native one-tick resolution even with coarse edit
-snapping, so existing off-grid taps and hold endpoints never disappear. The audio clock is clamped
+The same editor and media transport visualize imported UCS. The bounded audio-time view always
+follows the real audio clock; pointer focus or wheel events do not enter a separate mode.
+The right Beat/Tempo column and millisecond offset provide timing context. Existing note and hold
+positions remain exact and visible even when the local placement split changes. The audio clock is clamped
 to real media duration, even if a chart is longer than the selected audio.
 
 See [UCS format profile, exactness limits, native commands, references, and tests](ucs.md).

@@ -33,21 +33,22 @@ The v2 `pump chart` path additionally implements all six feedback-grade domains:
 
 ## Local web studio
 
-- Beat-native chart editor with direct tap/hold gestures, section-local measure splits, timing controls, undo/redo, explicit revisioned
+- Beat-native chart editor with direct tap/hold gestures, local placement splits, timing controls, undo/redo, explicit revisioned
   saves, audio-clock preview, and portable project/audio import.
 - Native finite-model evaluation, review-only deterministic generation, and edited SSC ZIP export
   that explicitly carries no verified-bundle certification.
 - Durable song/chart catalog with Studio-owned public Pump Pro+ catalogue search/download,
   original-ZIP retention, guarded chart management, shared per-song audio, and saved-song ZIP export.
-  Production `/previews` exercises stored charts with actual music and reusable component views.
+  The common editor is the audio-follow preview; the old preview/pad/gallery stack is removed.
 - Generation-rule projects are separate from chart outputs. Required immutable Single/Double modes
   constrain generation and chart writes; reusable timing/evaluation/generator components copy across
   projects. A bounded seeded native rule generator produces uncertified, assessed chart results for
   the selected song without replacing the existing certified author/runtime bundle path.
-- StoreV4 persists exact reduced beat positions rather than global tick authoring. Project information
-  separates chart artist, audio offset and automatic/explicit duration; creation requires an explicit
+- StoreV4 persists exact reduced beat positions rather than global tick authoring. The editor toolbar
+  exposes local split, lookahead and millisecond offset; creation requires an explicit
   base timing source. Beat-relative multi-note fragments can be reused across different BPMs without
-  resampling. The fixed judgment line and neighboring tempo gutter share the real audio-clock scroll.
+  resampling. A direct end line replaces duration text fields, and a single right Beat/Tempo column
+  opens tempo modals. The fixed judgment line and editor always share the real audio-clock scroll.
 - Agent project/component tools read actual records and perform revision-checked durable writes only
   with explicit per-run permission. Chart proposals retain their separate human Apply boundary.
 - Native Format 1 UCS import/export preserves actual taps, chords, holds, exact section timing,

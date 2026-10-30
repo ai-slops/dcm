@@ -53,16 +53,17 @@ Document mutation and event object schemas reject unknown keys. Every JSON integ
 `Beat` is `{ numerator, denominator }`, nonnegative and reduced with a positive denominator. Notes
 use `{ at: Beat, hold: Beat, panel_mask }`. Timing uses signed `offset_micros`, ordered
 `tempo: [{ at, micros_per_beat }]`, `grid_sections: [{ at, rows_per_measure }]`, `duration: Beat | null`,
-and ordered beat `reference_accents`. First tempo/grid entries start at beat zero. One measure is
-four beats; editor rows-per-measure is not the UCS per-beat Split number. New placements align with
-the active section's relative grid. Native projection never rounds unsupported coordinates.
+and ordered beat `reference_accents`. First tempo/grid entries start at beat zero. Imported
+`grid_sections` are compatibility hints, not note/rule constraints. Editor Split is a local
+subdivision per beat; changing it never changes source notes or hints. UCS output synthesizes a
+transient exact common grid from semantic coordinates. Native projection never rounds them.
 
 Authoring bounds remain 10,000 notes and 4,096 timing sections. Native output separately requires
 an exact TPB at most 4096 and span at most 1,000,000 ticks; UCS output has its own section-local
 Split/row limits. `null` duration means automatic source extent. Final occupied-row padding is
 output-only, not a persisted explicit duration. SHA-256 in a beat document is lowercase 64-hex.
-Song and chart artist are separate fields; historical unknown chart authors remain `null`.
-New editor splits are limited to 512 rows per measure. Migration retains legacy uniform grids up
+Metadata fields remain compatibility data; the editor does not collect or infer artist facts.
+The local editor split is 1..128 subdivisions per beat. Migration retains legacy uniform hints up
 to 16,384 rows per measure exactly; a native/UCS capability limit does not round or delete them.
 
 `CurrentDocument.project` is a `BeatChartDocument`:
@@ -175,19 +176,20 @@ sixteen per browser session across revisions, including native generation.
 
 ## Beat project commands and fragments
 
-- `create_project` requires `song_id`, immutable `mode`, `name`, explicit `chart_artist`,
+- `create_project` requires `song_id`, immutable `mode`, `name`,
   `base_ucs_ref`, beat `timing`, `evaluation_contract`, and `generation_rules`. A base reference is
   `{ source: "saved_chart", chart_id }`, a server-issued archive ID/digest/entry tuple, or
   `{ source: "retained_timing", song_id }` for the retained original timing after ZIP deletion.
   The server verifies that the selected base belongs to that song and copies exact timing; a base
-  cannot inject a filesystem path or silently select an unrelated chart.
+  cannot inject a filesystem path or silently select an unrelated chart. Legacy `chart_artist`
+  is nullable and defaults to null; author metadata is not a creation/generation prerequisite.
 - `write_project` carries `project_id`, `base_revision`, and mutable name/artist/timing/evaluation/rules.
   Song, mode and base provenance do not change. CAS failure preserves the local draft.
 - `publish_component` supports `timing`, `evaluation`, `generator`, and `note_fragment`. A fragment
   requires exact `start`/`end` beat bounds and contains relative notes plus span and mode.
 - `apply_component` requires destination revision and component ID. Applying a note fragment also
   requires `at: Beat`; the server translates relative notes without changing destination BPM/grid.
-  Mode, grid, region and occupied-cell failures reject atomically, including hold-tail conflicts.
+  Mode, region and occupied-cell failures reject atomically, including hold-tail conflicts.
 - Missing historical generator/evaluation TPB basis produces a read-only `legacy_unresolved`
   component with `legacy_component_basis_missing`, never a guessed conversion.
 - Agent project writes retain explicit `projects_and_components` per-run permission and cancellation.

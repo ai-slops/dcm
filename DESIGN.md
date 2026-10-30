@@ -2,6 +2,21 @@
 
 Status: implementation contract for the first visual frontend. This document owns visual and interaction decisions. It does not define backend behavior or claim that unavailable data exists.
 
+## Current editor contract
+
+This section supersedes older preview, inspector, keyboard-tool, and optional-follow descriptions below.
+
+- The editor is the playback preview, including named automatic regions. There is no adjacent Chart preview, physical-pad preview, Preview tab, Chart information tab, or alternate non-follow mode. Remove their unused components, state, styles, and callers rather than merely hiding them.
+- The compact editor toolbar contains Split, editor Lookahead, and Audio offset in milliseconds. Lookahead retains exact 0.1–12 second values in 0.05 increments, including 0.25 and 0.5. It controls the editor's visible future time, not a separate preview surface.
+- Audio follow is unconditional while the media clock is active. Pointer focus and wheel events do not switch it off. The fixed judgment line remains one control-row unit below the header; note spacing itself follows audio time. Stopped editing can scroll normally without a stored alternate follow mode.
+- Remove Previous/Next measure, keyboard hold rows, Enter-toggle/H-hold commands, and their unused cursor/mode machinery. Pointer click-toggle and drag-hold remain the direct authoring gestures.
+- Changing the editing split never moves, deletes, or rewrites existing note positions. Notes authored at different subdivisions coexist within a measure and remain visible. UCS grid refinement occurs only during output and never writes its common grid back into authoring source.
+- Beat and tempo share one column on the right of the lanes. Its entries scroll with notes. Clicking the timing column opens the existing modal primitive for a tempo change at that exact beat; no separate timing inspector is required.
+- The end line follows the final occupied content automatically. Clicking or dragging that line fixes an explicit end after content; a labelled action on the line restores automatic extent. There is no duration text field. Invalid shortening preserves the source and shows an adjacent error.
+- Song artist and other unreliable song facts are not collected, guessed, or edited here. Existing persisted metadata and legacy native transfer fields are compatibility data, not additional UI modes. User-owned audio/chart data is never purged as part of screen cleanup.
+- Offset accepts signed milliseconds and preserves exact conversion to integer microseconds at the storage/native boundary. Visible labels and helper text always say milliseconds.
+- Retain the existing graphite tokens, BRYRB lanes, labelled controls, bounded scroll ownership, responsive 44px targets, dirty guards, CAS, and reduced-motion support. New timing/end-line interactions use the same primitives, not a second editor implementation.
+
 ## 0. Research Log
 
 - Design read: an operational creative tool for chart authors and technical reviewers, with a dark precision-instrument language. `DESIGN_VARIANCE: 5`, `MOTION_INTENSITY: 4`, `VISUAL_DENSITY: 9`.

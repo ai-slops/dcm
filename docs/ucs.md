@@ -15,10 +15,10 @@ replaces the chart/timing only on explicit confirmation and commits chart/audio 
 revision check. Existing title, artist, and evaluation contract are retained. An incompatible
 contract is rejected, not silently rewritten. Single/Double is a required, fixed chart mode, not
 an export preference. Imports cannot silently change an existing chart's mode; import into the
-song catalog as a separate chart when modes differ. Editing uses exact beat coordinates and a
-section-local rows-per-four-beat-measure split; it never rounds source notes into a global tick grid.
+song catalog as a separate chart when modes differ. Editing stores exact beat coordinates;
+local placement split changes never rewrite old notes or imported grid hints.
 
-The same editor, audio element, tempo functions, transport, playhead, and physical-pad preview render
+The same editor, audio element, tempo functions, transport, and playhead render
 both DCM and imported UCS notes. Playback uses the actual audio clock; speed, pause, seek, offset,
 and tempo changes do not create a separate UCS clock. The timeline uses a bounded visible window
 rather than rendering every row of a long file. A UCS file does not identify or contain audio:
@@ -32,8 +32,8 @@ chart clock/visualizer follows it. See [ZIP limits and segment controls](studio.
 
 For Studio-owned search, download, original-ZIP retention, and multiple songs/charts, use **Songs
 and charts** instead. Importing a retained archive creates a separate song; importing another UCS
-into it explicitly binds that song's stored music. **Chart previews** renders any saved chart with
-its actual music without replacing the active editor project. See [library workflows and browser
+into it explicitly binds that song's stored music. Open a saved chart in the common editor to
+audition it with actual audio; there is no separate preview/pad/gallery surface. See [library workflows and browser
 verification](studio.md#songs-charts-and-retained-archives). Public Pump Pro+ downloads are a
 third-party source, not official PIU distribution or proof of chart provenance.
 
@@ -57,8 +57,9 @@ third-party source, not official PIU distribution or proof of chart provenance.
 - Initial signed Delay maps to DCM's signed integer `offset_micros`: positive means tick zero is
   later in audio. Delay must be exactly representable in microseconds. Later nonzero Delay requires
   stops/warps absent from DCM's music model and is rejected, not hidden in a fake BPM change.
-- UCS Split is 1–128 **rows per beat**, distinct from the editor's **rows per four-beat measure**.
-  Studio's beat-native import/export retains each section's exact beat anchor and local grid,
+- UCS Split is 1–128 **rows per beat**. Editor Split is only a future-placement preference.
+  Thirds and quarters can coexist; export creates a common Split 12 grid without mutating source.
+  Studio's beat-native import/export retains exact semantic positions and section timing,
   including mutually prime section splits whose global LCM exceeds 4096. It does not need a global
   tick grid. The legacy native chart importer and certified evaluation/generation still require
   an exact transient native grid of at most 4096 ticks per beat and return a capability error when
