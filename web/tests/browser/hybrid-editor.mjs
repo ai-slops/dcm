@@ -6,7 +6,6 @@ import { resolve } from "node:path"
 import { chromium } from "playwright"
 
 import { beatCell, dragBeatHold } from "./beat-authoring-support.mjs"
-import { waitForGalleryTimeline } from "./grid-gestures.mjs"
 import { createTimingZip, libraryAction } from "./hybrid-fixture.mjs"
 import { librarySnapshot } from "./library-support.mjs"
 import {
@@ -87,7 +86,6 @@ try {
     .fill(`구간 편집 검증 ${randomUUID().slice(0, 8)}`)
   await form.getByRole("combobox", { name: "Song", exact: true }).selectOption(fixture.song.id)
   await form.getByRole("combobox", { name: "Mode", exact: true }).selectOption("Double")
-  await form.getByRole("textbox", { name: "Chart artist", exact: true }).fill("Hybrid UI Author")
   await form
     .getByRole("combobox", { name: "Base timing source", exact: true })
     .selectOption(sourceKey(base.ref))
@@ -161,16 +159,7 @@ try {
   await verifyResponsiveProjectGrid(page, evidence)
   await regions.scrollIntoViewIfNeeded()
   await page.screenshot({ path: resolve(evidence, "375-region-controls.png"), fullPage: true })
-  await page
-    .getByRole("region", { name: "Project information", exact: true })
-    .scrollIntoViewIfNeeded()
-  await page.screenshot({ path: resolve(evidence, "375-timing-controls.png"), fullPage: true })
-  await page.getByRole("link", { name: "View generated chart", exact: true }).click()
-  await page.getByText("Audio ready", { exact: true }).waitFor()
-  await page.getByRole("button", { name: "timeline", exact: true }).click()
-  await waitForGalleryTimeline(page)
-  assert.ok((await page.locator(".timeline").innerText()).includes("자동 후렴"))
-  await page.screenshot({ path: resolve(evidence, "generated-range-origin.png"), fullPage: true })
+  await page.screenshot({ path: resolve(evidence, "375-authoring-controls.png"), fullPage: true })
   assert.deepEqual(errors, [])
   writeFileSync(
     resolve(evidence, "result.json"),

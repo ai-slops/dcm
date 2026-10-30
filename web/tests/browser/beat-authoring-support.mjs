@@ -25,7 +25,6 @@ export async function createBeatProject(page, input) {
   await form.getByLabel("Project name", { exact: true }).fill(input.name)
   await form.getByLabel("Song", { exact: true }).selectOption(input.songId)
   await form.getByLabel("Mode", { exact: true }).selectOption("Double")
-  await form.getByLabel("Chart artist", { exact: true }).fill(input.artist)
   const source = form.getByLabel("Base timing source", { exact: true })
   assert.equal(await source.inputValue(), "", "A base must never silently auto-select")
   await source.selectOption(`chart:${input.chartId}`)
@@ -48,7 +47,7 @@ export async function createBeatProject(page, input) {
     form.getByRole("button", { name: "Create project", exact: true }).click(),
   )
   assert.ok(mutation.project)
-  assert.equal(mutation.project.chart_artist, input.artist)
+  assert.equal(mutation.project.chart_artist, null)
   assert.deepEqual(mutation.project.base_ucs_ref, {
     source: "saved_chart",
     chart_id: input.chartId,

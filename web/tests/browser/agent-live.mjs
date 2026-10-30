@@ -4,15 +4,17 @@ import { resolve } from "node:path"
 
 import { chromium } from "playwright"
 
+import { nativeDocumentFor } from "../../server/native/beat-document.ts"
+import { beatFromTicks } from "../../shared/index.ts"
 import {
   agentBrowser,
   observeAgentBrowser,
+  restoreAgentDocument,
   verifyDecisionSerialization,
 } from "./agent-live-support.mjs"
 import {
   bootstrap,
   browserConfiguration,
-  importProject,
   ownedMutation,
   repoRoot,
   saveRecovery,
@@ -34,6 +36,7 @@ const observed = await observeAgentBrowser(page, configuration.url)
 let baseline
 let audio
 let owned
+let nativeBaseline
 const receipt = { inspection: null, review: null, cancellation: null, viewports: [] }
 
 try {
@@ -46,10 +49,11 @@ try {
   )
   assert.equal(audioResponse.status(), 200)
   audio = await audioResponse.body()
+  nativeBaseline = nativeDocumentFor(baseline.document.project)
   saveRecovery(baseline.document.project, audio)
   await page.goto(configuration.url)
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  await page.getByLabel("Chart position", { exact: true }).fill("1")
+  await page.getByLabel("Chart beat position", { exact: true }).fill("1")
   const originalSeek = await page.evaluate(() => window.__studioAudio.currentTime)
 
   const inspectionId = await startTask(
@@ -74,7 +78,7 @@ try {
   await page.screenshot({ path: resolve(evidence, "inspection.png") })
 
   const reviewId = await startTask(
-    "Read the saved project. Using propose_chart, create exactly THREE review-only proposals, in this order, with distinct concise summaries: first keep the chart unchanged and increase music.offset_micros by 1000; second remove ONLY the last entry of chart.notes if any and increase the original music.offset_micros by 2000; third keep the original chart unchanged and increase the original music.offset_micros by 3000. For each proposal supply the COMPLETE music object preserving all other fields, especially audio_sha256 and tempo, and preserve the chart profile. Do not apply anything. Finish with a brief summary.",
+    "Read the saved BeatChartDocument. The propose_chart boundary intentionally accepts a complete native chart/music projection, not BeatChartDocument notes/timing. Create exactly THREE review-only native proposals, in this order, with distinct concise summaries: first keep the projected native chart unchanged and increase native music.offset_micros by 1000; second remove ONLY the last projected native chart.notes entry if any and increase the original native music.offset_micros by 2000; third keep the original projected native chart unchanged and increase the original native music.offset_micros by 3000. Preserve the complete native profile and every other music field, especially audio_sha256 and tempo. Do not apply anything. Finish with a brief summary.",
   )
   const review = await finishTask(reviewId)
   assert.deepEqual(
@@ -86,17 +90,17 @@ try {
   assert.equal(proposals.length, 3)
   const proposalAt = (delta) =>
     proposals.find(
-      (proposal) =>
-        proposal.music?.offset_micros === baseline.document.project.music.offset_micros + delta,
+      (proposal) => proposal.music?.offset_micros === nativeBaseline.music.offset_micros + delta,
     )
   const rejected = proposalAt(1000)
   const applied = proposalAt(2000)
   const stale = proposalAt(3000)
   assert.ok(rejected && applied && stale)
-  assert.deepEqual(applied.chart.notes, baseline.document.project.chart.notes.slice(0, -1))
+  assert.ok(applied.music)
+  assert.deepEqual(applied.chart.notes, nativeBaseline.chart.notes.slice(0, -1))
   assert.deepEqual(applied.before, {
-    chart: baseline.document.project.chart,
-    music: baseline.document.project.music,
+    chart: nativeBaseline.chart,
+    music: nativeBaseline.music,
   })
   const preview = await proposalCard(applied).locator(".proposal-diff").innerText()
   assert.ok(preview.includes(String(applied.music.offset_micros)))
@@ -117,8 +121,16 @@ try {
   owned = await ownedMutation(page, `/api/v1/proposals/${applied.id}/apply`, () =>
     proposalCard(applied).getByRole("button", { name: "Apply changes", exact: true }).click(),
   )
-  assert.deepEqual(owned.project.chart, applied.chart)
-  assert.deepEqual(owned.project.music, applied.music)
+  assert.deepEqual(
+    owned.project.notes,
+    applied.chart.notes.map((note) => ({
+      at: beatFromTicks(note.tick, applied.chart.ticks_per_beat),
+      hold: beatFromTicks(note.hold_ticks, applied.chart.ticks_per_beat),
+      panel_mask: note.panel_mask,
+    })),
+  )
+  assert.equal(owned.project.timing.offset_micros, applied.music.offset_micros)
+  assert.equal(owned.project.mode, baseline.document.project.mode)
   await page
     .locator(".agent-tool")
     .filter({ hasText: "generate_variant" })
@@ -127,11 +139,12 @@ try {
   assert.ok((await page.locator(".agent-run-status").innerText()).includes("Run completed"))
   assert.equal(await page.locator(".agent-event--prompt").innerText(), focusedPrompt)
   assert.equal(
-    await page.getByLabel("Audio offset", { exact: true }).inputValue(),
-    String(applied.music.offset_micros),
+    await page.getByLabel("Audio offset (ms)", { exact: true }).inputValue(),
+    String(applied.music.offset_micros / 1_000),
   )
-  await page.getByLabel("Chart position", { exact: true }).fill("2")
-  await page.getByLabel("Chart position", { exact: true }).fill("1")
+  assert.match(await page.getByLabel("Current timing context").innerText(), /Offset .* ms/)
+  await page.getByLabel("Chart beat position", { exact: true }).fill("2")
+  await page.getByLabel("Chart beat position", { exact: true }).fill("1")
   const changedSeek = await page.evaluate(() => window.__studioAudio.currentTime)
   assert.ok(
     Math.abs(changedSeek - originalSeek - 0.002) < 0.000_01,
@@ -221,20 +234,8 @@ try {
   console.log(JSON.stringify(receipt))
 } finally {
   try {
-    if (owned !== undefined) {
-      const current = await bootstrap(context, configuration.url)
-      assert.deepEqual(
-        current.document,
-        owned,
-        "Concurrent edit detected; refusing to overwrite it",
-      )
-      await importProject(context, configuration.url, {
-        csrfToken: current.csrf_token,
-        revision: current.document.revision,
-        project: baseline.document.project,
-        audio,
-      })
-    }
+    if (owned !== undefined)
+      await restoreAgentDocument(context, configuration.url, baseline.document, audio, owned)
   } finally {
     await browser.close()
   }

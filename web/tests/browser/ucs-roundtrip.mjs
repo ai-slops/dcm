@@ -1,20 +1,24 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { createHash } from "node:crypto"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 import { chromium } from "playwright"
 
 import { loadDemo } from "../../server/demo.ts"
-import { StudioProjectV1Schema } from "../../shared/index.ts"
+import { BeatChartCoreSchema } from "../../shared/index.ts"
+import { beatToAudioMicros } from "../../src/domain/beat-timing.ts"
+import {
+  downloadBeatUcs,
+  roundtripFixture,
+  SINGLE_BROWSER_UCS_FIXTURE,
+} from "./ucs-beat-support.mjs"
 import { verifyVisibleChrome } from "./ucs-layout.mjs"
 import { verifyAudioClock, verifyBoundedTimeline } from "./ucs-playback.mjs"
 import { createUcsSession, openSingleFixture, restoreUcsSession } from "./ucs-session.mjs"
 import {
   bootstrap,
   browserConfiguration,
-  downloadUcs,
   evidenceRoot,
   extendDemoAudio,
   importProject,
@@ -62,30 +66,7 @@ try {
   )
   const demo = await loadDemo(repoRoot)
   const audio = extendDemoAudio(demo.audio)
-  const fixture = StudioProjectV1Schema.parse({
-    ...demo.document.project,
-    title: "UCS browser regression",
-    chart: {
-      ticks_per_beat: 4,
-      span_ticks: 192,
-      notes: [
-        { tick: 0, panel_mask: 544, hold_ticks: 0 },
-        { tick: 0, panel_mask: 1, hold_ticks: 4 },
-        { tick: 3, panel_mask: 16, hold_ticks: 2 },
-        { tick: 8, panel_mask: 2, hold_ticks: 12 },
-        { tick: 16, panel_mask: 4, hold_ticks: 4 },
-        { tick: 24, panel_mask: 8, hold_ticks: 4 },
-        { tick: 56, panel_mask: 16, hold_ticks: 8 },
-      ],
-    },
-    music: {
-      ...demo.document.project.music,
-      duration_ticks: 192,
-      offset_micros: 250_000,
-      audio_sha256: [...createHash("sha256").update(audio).digest()],
-    },
-    audio_asset: { format: "wav", byte_length: audio.byteLength },
-  })
+  const fixture = roundtripFixture(baseline.document.project, audio)
   session = await createUcsSession(context, configuration.url, { mode: "Double", audio })
   owned = session.document
   owned = await importProject(context, configuration.url, {
@@ -97,55 +78,78 @@ try {
   const response = await page.goto(configuration.url)
   assert.equal(response.status(), 200)
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  await page.getByRole("button", { name: "R UR, tick 6, empty", exact: true }).click()
+  await page.getByLabel("Split rows per beat", { exact: true }).fill("4")
+  await page
+    .locator('.timeline__cell[data-beat-numerator="3"][data-beat-denominator="2"][data-lane="8"]')
+    .click()
   owned = await ownedMutation(page, "/api/v1/document", () =>
     page.getByRole("button", { name: "Save", exact: true }).click(),
   )
   await page.reload()
-  await page.getByRole("button", { name: "R UR, tick 6, tap", exact: true }).waitFor()
+  await page
+    .locator(
+      '.timeline__exact-note[data-beat-numerator="3"][data-beat-denominator="2"][data-lane="8"]',
+    )
+    .waitFor()
 
   const exported = resolve(evidenceRoot, "edited-chart.ucs")
-  await downloadUcs(page, exported)
+  const audioPath = resolve(evidenceRoot, "roundtrip.wav")
+  writeFileSync(audioPath, audio, { mode: 0o600 })
+  await downloadBeatUcs(page, exported, "Double")
   const text = readFileSync(exported, "ascii")
   assert.ok(text.startsWith(":Format=1\r\n:Mode=Double\r\n"))
   assert.ok(text.includes(":Delay=250\r\n"))
   const parsed = spawnSync(
     resolve(repoRoot, "dist", process.platform === "win32" ? "pump.exe" : "pump"),
-    ["chart", "import-ucs", exported, "--format", "json"],
+    ["chart", "import-ucs-beats", exported, "--audio", audioPath, "--format", "json"],
     { encoding: "utf8" },
   )
   assert.equal(parsed.status, 0, parsed.stderr)
   const native = JSON.parse(parsed.stdout)
-  assert.deepEqual(native.chart, owned.project.chart)
-  assert.deepEqual(native.music.tempo, owned.project.music.tempo)
-  assert.equal(native.music.offset_micros, 250_000)
+  const imported = BeatChartCoreSchema.parse({
+    mode: native.mode,
+    timing: {
+      schema_version: 1,
+      offset_micros: native.offset_micros,
+      tempo: native.tempo,
+      grid_sections: native.grid_sections,
+      duration: native.duration,
+      reference_accents: native.reference_accents,
+    },
+    notes: native.notes,
+  })
+  assert.deepEqual(imported.notes, owned.project.notes)
+  assert.deepEqual(imported.timing.tempo, owned.project.timing.tempo)
+  assert.deepEqual(imported.timing.duration, owned.project.timing.duration)
+  assert.equal(imported.timing.offset_micros, 250_000)
   owned = await importUcsThroughUi(page, exported)
   await page.reload()
   await page.getByText("Audio ready", { exact: true }).waitFor()
+  const importedDocument = (await bootstrap(context, configuration.url)).document.project
   assert.deepEqual(
-    (await bootstrap(context, configuration.url)).document.project.chart,
-    native.chart,
+    { mode: importedDocument.mode, timing: importedDocument.timing, notes: importedDocument.notes },
+    imported,
   )
-  assert.equal((await bootstrap(context, configuration.url)).document.project.ucs_mode, "Double")
   await verifyBoundedTimeline(page)
 
   await verifyAudioClock(page)
 
-  await page.getByLabel("Audio offset", { exact: true }).fill("-1250")
+  await page.getByLabel("Audio offset (ms)", { exact: true }).fill("-1.25")
+  await page.getByLabel("Audio offset (ms)", { exact: true }).press("Tab")
   owned = await ownedMutation(page, "/api/v1/document", () =>
     page.getByRole("button", { name: "Save", exact: true }).click(),
   )
   const negative = resolve(evidenceRoot, "negative-offset.ucs")
-  await downloadUcs(page, negative)
+  await downloadBeatUcs(page, negative, "Double")
   assert.ok(readFileSync(negative, "ascii").includes(":Delay=-1.25\r\n"))
   owned = await importUcsThroughUi(page, negative)
   await page.reload()
   await page.getByText("Audio ready", { exact: true }).waitFor()
   assert.equal(
-    (await bootstrap(context, configuration.url)).document.project.music.offset_micros,
+    (await bootstrap(context, configuration.url)).document.project.timing.offset_micros,
     -1250,
   )
-  await page.getByLabel("Chart position", { exact: true }).fill("17")
+  await page.getByLabel("Chart beat position", { exact: true }).fill("4.25")
   assert.ok(
     Math.abs((await page.evaluate(() => window.__studioAudio.currentTime)) - 2.09875) < 0.001,
   )
@@ -160,8 +164,8 @@ try {
         base_revision: owned.revision,
         project: {
           ...owned.project,
-          chart: { ...owned.project.chart, notes: [] },
-          ucs_mode: "Single",
+          notes: [],
+          mode: "Single",
         },
       },
     },
@@ -182,26 +186,50 @@ try {
   await page.screenshot({ path: resolve(evidenceRoot, "ucs-error.png") })
   await page.getByRole("button", { name: "Close", exact: true }).click()
   const single = resolve(evidenceRoot, "single.ucs")
-  writeFileSync(single, SINGLE_UCS_FIXTURE)
+  writeFileSync(single, SINGLE_BROWSER_UCS_FIXTURE)
   owned = await openSingleFixture(context, configuration.url, session.songId)
+  const shortImport = await context.request.post(
+    new URL("/api/v1/ucs/import", configuration.url).toString(),
+    {
+      headers: { "x-csrf-token": baseline.csrf_token },
+      multipart: {
+        base_revision: String(owned.revision),
+        chart: {
+          name: "short.ucs",
+          mimeType: "text/plain",
+          buffer: Buffer.from(SINGLE_UCS_FIXTURE),
+        },
+      },
+    },
+  )
+  assert.equal(shortImport.status(), 422)
+  assert.equal((await shortImport.json()).error.code, "ucs_project_incompatible")
+  assert.deepEqual((await bootstrap(context, configuration.url)).document, owned)
   await page.reload()
   owned = await importUcsThroughUi(page, single)
-  assert.equal(owned.project.ucs_mode, "Single")
-  assert.ok(owned.project.chart.notes.every((note) => (note.panel_mask & ~31) === 0))
+  assert.equal(owned.project.mode, "Single")
+  assert.ok(owned.project.notes.every((note) => (note.panel_mask & ~31) === 0))
   const singleExport = resolve(evidenceRoot, "single-export.ucs")
-  await downloadUcs(page, singleExport, "Single")
+  await downloadBeatUcs(page, singleExport, "Single")
   assert.ok(readFileSync(singleExport, "ascii").startsWith(":Format=1\r\n:Mode=Single\r\n"))
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  await page.getByLabel("Chart position", { exact: true }).fill("5")
-  assert.ok(Math.abs((await page.evaluate(() => window.__studioAudio.currentTime)) - 0.725) < 0.001)
-  assert.equal(await page.locator('.pad--right[data-active="true"]').count(), 0)
+  await page.getByLabel("Chart beat position", { exact: true }).fill("1.25")
+  const expectedSingleTime =
+    beatToAudioMicros(owned.project.timing, {
+      numerator: 5,
+      denominator: 4,
+    }) / 1_000_000
+  assert.ok(
+    Math.abs((await page.evaluate(() => window.__studioAudio.currentTime)) - expectedSingleTime) <
+      0.001,
+  )
+  assert.equal(await page.locator('.timeline--single [data-lane="5"]').count(), 0)
   await page.screenshot({ path: resolve(evidenceRoot, "single-desktop.png") })
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 900 })
     if (width === 375) {
       await verifyVisibleChrome(page)
       await page.screenshot({ path: resolve(evidenceRoot, "375-editor.png") })
-      await page.getByRole("tab", { name: "preview", exact: true }).click()
     }
     await verifyVisibleChrome(page)
     await page.screenshot({ path: resolve(evidenceRoot, `${width}.png`) })

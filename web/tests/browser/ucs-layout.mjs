@@ -16,12 +16,8 @@ export async function verifyVisibleChrome(page) {
     const timing = document.querySelector('[aria-label="Current timing context"]')
     const laneBounds = timeline.getBoundingClientRect()
     const timeBounds = timing.getBoundingClientRect()
-    const visiblePads = [...document.querySelectorAll(".preview .pad")]
-      .map((node) => node.getBoundingClientRect().width)
-      .filter((width) => width > 0)
     return {
       width: innerWidth,
-      minimumPadWidth: visiblePads.length === 0 ? null : Math.min(...visiblePads),
       rectangles,
       timeline: { left: laneBounds.left, right: laneBounds.right },
       timing: { left: timeBounds.left, right: timeBounds.right, width: timeBounds.width },
@@ -38,12 +34,6 @@ export async function verifyVisibleChrome(page) {
       bounds.timing.left >= bounds.timeline.left &&
         bounds.timing.right <= bounds.timeline.right + 1,
       `Timing context is clipped at viewport ${bounds.width}`,
-    )
-  }
-  if (bounds.minimumPadWidth !== null) {
-    assert.ok(
-      bounds.minimumPadWidth >= 24,
-      `Preview pad labels are cramped at viewport ${bounds.width}`,
     )
   }
 }

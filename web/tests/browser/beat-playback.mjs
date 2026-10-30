@@ -28,7 +28,7 @@ try {
   await page.goto(configuration.url)
   await page.getByText("Audio ready", { exact: true }).waitFor()
   await page.getByLabel("Chart beat position", { exact: true }).fill("8")
-  await page.getByLabel("Follow audio", { exact: true }).check()
+  assert.equal(await page.getByLabel("Follow audio", { exact: true }).count(), 0)
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.waitForFunction(
     () => window.__studioAudio !== undefined && !window.__studioAudio.paused,
@@ -39,13 +39,14 @@ try {
       await new Promise((resolve) => requestAnimationFrame(resolve))
       const line = document.querySelector(".timeline__playhead")
       const header = document.querySelector(".timeline__header")
-      const row = document.querySelector(".timeline__row")
       const scroller = document.querySelector(".timeline__scroller")
-      if (line === null || header === null || row === null || scroller === null)
+      if (line === null || header === null || scroller === null)
         throw new Error("Timeline geometry missing")
       values.push({
         y: line.getBoundingClientRect().top,
-        expected: header.getBoundingClientRect().bottom + row.getBoundingClientRect().height,
+        expected:
+          header.getBoundingClientRect().bottom +
+          Number.parseFloat(getComputedStyle(scroller).getPropertyValue("--timeline-row-size")),
         scroll: scroller.scrollTop,
         seconds: window.__studioAudio.currentTime,
       })

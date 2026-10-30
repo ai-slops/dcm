@@ -36,7 +36,6 @@ export async function createProjectThroughUi(page, input) {
   assert.equal(await form.getByRole("combobox", { name: "Mode", exact: true }).inputValue(), "")
   await form.getByRole("combobox", { name: "Song", exact: true }).selectOption(input.songId)
   await form.getByRole("combobox", { name: "Mode", exact: true }).selectOption(input.mode)
-  await form.getByRole("textbox", { name: "Chart artist", exact: true }).fill(input.chartArtist)
   const base = form.getByRole("combobox", { name: "Base timing source", exact: true })
   assert.equal(await base.inputValue(), "")
   await base.selectOption(sourceKey(input.base.ref))
@@ -84,20 +83,6 @@ export async function openGeneratedThroughUi(page) {
     .click()
   assert.equal((await pending).status(), 200)
   await projectDialog(page).waitFor({ state: "hidden" })
-}
-
-export async function verifyApproachLookahead(page) {
-  const exact = page.getByLabel("Exact preview lookahead seconds", { exact: true })
-  const range = page.getByLabel("Preview lookahead range", { exact: true })
-  await exact.fill("0.25")
-  assert.equal(await range.inputValue(), "0.25")
-  await exact.fill("0.5")
-  assert.equal(await range.inputValue(), "0.5")
-  await exact.fill("0.26")
-  assert.equal(await exact.inputValue(), "0.26")
-  assert.equal(await range.inputValue(), "0.5")
-  await page.getByRole("alert").filter({ hasText: "increments of 0.05" }).waitFor()
-  await exact.fill("4")
 }
 
 export async function restoreProjectUi(context, url, ids) {

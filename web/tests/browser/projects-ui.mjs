@@ -16,9 +16,7 @@ import {
   projectDialog,
   projectUiMutation,
   restoreProjectUi,
-  verifyApproachLookahead,
 } from "./projects-ui-support.mjs"
-import { verifyResponsiveSingleGallery } from "./projects-ui-verification.mjs"
 import { bootstrap, browserConfiguration, repoRoot } from "./ucs-support.mjs"
 
 const configuration = browserConfiguration()
@@ -73,7 +71,6 @@ try {
     songId,
     mode: "Single",
     mask: 1,
-    chartArtist: "Browser Single Author",
     base,
   })
   ids.projectIds.push(single.id)
@@ -84,7 +81,6 @@ try {
   await page.getByText("Audio ready", { exact: true }).waitFor()
   assert.equal(await page.locator(".timeline__header > span").count(), 7)
   assert.equal(await page.getByRole("button", { name: /^R .*beat/ }).count(), 0)
-  assert.equal(await page.locator(".playfield-preview .pad").count(), 5)
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.waitForFunction(
     () => window.__studioAudio.currentTime > 0.2 && !window.__studioAudio.paused,
@@ -142,7 +138,6 @@ try {
     songId,
     mode: "Double",
     mask: 32,
-    chartArtist: "Browser Double Author",
     base,
   })
   ids.projectIds.push(double.id)
@@ -169,7 +164,6 @@ try {
   await openGeneratedThroughUi(page)
   await page.getByText("Audio ready", { exact: true }).waitFor()
   assert.equal(await page.locator(".timeline__header > span").count(), 12)
-  assert.equal(await page.locator(".playfield-preview .pad").count(), 10)
   const timelineScroller = page.locator(".timeline__scroller")
   await timelineScroller.evaluate((element) => {
     element.scrollLeft = element.scrollWidth
@@ -182,30 +176,6 @@ try {
     "The final Double lane must remain reachable through the timeline scroll owner",
   )
   await page.screenshot({ path: resolve(evidence, "double-preview.png") })
-  const gallery = await context.newPage()
-  gallery.on("pageerror", (error) => errors.push(error.message))
-  await gallery.emulateMedia({ reducedMotion: "reduce" })
-  await gallery.goto(
-    new URL(`/previews?chart=${singleResult.chart_id}`, configuration.url).toString(),
-  )
-  await gallery.getByText("Audio ready", { exact: true }).waitFor()
-  await verifyApproachLookahead(gallery)
-  await gallery.getByRole("button", { name: "First note", exact: true }).click()
-  await gallery.screenshot({ path: resolve(evidence, "single-preview.png") })
-  await verifyResponsiveSingleGallery(gallery, evidence)
-  await gallery.getByRole("button", { name: "pads", exact: true }).click()
-  await gallery.mouse.move(0, 0)
-  await gallery.evaluate(async () => {
-    await Promise.all(
-      document
-        .getAnimations()
-        .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
-        .map((animation) => animation.finished),
-    )
-  })
-  assert.equal(await gallery.getByRole("region", { name: "Right pad", exact: true }).count(), 0)
-  await gallery.screenshot({ path: resolve(evidence, "375-single-pads.png"), fullPage: true })
-  await gallery.close()
   await page.setViewportSize({ width: 375, height: 900 })
   await openProjectManager(page)
   await projectDialog(page)
@@ -224,7 +194,7 @@ try {
       {
         single_lanes: 5,
         double_lanes: 10,
-        single_preview_opened: true,
+        single_editor_opened: true,
         unsaved_rules_preserved: true,
         reusable_component_applied: true,
         real_native_results: 2,

@@ -64,7 +64,6 @@ try {
   await openProjectManager(page)
   const created = await createBeatProject(page, {
     name: `박자 기반 조각 검증 ${suffix}`,
-    artist: "Browser chart author",
     songId: chart.song_id,
     chartId: chart.id,
   })
@@ -98,8 +97,8 @@ try {
   assert.equal(await page.getByLabel("Selected lane", { exact: true }).count(), 0)
   await beatCell(page, 0, 1, 0).click()
   await dragBeatHold(page, { head: [4, 3], tail: [8, 3], lane: 1 })
-  const offset = page.getByLabel("Audio offset (microseconds)", { exact: true })
-  await offset.fill("200000")
+  const offset = page.getByLabel("Audio offset (ms)", { exact: true })
+  await offset.fill("200")
   await offset.press("Tab")
   const saved = await saveBeatProject(page)
   assert.equal(saved.timing.duration, null)
@@ -110,7 +109,14 @@ try {
   ])
   await page.reload()
   await beatCell(page, 0, 1, 0).waitFor()
-  assert.match(await beatCell(page, 4, 3, 1).getAttribute("class"), /hold/)
+  assert.match(
+    await page
+      .locator(
+        '.timeline__exact-note[data-beat-numerator="4"][data-beat-denominator="3"][data-lane="1"]',
+      )
+      .getAttribute("class"),
+    /hold/,
+  )
   const fragmentName = `Across BPM ${suffix}`
   await page.getByLabel("Fragment name", { exact: true }).fill(fragmentName)
   await page.getByLabel("Range end beat (exclusive)", { exact: true }).fill("4")
@@ -127,7 +133,7 @@ try {
     name: `다른 BPM 재사용 ${suffix}`,
     song_id: chart.song_id,
     mode: "Double",
-    chart_artist: "Destination author",
+    chart_artist: null,
     base_ucs_ref: { source: "saved_chart", chart_id: chart.id },
     timing: created.inherited,
     evaluation_contract: created.project.evaluation_contract,
@@ -184,12 +190,14 @@ try {
       })
       await page.locator(".timeline__cell").first().waitFor()
       assert.equal(
-        await page.getByText("Scroll sideways inside the grid to reach all 10 lanes.").isVisible(),
+        await page
+          .getByText("Scroll sideways inside the timeline to reach all 10 lanes.")
+          .isVisible(),
         true,
       )
       await page.screenshot({ path: resolve(evidence, "375-beat-grid.png"), fullPage: true })
     }
-    if (width < 1200) await page.locator(".project-information").scrollIntoViewIfNeeded()
+    if (width < 1200) await page.locator(".project-grid-sidebar").scrollIntoViewIfNeeded()
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,
@@ -227,7 +235,7 @@ try {
     { mode: 0o600 },
   )
   console.log(
-    "PASS: explicit base/artist creation, beat-snapped tap/hold save and reload, automatic duration, cross-BPM fragment reuse, atomic collision rejection, responsive layouts.",
+    "PASS: explicit base creation without song metadata, exact tap/hold save and reload, automatic duration, cross-BPM fragment reuse, atomic collision rejection, responsive layouts.",
   )
 } finally {
   try {

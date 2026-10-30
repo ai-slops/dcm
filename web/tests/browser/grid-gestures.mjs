@@ -15,26 +15,3 @@ export async function dragGridHold(page, gesture) {
   await page.mouse.move(tail.x + tail.width / 2, tail.y + tail.height / 2, { steps: 12 })
   await page.mouse.up()
 }
-
-export async function waitForGalleryTimeline(page) {
-  await page.waitForFunction(() => {
-    const wrapper = document.querySelector(".preview-gallery__timeline")
-    const scroller = wrapper?.querySelector(".timeline__scroller")
-    if (
-      wrapper === null ||
-      scroller === null ||
-      scroller === undefined ||
-      scroller.clientHeight <= 0
-    )
-      return false
-    const outer = wrapper.getBoundingClientRect()
-    const viewport = scroller.getBoundingClientRect()
-    return [...scroller.querySelectorAll(".timeline__row")].some((row) => {
-      const rect = row.getBoundingClientRect()
-      return (
-        rect.bottom > Math.max(outer.top, viewport.top) &&
-        rect.top < Math.min(outer.bottom, viewport.bottom)
-      )
-    })
-  })
-}

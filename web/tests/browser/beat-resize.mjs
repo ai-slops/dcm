@@ -10,10 +10,16 @@ const page = await browser.newPage(configuration.context)
 try {
   await page.goto(configuration.url)
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  await page.getByLabel("Follow audio", { exact: true }).uncheck()
+  assert.equal(await page.getByLabel("Follow audio", { exact: true }).count(), 0)
+  const originalScrollTop = await page
+    .locator(".timeline__scroller")
+    .evaluate((element) => element.scrollTop)
   await page.locator(".timeline__scroller").hover()
   await page.mouse.wheel(0, 500)
-  await page.waitForFunction(() => document.querySelector(".timeline__scroller").scrollTop > 68000)
+  await page.waitForFunction(
+    (original) => Math.abs(document.querySelector(".timeline__scroller").scrollTop - original) > 1,
+    originalScrollTop,
+  )
   const visibleBeat = () =>
     page.evaluate(() => {
       const header = document.querySelector(".timeline__header").getBoundingClientRect()

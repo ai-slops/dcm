@@ -24,7 +24,7 @@ const reference = process.env.STUDIO_SAMPLE_UCS_FILE
 assert.ok(reference, "Set STUDIO_SAMPLE_UCS_FILE to an untracked example UCS file")
 const expected = spawnSync(
   resolve(repoRoot, "dist/pump"),
-  ["chart", "import-ucs", reference, "--format", "json"],
+  ["chart", "import-ucs-beats", reference, "--format", "json"],
   { encoding: "utf8" },
 )
 assert.equal(expected.status, 0, expected.stderr)
@@ -40,15 +40,6 @@ const errors = []
 page.on("pageerror", (error) => errors.push(error.message))
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text())
-})
-await page.addInitScript(() => {
-  window.Audio = new Proxy(window.Audio, {
-    construct(Target, args) {
-      const audio = new Target(...args)
-      window.__studioAudio = audio
-      return audio
-    },
-  })
 })
 let before
 let originalId
@@ -113,65 +104,27 @@ try {
     new URL(`/api/v1/library/charts/${chart.id}`, configuration.url).toString(),
   )
   const document = LibraryChartDocumentSchema.parse(await source.json())
-  assert.deepEqual(document.project.chart, native.chart)
-  assert.deepEqual(document.project.music.tempo, native.music.tempo)
-  assert.equal(document.project.music.offset_micros, native.music.offset_micros)
+  assert.deepEqual(document.project.notes, native.notes)
+  assert.deepEqual(document.project.timing.tempo, native.tempo)
+  assert.deepEqual(document.project.timing.grid_sections, native.grid_sections)
+  assert.deepEqual(document.project.timing.duration, native.duration)
+  assert.equal(document.project.timing.offset_micros, native.offset_micros)
+  assert.equal(document.project.mode, native.mode)
   assert.deepEqual(
     (await bootstrap(context, configuration.url)).document.project,
     before.document.project,
   )
   await closeLibrary(page)
-  const previewUrl = new URL(`/previews?chart=${chart.id}`, configuration.url).toString()
-  await page.goto(previewUrl)
-  await page.getByText("Audio ready", { exact: true }).waitFor()
-  const media = await page.evaluate(() => ({
-    duration: window.__studioAudio.duration,
-    muted: window.__studioAudio.muted,
-    volume: window.__studioAudio.volume,
-  }))
-  assert.ok(media.duration > 100, "Preview must use real package music, not the short editor demo")
-  assert.equal(media.muted, false)
-  assert.ok(media.volume > 0)
-  const first = native.chart.notes[0]
-  assert.ok(first)
-  await page.getByLabel("Chart position", { exact: true }).fill(String(first.tick))
-  await page
-    .getByRole("region", { name: "Scrolling 10-lane Double chart preview", exact: true })
-    .waitFor()
-  const startedAt = await page.evaluate(() => window.__studioAudio.currentTime)
-  await page.screenshot({ path: resolve(evidence, "reference-first-note.png") })
-  await page.getByRole("button", { name: "Play", exact: true }).click()
-  await page.waitForFunction(
-    (time) => window.__studioAudio.currentTime > time + 0.5 && !window.__studioAudio.paused,
-    startedAt,
-  )
-  await page.getByRole("button", { name: "Pause", exact: true }).click()
-  for (const view of ["player", "pads", "timeline", "transport", "primitives"]) {
-    await page.getByRole("button", { name: view, exact: true }).click()
-    await page.screenshot({ path: resolve(evidence, `component-${view}.png`) })
-  }
-  await page.getByRole("button", { name: "player", exact: true }).click()
-  for (const width of [1280, 768, 375]) {
-    await page.setViewportSize({ width, height: 900 })
-    assert.equal(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-      true,
-    )
-    await page.screenshot({ path: resolve(evidence, `${width}-preview.png`) })
-  }
   assert.deepEqual(errors, [])
   writeFileSync(
     resolve(evidence, "result.json"),
     JSON.stringify(
       {
-        preview_url: previewUrl,
         song_id: song.id,
         chart_id: chart.id,
-        notes: native.chart.notes.length,
-        duration_seconds: media.duration,
+        notes: native.notes.length,
         audio_sha256: song.audio.sha256,
         downloaded_bytes: archive.byte_length,
-        actual_playback: true,
         active_project_preserved: true,
       },
       null,
@@ -181,10 +134,8 @@ try {
   )
   console.log(
     JSON.stringify({
-      preview_url: previewUrl,
-      chart_groups: native.chart.notes.length,
-      music_duration_seconds: media.duration,
-      actual_playback: true,
+      chart_groups: native.notes.length,
+      active_project_preserved: true,
     }),
   )
 } finally {

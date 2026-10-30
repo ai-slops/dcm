@@ -107,28 +107,20 @@ export async function restoreLibraryWorkflow(session, state, temporarySongId) {
       currentLibrary = deleted.library
     }
     assert.equal(currentLibrary.active_chart_id, state.initialLibrary.active_chart_id)
-    assert.equal(
-      currentLibrary.songs.some((song) => song.id === temporarySongId),
-      false,
-    )
-    for (const song of state.initialLibrary.songs) {
-      assert.equal(
-        currentLibrary.songs.some((candidate) => candidate.id === song.id),
-        true,
-      )
-    }
-    for (const chart of state.initialLibrary.charts) {
-      assert.equal(
-        currentLibrary.charts.some((candidate) => candidate.id === chart.id),
-        true,
-      )
-    }
+    assert.deepEqual(currentLibrary.songs, state.initialLibrary.songs)
+    assert.deepEqual(currentLibrary.charts, state.initialLibrary.charts)
+    assert.deepEqual(currentLibrary.archives, state.initialLibrary.archives)
     assert.deepEqual(
       (await bootstrap(session.context, session.configuration.url)).document.project,
       state.baseline.document.project,
     )
+    const restoredAudio = await session.context.request.get(
+      new URL("/api/v1/audio", session.configuration.url).toString(),
+    )
+    assert.equal(restoredAudio.status(), 200)
+    assert.deepEqual(await restoredAudio.body(), state.fixtureAudio)
     console.log(
-      "Original active chart restored; temporary song removed; pre-existing songs preserved.",
+      "Original active chart, audio, and catalog restored; temporary song removed; compatibility metadata preserved.",
     )
   } finally {
     await session.browser.close()

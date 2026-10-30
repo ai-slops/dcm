@@ -6,6 +6,9 @@ import { bootstrap } from "./ucs-support.mjs"
 
 export async function createUcsSession(context, url, input) {
   const before = await bootstrap(context, url)
+  const originalAudioResponse = await context.request.get(new URL("/api/v1/audio", url).toString())
+  assert.equal(originalAudioResponse.status(), 200)
+  const originalAudio = await originalAudioResponse.body()
   const library = await librarySnapshot(context, url)
   const response = await context.request.post(new URL("/api/v1/library/songs", url).toString(), {
     headers: { "x-csrf-token": before.csrf_token },
@@ -30,6 +33,7 @@ export async function createUcsSession(context, url, input) {
   assert.ok(song)
   return {
     before: before.document,
+    originalAudio,
     originalChartId: library.active_chart_id,
     songId: song.id,
     document: created.document,
@@ -74,6 +78,9 @@ export async function restoreUcsSession(context, url, session) {
   assert.equal(opened.status(), 200, await opened.text())
   const restored = LibraryMutationSchema.parse(await opened.json())
   assert.deepEqual(restored.document.project, session.before.project)
+  const restoredAudio = await context.request.get(new URL("/api/v1/audio", url).toString())
+  assert.equal(restoredAudio.status(), 200)
+  assert.deepEqual(await restoredAudio.body(), session.originalAudio)
   const removed = await context.request.post(new URL("/api/v1/library/actions", url).toString(), {
     headers: { "x-csrf-token": current.csrf_token },
     data: {
@@ -83,5 +90,5 @@ export async function restoreUcsSession(context, url, session) {
     },
   })
   assert.equal(removed.status(), 200, await removed.text())
-  console.log("Original active chart preserved and restored; disposable UCS song removed.")
+  console.log("Original active chart and audio restored; disposable UCS song removed.")
 }

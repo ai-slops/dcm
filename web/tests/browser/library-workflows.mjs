@@ -44,8 +44,8 @@ try {
   await page.screenshot({ path: resolve(evidence, "desktop-library.png") })
 
   const create = page.getByRole("region", { name: "Create song", exact: true })
-  await create.getByLabel("Song title", { exact: true }).fill(originalTitle)
-  await create.getByLabel("Artist", { exact: true }).fill("임시 검증용 아티스트")
+  await create.getByLabel("Audio label", { exact: true }).fill(originalTitle)
+  assert.equal(await create.getByLabel("Artist", { exact: true }).count(), 0)
   await create.getByLabel("First chart name", { exact: true }).fill(doubleName)
   await create.locator("select").selectOption("Double")
   await create.getByLabel("BPM", { exact: true }).fill("138")
@@ -57,6 +57,8 @@ try {
   assert.ok(temporarySong)
   temporarySongId = temporarySong.id
   assert.equal(temporarySong.title, originalTitle)
+  assert.equal(temporarySong.artist, "Unspecified")
+  const compatibilityArtist = temporarySong.artist
   assert.equal(
     created.library.charts.some(
       (chart) =>
@@ -110,14 +112,14 @@ try {
     false,
   )
 
-  await songSection(page).getByLabel("Title", { exact: true }).fill(renamedTitle)
+  assert.equal(await songSection(page).getByLabel("Artist", { exact: true }).count(), 0)
+  await songSection(page).getByLabel("Audio label", { exact: true }).fill(renamedTitle)
   const renamedSong = await libraryMutation(page, "/api/v1/library/actions", () =>
-    songSection(page).getByRole("button", { name: "Rename song", exact: true }).click(),
+    songSection(page).getByRole("button", { name: "Rename audio label", exact: true }).click(),
   )
-  assert.equal(
-    renamedSong.library.songs.find((song) => song.id === temporarySong.id)?.title,
-    renamedTitle,
-  )
+  const renamedSongMetadata = renamedSong.library.songs.find((song) => song.id === temporarySong.id)
+  assert.equal(renamedSongMetadata?.title, renamedTitle)
+  assert.equal(renamedSongMetadata?.artist, compatibilityArtist)
 
   await closeLibrary(page)
   const emptyCell = page.getByRole("button", { name: /empty$/ }).first()
@@ -222,6 +224,7 @@ try {
     charts_created: [doubleName, singleName],
     duplicate_renamed_deleted: true,
     dirty_save_and_switch: true,
+    compatibility_metadata_preserved: true,
     audio_replaced_and_played: true,
     zip_entries: zipEntries.length,
     reload_persisted: true,

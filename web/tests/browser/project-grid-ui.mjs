@@ -201,7 +201,7 @@ await page.setViewportSize({ width: 375, height: 812 })
 await page.locator(".project-grid-workspace").evaluate((element) => {
   element.scrollTop = 0
 })
-const cue = page.getByText("Scroll sideways inside the grid to reach all 10 lanes.")
+const cue = page.getByText("Scroll sideways inside the timeline to reach all 10 lanes.")
 const cueBox = await cue.boundingBox()
 assert.ok(cueBox !== null && cueBox.y >= 0 && cueBox.y < 812)
 assert.equal(

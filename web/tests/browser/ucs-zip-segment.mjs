@@ -7,6 +7,7 @@ import { strToU8, zipSync } from "fflate"
 import { chromium } from "playwright"
 
 import { loadDemo } from "../../server/demo.ts"
+import { SINGLE_BROWSER_UCS_FIXTURE } from "./ucs-beat-support.mjs"
 import { createUcsSession, restoreUcsSession } from "./ucs-session.mjs"
 import {
   bootstrap,
@@ -14,7 +15,6 @@ import {
   extendDemoAudio,
   ownedMutation,
   repoRoot,
-  SINGLE_UCS_FIXTURE,
   saveRecovery,
 } from "./ucs-support.mjs"
 
@@ -89,18 +89,18 @@ try {
   const invalid = resolve(evidence, "missing-music.zip")
   writeFileSync(
     single,
-    zipSync({ "곡/Single.ucs": strToU8(SINGLE_UCS_FIXTURE), "곡/music.wav": audio }),
+    zipSync({ "곡/Single.ucs": strToU8(SINGLE_BROWSER_UCS_FIXTURE), "곡/music.wav": audio }),
   )
   writeFileSync(
     multiple,
     zipSync({
-      "곡/Easy.ucs": strToU8(SINGLE_UCS_FIXTURE),
-      "곡/Hard.ucs": strToU8(SINGLE_UCS_FIXTURE.replace("M.X..", "M..X.")),
+      "곡/Easy.ucs": strToU8(SINGLE_BROWSER_UCS_FIXTURE),
+      "곡/Hard.ucs": strToU8(SINGLE_BROWSER_UCS_FIXTURE.replace("M.X..", "M..X.")),
       "곡/music.wav": audio,
       "곡/preview.wav": demo.audio,
     }),
   )
-  writeFileSync(invalid, zipSync({ "chart.ucs": strToU8(SINGLE_UCS_FIXTURE) }))
+  writeFileSync(invalid, zipSync({ "chart.ucs": strToU8(SINGLE_BROWSER_UCS_FIXTURE) }))
   await page.goto(configuration.url)
   await page.getByText("Audio ready", { exact: true }).waitFor()
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
@@ -109,9 +109,7 @@ try {
   owned = await ownedMutation(page, "/api/v1/ucs/import", () =>
     page.getByRole("button", { name: "Import selected ZIP files", exact: true }).click(),
   )
-  assert.deepEqual(owned.project.music.audio_sha256, [
-    ...createHash("sha256").update(audio).digest(),
-  ])
+  assert.equal(owned.project.audio_sha256, createHash("sha256").update(audio).digest("hex"))
   await page.getByText("Audio ready", { exact: true }).waitFor()
 
   await page.getByRole("button", { name: "UCS transfer", exact: true }).click()
@@ -129,8 +127,12 @@ try {
   owned = await ownedMutation(page, "/api/v1/ucs/import", () =>
     page.getByRole("button", { name: "Import selected ZIP files", exact: true }).click(),
   )
-  assert.ok(owned.project.chart.notes.some((note) => note.tick === 0 && note.panel_mask === 8))
-  assert.equal(owned.project.music.offset_micros, 125_000)
+  assert.ok(
+    owned.project.notes.some(
+      (note) => note.at.numerator === 0 && note.at.denominator === 1 && note.panel_mask === 8,
+    ),
+  )
+  assert.equal(owned.project.timing.offset_micros, 125_000)
   await page.getByText("Audio ready", { exact: true }).waitFor()
 
   await chooseSegment(0.75, 1.25)
@@ -160,7 +162,6 @@ try {
 
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 900 })
-    if (width < 1200) await page.getByRole("tab", { name: "preview", exact: true }).click()
     await page.getByRole("button", { name: "Segment", exact: true }).click()
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -187,7 +188,7 @@ try {
   )
   assert.deepEqual(errors, [])
   console.log(
-    "PASS: HTTPS ZIP chart/music selection, atomic audio import, segment end pause, interval looping, end-of-media looping, invalid range, mobile preview and reload reset.",
+    "PASS: HTTPS ZIP chart/audio selection, exact beat import, atomic audio replacement, segment end pause, interval looping, end-of-media looping, invalid range, responsive editor and reload reset.",
   )
 } finally {
   try {

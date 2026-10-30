@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 
 import { AgentRunSnapshotSchema } from "../../shared/index.ts"
-import { bootstrap } from "./ucs-support.mjs"
+import { bootstrap, importProject } from "./ucs-support.mjs"
 
 export async function observeAgentBrowser(page, origin) {
   const errors = []
@@ -71,6 +71,21 @@ export async function verifyDecisionSerialization(page, ownerId, action) {
     () => !document.querySelector('[aria-label="Agent instruction"]').disabled,
   )
   await page.getByLabel("Agent instruction").fill("")
+}
+
+export async function restoreAgentDocument(context, url, baseline, audio, owned) {
+  const current = await bootstrap(context, url)
+  assert.deepEqual(current.document, owned, "Concurrent edit detected; refusing to overwrite it")
+  const restored = await importProject(context, url, {
+    csrfToken: current.csrf_token,
+    revision: current.document.revision,
+    project: baseline.project,
+    audio,
+  })
+  assert.deepEqual(restored.project, baseline.project)
+  const restoredAudio = await context.request.get(new URL("/api/v1/audio", url).toString())
+  assert.equal(restoredAudio.status(), 200)
+  assert.deepEqual(await restoredAudio.body(), audio)
 }
 
 export function agentBrowser(page, url) {
