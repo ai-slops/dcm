@@ -25,17 +25,6 @@
   border-block-end: var(--stroke-hairline) solid var(--border-subtle);
 }
 
-.library-previews-link {
-  min-block-size: var(--control-default);
-  display: inline-flex;
-  align-items: center;
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--cyan-high);
-  text-decoration: none;
-  box-shadow: var(--depth-control);
-}
-
 .library-section,
 .library-song-detail,
 .library-form,
@@ -222,10 +211,6 @@
 }
 
 @media (max-width: 767px) {
-  .library-previews-link {
-    min-block-size: var(--control-touch);
-  }
-
   .library-form__grid {
     grid-template-columns: minmax(0, 1fr);
   }
