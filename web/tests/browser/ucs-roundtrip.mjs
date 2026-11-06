@@ -6,7 +6,7 @@ import { resolve } from "node:path"
 import { chromium } from "playwright"
 
 import { loadDemo } from "../../server/demo.ts"
-import { BeatChartCoreSchema } from "../../shared/index.ts"
+import { BeatChartCoreSchema, CurrentDocumentSchema } from "../../shared/index.ts"
 import { beatToAudioMicros } from "../../src/domain/beat-timing.ts"
 import {
   downloadBeatUcs,
@@ -202,6 +202,7 @@ try {
       },
     },
   )
+  if (shortImport.status() === 200) owned = CurrentDocumentSchema.parse(await shortImport.json())
   assert.equal(shortImport.status(), 422)
   assert.equal((await shortImport.json()).error.code, "ucs_project_incompatible")
   assert.deepEqual((await bootstrap(context, configuration.url)).document, owned)

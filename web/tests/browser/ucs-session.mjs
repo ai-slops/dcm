@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 
+import { CurrentDocumentSchema } from "../../shared/index.ts"
 import { LibraryMutationSchema } from "../../shared/library.ts"
 import { librarySnapshot } from "./library-support.mjs"
 import { bootstrap } from "./ucs-support.mjs"
@@ -55,7 +56,26 @@ export async function openSingleFixture(context, url, songId) {
     },
   })
   assert.equal(response.status(), 200, await response.text())
-  return LibraryMutationSchema.parse(await response.json()).document
+  const opened = LibraryMutationSchema.parse(await response.json()).document
+  // The short-import rejection must not depend on the active song's inherited defaults.
+  const fixture = await context.request.put(new URL("/api/v1/document", url).toString(), {
+    headers: { "x-csrf-token": current.csrf_token },
+    data: {
+      base_revision: opened.revision,
+      project: {
+        ...opened.project,
+        evaluation_contract: {
+          ...opened.project.evaluation_contract,
+          difficulty: {
+            ...opened.project.evaluation_contract.difficulty,
+            local_windows: [{ width: { numerator: 4, denominator: 1 }, maximum_load: 1_000_000 }],
+          },
+        },
+      },
+    },
+  })
+  assert.equal(fixture.status(), 200, await fixture.text())
+  return CurrentDocumentSchema.parse(await fixture.json())
 }
 
 export async function restoreUcsSession(context, url, session) {
