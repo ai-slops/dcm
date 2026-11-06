@@ -79,8 +79,21 @@ try {
   await page.screenshot({ path: resolve(evidence, "single-rules-and-result.png") })
   await openGeneratedThroughUi(page)
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  assert.equal(await page.locator(".timeline__header > span").count(), 7)
-  assert.equal(await page.getByRole("button", { name: /^R .*beat/ }).count(), 0)
+  assert.deepEqual(await page.locator(".timeline__header > span").allTextContents(), [
+    "L DL",
+    "L UL",
+    "L C",
+    "L UR",
+    "L DR",
+    "Beat / Tempo",
+  ])
+  assert.equal(await page.locator(".timeline__lane-surfaces > div").count(), 5)
+  assert.equal(
+    await page
+      .locator(".timeline--single [data-lane]")
+      .evaluateAll((nodes) => nodes.some((node) => Number(node.getAttribute("data-lane")) >= 5)),
+    false,
+  )
   await page.getByRole("button", { name: "Play", exact: true }).click()
   await page.waitForFunction(
     () => window.__studioAudio.currentTime > 0.2 && !window.__studioAudio.paused,
@@ -163,13 +176,26 @@ try {
   assert.ok(doubleResult.chart.notes.every((note) => note.panel_mask === 32))
   await openGeneratedThroughUi(page)
   await page.getByText("Audio ready", { exact: true }).waitFor()
-  assert.equal(await page.locator(".timeline__header > span").count(), 12)
+  assert.deepEqual(await page.locator(".timeline__header > span").allTextContents(), [
+    "L DL",
+    "L UL",
+    "L C",
+    "L UR",
+    "L DR",
+    "R DL",
+    "R UL",
+    "R C",
+    "R UR",
+    "R DR",
+    "Beat / Tempo",
+  ])
+  assert.equal(await page.locator(".timeline__lane-surfaces > div").count(), 10)
   const timelineScroller = page.locator(".timeline__scroller")
   await timelineScroller.evaluate((element) => {
     element.scrollLeft = element.scrollWidth
   })
   const scroller = await timelineScroller.boundingBox()
-  const lastLane = await page.locator(".timeline__header > span").last().boundingBox()
+  const lastLane = await page.locator(".timeline__header > span").nth(9).boundingBox()
   assert.ok(scroller && lastLane)
   assert.ok(
     lastLane.x >= scroller.x - 1 && lastLane.x + lastLane.width <= scroller.x + scroller.width + 1,
