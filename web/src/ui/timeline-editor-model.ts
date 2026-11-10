@@ -67,20 +67,7 @@ export function timelineTimingWithEnd(
   }
 }
 
-export function boundedTimelineNoteGeometry(input: {
-  readonly headY: number
-  readonly tailY: number
-  readonly visibleStartY: number
-  readonly visibleEndY: number
-  readonly runwaySize: number
-}): { readonly insetBlockStart: number; readonly blockSize: number } | null {
-  const lowerBound = Math.max(0, input.visibleStartY)
-  const upperBound = Math.min(input.runwaySize, input.visibleEndY)
-  if (input.headY > upperBound || input.tailY < lowerBound) return null
-  const insetBlockStart = Math.max(input.headY, lowerBound)
-  const end = Math.min(Math.max(input.tailY, insetBlockStart), upperBound)
-  return { insetBlockStart, blockSize: end - insetBlockStart }
-}
+export { boundedTimelineNoteGeometry } from "@piu/chart-editor/geometry"
 
 export function nudgeTimelineEnd(
   at: Beat,

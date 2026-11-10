@@ -554,3 +554,17 @@ The fixture returns scripted chart proposals, not intelligent language-model ans
 it as evidence of external model quality. The repository verification covers real native commands,
 HTTP behavior, browser editing/playback, and the Part tool loop; actual provider credentials and
 a physical Windows browser/MSVC environment were not available in this workspace.
+
+## Shared editor package
+
+`packages/chart-editor` owns framework-independent exact beat arithmetic, audio-time
+projection and clipped hold geometry consumed by the Studio. The package also exposes
+source-bound interval review and canvas primitives for video-review consumers; these
+do not change DCM's UCS output or native generation/evaluation semantics. Weighted
+hold ticks and independent scroll changes are not encoded into ordinary UCS rows.
+
+After installing web dependencies, `pnpm --dir web run build:shared` builds the package.
+Studio build, typecheck and test scripts run that build first. A downstream project can
+run `pnpm --dir packages/chart-editor pack --out /absolute/path/chart-editor.tgz`
+and install the resulting tarball. Build artifacts remain ignored. Run package tests
+with `node --test packages/chart-editor/tests/model.test.ts`.

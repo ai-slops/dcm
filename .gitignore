@@ -17,3 +17,5 @@
 /artifacts/font-qa/
 /core.[0-9]*
 /web/core.[0-9]*
+
+/packages/chart-editor/dist/

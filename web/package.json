@@ -19,7 +19,11 @@
     "start": "node --env-file-if-exists=.env dist/server.js",
     "test": "vitest run",
     "test:browser:ucs": "node tests/browser/ucs-roundtrip.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:shared": "tsc -p ../packages/chart-editor/tsconfig.json",
+    "prebuild": "corepack pnpm run build:shared",
+    "pretypecheck": "corepack pnpm run build:shared",
+    "pretest": "corepack pnpm run build:shared"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
@@ -31,7 +35,8 @@
     "lucide-react": "1.59.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@piu/chart-editor": "link:../packages/chart-editor"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
