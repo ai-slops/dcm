@@ -10,7 +10,7 @@ export type ChartView = {
   observations: ReviewNote[]
   selected: string | null
 }
-const colors = ["#f18a97", "#77bce8", "#e9d475", "#77bce8", "#f18a97"]
+const colors = ["#77bce8", "#f18a97", "#e9d475", "#f18a97", "#77bce8"]
 export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
   const ratio = window.devicePixelRatio || 1,
     width = canvas.clientWidth,
@@ -89,9 +89,9 @@ export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
       c.lineWidth = 2
       c.strokeRect(
         x - lane * 0.4,
-        Math.max(top, head) - 7,
+        Math.max(top, head) - size / 2 - 3,
         lane * 0.8,
-        Math.max(14, Math.min(height, tail) - Math.max(top, head) + 14),
+        Math.max(size + 6, Math.min(height, tail) - Math.max(top, head) + size + 6),
       )
     }
     c.globalAlpha = 1
