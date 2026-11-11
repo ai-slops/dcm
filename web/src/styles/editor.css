@@ -245,3 +245,37 @@
   border-radius: var(--radius-sm);
   background: var(--surface-floating);
 }
+
+.timeline__exact-note {
+  min-block-size: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.timeline__exact-note.is-hold {
+  min-block-size: 0;
+  border: 0;
+  background: transparent;
+}
+.timeline__exact-note.is-hold::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: 10px;
+  transform: translateX(-50%);
+  background: var(--lane-tone);
+  opacity: 0.65;
+}
+.timeline__note-glyph {
+  position: absolute;
+  inset-inline-start: 50%;
+  inline-size: var(--timeline-row-size);
+  block-size: var(--timeline-row-size);
+  transform: translate(-50%, -50%);
+  fill: var(--lane-tone);
+  stroke: var(--lane-tone-high);
+  stroke-width: 0.06;
+  pointer-events: none;
+}

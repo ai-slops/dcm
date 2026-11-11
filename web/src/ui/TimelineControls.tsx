@@ -1,3 +1,4 @@
+import { displaySeconds } from "@piu/chart-editor/glyphs"
 import { useId } from "react"
 
 import { type BeatTiming, MAX_EDIT_ROWS_PER_MEASURE, type UcsMode } from "../../shared/index.ts"
@@ -10,6 +11,7 @@ type TimelineControlsProps = {
   readonly mode: UcsMode
   readonly playback: AudioPlaybackController
   readonly selectedSplit: number
+  readonly pixelsPerSecond: number
   readonly lookaheadSeconds: number
   readonly error?: string
   readonly disabled: boolean
@@ -48,7 +50,6 @@ export function TimelineControls(props: TimelineControlsProps) {
           id={lookaheadId}
           className="mono"
           aria-label="Editor lookahead seconds"
-          disabled={props.disabled}
           max="12"
           min="0.1"
           step="0.05"
@@ -60,6 +61,25 @@ export function TimelineControls(props: TimelineControlsProps) {
           }}
         />
         <span>seconds</span>
+      </label>
+      <label>
+        Note spacing
+        <input
+          aria-label="Note display spacing"
+          type="number"
+          min="20"
+          max="1000"
+          step="1"
+          value={Math.round(props.pixelsPerSecond)}
+          onChange={(event) => {
+            const value = event.currentTarget.valueAsNumber
+            if (Number.isFinite(value) && value >= 20 && value <= 1000) {
+              const seconds = displaySeconds(props.pixelsPerSecond * props.lookaheadSeconds, value)
+              props.onLookaheadChange(Math.max(0.1, Math.min(12, seconds)))
+            }
+          }}
+        />
+        <span>px / second</span>
       </label>
       <OffsetMillisecondsField
         offsetMicros={props.timing.offset_micros}

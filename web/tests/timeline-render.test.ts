@@ -43,6 +43,8 @@ it("renders exact off-section notes and complete holds without moving imported d
   )
 
   // Then the structured note alternative preserves every exact fraction
+  expect(markup).toContain("timeline__note-glyph")
+  expect(markup).toContain("Note spacing")
   expect(markup).toContain("Beat 1/3, mask 1, hold 0")
   expect(markup).toContain("Beat 3/2, mask 2, hold 1/2")
 })

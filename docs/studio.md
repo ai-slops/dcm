@@ -568,3 +568,11 @@ Studio build, typecheck and test scripts run that build first. A downstream proj
 run `pnpm --dir packages/chart-editor pack --out /absolute/path/chart-editor.tgz`
 and install the resulting tarball. Build artifacts remain ignored. Run package tests
 with `node --test packages/chart-editor/tests/model.test.ts`.
+
+### Note symbols and display spacing
+
+The timeline uses directional arrow heads and a diamond for each pad's center lane. Holds retain
+a connected body and their actual visible head/tail symbols; clipped endpoints are not invented.
+**Note spacing** adjusts pixels per audio second. It stays linked to **Lookahead**, preserving
+the judgment-line audio anchor. Both display controls work for read-only charts and never edit
+beats, BPM, offsets or note data.

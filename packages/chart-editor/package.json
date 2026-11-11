@@ -24,7 +24,11 @@
       "types": "./dist/geometry.d.ts",
       "default": "./dist/geometry.js"
     },
-    "./canvas": "./dist/canvas.js"
+    "./canvas": "./dist/canvas.js",
+    "./glyphs": {
+      "types": "./dist/glyphs.d.ts",
+      "default": "./dist/glyphs.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

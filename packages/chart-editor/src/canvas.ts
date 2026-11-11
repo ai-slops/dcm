@@ -1,4 +1,5 @@
 /** Shared framework-independent, bounded source-time chart editor. */
+import { noteGlyph, noteGlyphSize } from "./glyphs.ts"
 import { laneLabels, type ReviewNote, type HoldTick } from "./model.ts"
 export type ChartView = {
   start: number
@@ -23,6 +24,8 @@ export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
     top = 30,
     lane = (width - left) / v.lanes,
     y = (s: number) => top + ((s - v.start) / (v.end - v.start)) * (height - top)
+  const size = noteGlyphSize(lane)
+  canvas.dataset.noteSize = String(size)
   c.fillStyle = "#151c20"
   c.fillRect(0, 0, width, height)
   c.font = "12px system-ui"
@@ -69,7 +72,17 @@ export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
       [n.kind === "tap" ? null : n.end_seconds, tail],
     ] as const) {
       if (time === null || py < top || py > height) continue
-      c.fillRect(x - Math.min(13, lane * 0.32), py - 4, Math.min(26, lane * 0.64), 8)
+      c.beginPath()
+      noteGlyph(n.lane).forEach(([gx, gy], index) => {
+        const px = x + gx * size / 2.2, ny = py + gy * size / 2.2
+        if (index === 0) c.moveTo(px, ny)
+        else c.lineTo(px, ny)
+      })
+      c.closePath()
+      c.fill()
+      c.strokeStyle = "#e7efed"
+      c.lineWidth = 0.8
+      c.stroke()
     }
     if (v.selected === n.id) {
       c.strokeStyle = "#ffffff"
@@ -83,6 +96,10 @@ export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
     }
     c.globalAlpha = 1
   }
+  c.save()
+  c.beginPath()
+  c.rect(left, top, width - left, height - top)
+  c.clip()
   v.observations.forEach((n) => paint(n, true))
   v.notes.forEach((n) => paint(n, false))
   for (const t of v.ticks) {
@@ -90,6 +107,7 @@ export function drawChart(canvas: HTMLCanvasElement, v: ChartView): void {
     c.fillStyle = "#c3dfa4"
     c.fillText(`×${t.count ?? "?"}`, left + 3, y(t.seconds) - 5)
   }
+  c.restore()
 }
 export function chartPoint(
   canvas: HTMLCanvasElement,

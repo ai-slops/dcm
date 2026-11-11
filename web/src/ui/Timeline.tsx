@@ -169,6 +169,7 @@ export function Timeline(props: TimelineProps) {
         mode={props.mode}
         playback={props.playback}
         selectedSplit={selectedSplit}
+        pixelsPerSecond={virtual.pixelsPerMicrosecond * 1_000_000}
         lookaheadSeconds={lookaheadSeconds}
         disabled={props.readOnly === true}
         {...(props.error ? { error: props.error } : {})}

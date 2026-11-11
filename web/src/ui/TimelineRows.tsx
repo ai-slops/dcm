@@ -1,3 +1,4 @@
+import { noteGlyphPath } from "@piu/chart-editor/glyphs"
 import { useMemo } from "react"
 
 import type { Beat, BeatNote, BeatTiming } from "../../shared/beat.ts"
@@ -207,6 +208,10 @@ function ExactNote(props: {
     runwaySize: props.runwaySize,
   })
   if (geometry === null) return null
+  const headY = props.audioMicrosToY(headMicros),
+    tailY = props.audioMicrosToY(tailMicros)
+  const origin = hold ? geometry.insetBlockStart : headY - 17
+  const caps = hold ? [headY, tailY] : [headY]
   return (
     <button
       type="button"
@@ -220,10 +225,25 @@ function ExactNote(props: {
       data-lane={props.lane}
       data-tone={laneTone(props.lane)}
       style={{
-        insetBlockStart: `${geometry.insetBlockStart}px`,
-        blockSize: `${geometry.blockSize}px`,
+        insetBlockStart: `${origin}px`,
+        blockSize: `${hold ? geometry.blockSize : 34}px`,
       }}
-    />
+    >
+      {caps.map((y, index) =>
+        y < props.audioMicrosToY(props.visibleAudioRange.startMicros) ||
+        y > props.audioMicrosToY(props.visibleAudioRange.endMicros) ? null : (
+          <svg
+            className="timeline__note-glyph"
+            key={index === 0 ? "head" : "tail"}
+            viewBox="-1.1 -1.1 2.2 2.2"
+            aria-hidden="true"
+            style={{ top: y - origin }}
+          >
+            <path d={noteGlyphPath(props.lane)} />
+          </svg>
+        ),
+      )}
+    </button>
   )
 }
 
